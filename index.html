@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WINK — Your AI Academic Companion</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{--navy:#041e42;--blue:#1d4ed8;--orange:#f97316;}
+body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:radial-gradient(circle at top left,#0b1120,#020617);min-height:100vh;}
+.app{display:flex;flex-direction:column;min-height:100vh;}
+
+/* TOP NAV */
+.topnav{background:linear-gradient(135deg,#041e42,#1d4ed8,#f97316);padding:0 20px;display:flex;align-items:center;height:54px;gap:0;position:sticky;top:0;z-index:100;}
+.topnav-brand{display:flex;align-items:center;gap:10px;margin-right:20px;}
+.tnav-img{width:38px;height:38px;border-radius:50%;object-fit:cover;object-position:top center;border:2px solid rgba(255,255,255,0.55);}
+.tnav-name{color:#fff;font-weight:900;font-size:18px;letter-spacing:0.1em;}
+.tnav-sub{color:rgba(255,255,255,0.8);font-size:10px;}
+.nav-tabs{display:flex;height:100%;}
+.nav-tab{padding:0 15px;height:100%;display:flex;align-items:center;gap:6px;color:rgba(255,255,255,0.7);font-size:13px;font-weight:500;cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap;transition:color 0.15s;}
+.nav-tab:hover{color:#fff;}
+.nav-tab.active{color:#fff;border-bottom-color:#f97316;}
+.nav-tab svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
+.tnav-pill{margin-left:auto;font-size:11px;padding:4px 10px;border-radius:999px;border:1px solid rgba(255,255,255,0.5);background:rgba(15,23,42,0.22);color:#fff;}
+
+.page{display:none;flex:1;}
+.page.active{display:flex;}
+
+/* DASHBOARD */
+.dash-wrap{flex:1;padding:20px;display:flex;flex-direction:column;gap:16px;}
+.dash-hero{background:linear-gradient(135deg,#041e42,#1d4ed8);border-radius:16px;padding:18px 22px;display:flex;align-items:center;gap:18px;border:1px solid rgba(148,163,184,0.2);}
+.dash-hero-img{width:88px;height:88px;border-radius:50%;object-fit:cover;object-position:top center;border:3px solid #f97316;flex-shrink:0;}
+.dash-hero-text h2{color:#f9fafb;font-size:19px;font-weight:800;margin-bottom:5px;}
+.dash-hero-text p{color:rgba(229,231,235,0.88);font-size:13px;line-height:1.55;}
+.hero-btn{margin-top:10px;display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#f97316,#1d4ed8);color:#fff;border:none;border-radius:999px;padding:7px 16px;font-size:12px;cursor:pointer;font-weight:600;}
+.stat-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;}
+.stat-card{background:rgba(255,255,255,0.04);border:1px solid rgba(148,163,184,0.18);border-radius:14px;padding:14px 16px;text-align:center;}
+.stat-num{font-size:28px;font-weight:900;color:#f97316;}
+.stat-lbl{font-size:11px;color:rgba(229,231,235,0.65);margin-top:3px;letter-spacing:0.04em;}
+.dash-cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.panel{background:rgba(255,255,255,0.03);border:1px solid rgba(148,163,184,0.18);border-radius:14px;padding:16px;}
+.panel-title{font-size:11px;font-weight:700;color:rgba(249,250,251,0.55);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:12px;}
+.dl-item{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(148,163,184,0.1);}
+.dl-item:last-child{border-bottom:none;}
+.dl-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+.dot-hot{background:#f97316;}.dot-mid{background:#1d4ed8;}.dot-ok{background:rgba(148,163,184,0.45);}
+.dl-info{flex:1;}
+.dl-course{font-size:10px;color:rgba(148,163,184,0.75);}
+.dl-task{font-size:13px;color:#f1f5f9;font-weight:500;}
+.dl-due{font-size:11px;color:rgba(148,163,184,0.65);white-space:nowrap;}
+.res-item{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(148,163,184,0.1);}
+.res-item:last-child{border-bottom:none;}
+.res-icon{width:32px;height:32px;border-radius:8px;background:rgba(29,78,216,0.22);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.res-icon svg{width:15px;height:15px;fill:none;stroke:#93c5fd;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
+.res-name{font-size:13px;color:#f1f5f9;}
+.res-desc{font-size:11px;color:rgba(148,163,184,0.65);}
+.res-link{font-size:11px;color:#f97316;margin-left:auto;cursor:pointer;text-decoration:none;}
+
+/* COURSES */
+.courses-wrap{flex:1;padding:20px;display:flex;flex-direction:column;gap:16px;}
+.courses-hdr{display:flex;align-items:center;justify-content:space-between;}
+.courses-hdr h2{color:#f9fafb;font-size:20px;font-weight:800;}
+.add-btn{background:linear-gradient(135deg,#f97316,#1d4ed8);color:#fff;border:none;border-radius:999px;padding:8px 16px;font-size:12px;cursor:pointer;font-weight:600;}
+.crs-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;}
+.crs-card{background:rgba(255,255,255,0.04);border:1px solid rgba(148,163,184,0.18);border-radius:16px;overflow:hidden;cursor:pointer;transition:border-color 0.2s;}
+.crs-card:hover{border-color:rgba(249,115,22,0.5);}
+.crs-top{height:6px;}
+.crs-body{padding:14px 16px;}
+.crs-code{font-size:11px;color:rgba(148,163,184,0.7);font-weight:600;letter-spacing:0.08em;margin-bottom:3px;}
+.crs-name{font-size:15px;color:#f9fafb;font-weight:700;margin-bottom:2px;}
+.crs-prof{font-size:12px;color:rgba(148,163,184,0.75);}
+.crs-meta{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap;}
+.badge{font-size:10px;padding:3px 8px;border-radius:999px;font-weight:600;}
+.b-blue{background:rgba(29,78,216,0.25);color:#93c5fd;}
+.b-orange{background:rgba(249,115,22,0.2);color:#fdba74;}
+.b-green{background:rgba(16,185,129,0.2);color:#6ee7b7;}
+.b-purple{background:rgba(139,92,246,0.2);color:#c4b5fd;}
+.crs-docs{font-size:11px;color:rgba(148,163,184,0.55);margin-left:auto;}
+.crs-footer{padding:10px 16px;border-top:1px solid rgba(148,163,184,0.1);display:flex;align-items:center;gap:8px;background:rgba(15,23,42,0.3);}
+.prog-bar{flex:1;height:5px;background:rgba(148,163,184,0.15);border-radius:999px;overflow:hidden;}
+.prog-fill{height:100%;background:linear-gradient(90deg,#1d4ed8,#f97316);border-radius:999px;}
+.prog-lbl{font-size:10px;color:rgba(148,163,184,0.6);}
+
+/* CALENDAR */
+.cal-wrap{flex:1;padding:20px;display:flex;gap:16px;}
+.cal-main{flex:1;display:flex;flex-direction:column;gap:14px;}
+.cal-hdr{display:flex;align-items:center;justify-content:space-between;}
+.cal-hdr h2{color:#f9fafb;font-size:20px;font-weight:800;}
+.cal-nav{display:flex;align-items:center;gap:10px;}
+.cal-nav-btn{background:rgba(255,255,255,0.06);border:1px solid rgba(148,163,184,0.2);color:#f9fafb;border-radius:8px;padding:5px 10px;cursor:pointer;font-size:13px;}
+.cal-month-lbl{color:#f9fafb;font-size:14px;font-weight:600;min-width:110px;text-align:center;}
+.cal-grid{background:rgba(255,255,255,0.03);border:1px solid rgba(148,163,184,0.15);border-radius:14px;overflow:hidden;}
+.cal-wds{display:grid;grid-template-columns:repeat(7,1fr);background:rgba(29,78,216,0.2);}
+.cal-wd{text-align:center;padding:8px 4px;font-size:11px;font-weight:700;color:rgba(148,163,184,0.75);letter-spacing:0.06em;}
+.cal-days{display:grid;grid-template-columns:repeat(7,1fr);}
+.cal-day{min-height:62px;padding:6px 7px;border-right:1px solid rgba(148,163,184,0.08);border-bottom:1px solid rgba(148,163,184,0.08);}
+.cal-day:nth-child(7n){border-right:none;}
+.day-num{font-size:12px;color:rgba(148,163,184,0.6);margin-bottom:3px;}
+.cal-day.today{background:rgba(249,115,22,0.07);}
+.cal-day.today .day-num{color:#f97316;font-weight:800;}
+.cal-day.other .day-num{color:rgba(148,163,184,0.22);}
+.cal-evt{font-size:10px;padding:2px 5px;border-radius:4px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ev-blue{background:rgba(29,78,216,0.4);color:#bfdbfe;}
+.ev-orange{background:rgba(249,115,22,0.35);color:#fed7aa;}
+.ev-green{background:rgba(16,185,129,0.3);color:#a7f3d0;}
+.cal-side{width:210px;display:flex;flex-direction:column;gap:14px;}
+.upcoming-panel{background:rgba(255,255,255,0.03);border:1px solid rgba(148,163,184,0.18);border-radius:14px;padding:14px;}
+.up-item{padding:8px 0;border-bottom:1px solid rgba(148,163,184,0.1);}
+.up-item:last-child{border-bottom:none;}
+.up-date{font-size:10px;color:#f97316;font-weight:700;margin-bottom:2px;}
+.up-name{font-size:12px;color:#f1f5f9;}
+.up-course{font-size:10px;color:rgba(148,163,184,0.6);}
+
+/* CHAT */
+.chat-wrap{flex:1;display:flex;padding:14px;gap:14px;}
+.chat-left{width:230px;flex-shrink:0;background:linear-gradient(160deg,#041e42,#0f172a);border-radius:16px;padding:14px;border:1px solid rgba(148,163,184,0.15);}
+.chat-left-inner{background:radial-gradient(circle at top left,rgba(219,234,254,0.08),transparent 55%),radial-gradient(circle at bottom right,rgba(254,215,170,0.12),transparent 60%),rgba(15,23,42,0.9);border-radius:14px;box-shadow:0 20px 45px rgba(0,0,0,0.6),0 0 0 1px rgba(148,163,184,0.35);padding:14px 12px;text-align:center;}
+.lft-badge{padding:9px 10px 6px;border-radius:10px;background:linear-gradient(135deg,#041e42,#1d4ed8);color:#e5e7eb;margin-bottom:12px;box-shadow:0 14px 30px rgba(0,0,0,0.55);}
+.lft-badge .lt{font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.12em;}
+.lft-badge .ls{font-size:10px;margin-top:3px;opacity:0.9;}
+.wink-ring{margin:12px auto 8px;width:148px;height:148px;border-radius:50%;padding:5px;background:conic-gradient(from 220deg,#f97316,#1d4ed8,#041e42,#f97316);box-shadow:0 18px 40px rgba(0,0,0,0.65);}
+.wink-ring-inner{width:100%;height:100%;border-radius:50%;background:#020617;overflow:hidden;}
+.wink-ring-inner img{width:100%;height:100%;object-fit:cover;object-position:top center;}
+.lft-name{margin:6px 0 2px;color:#f9fafb;letter-spacing:0.06em;text-transform:uppercase;font-size:15px;font-weight:800;}
+.lft-tag{font-size:11px;color:#e5e7eb;opacity:0.88;margin-bottom:10px;line-height:1.4;}
+.clr-btn{padding:7px 11px;border-radius:999px;border:1px solid rgba(148,163,184,0.7);background:radial-gradient(circle at top left,rgba(15,23,42,0.96),rgba(15,23,42,0.9));color:#e5e7eb;font-size:11px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;margin-bottom:12px;}
+.clr-dot{width:7px;height:7px;border-radius:50%;background:#f97316;flex-shrink:0;}
+.try-box{font-size:11px;color:#e5e7eb;padding:9px 10px;border-radius:9px;background:radial-gradient(circle at top left,rgba(15,23,42,0.98),rgba(15,23,42,0.9));border:1px dashed rgba(148,163,184,0.8);text-align:left;}
+.try-title{font-weight:700;color:#f9fafb;margin-bottom:5px;font-size:12px;}
+.try-item{margin-bottom:4px;cursor:pointer;opacity:0.85;line-height:1.4;}
+.try-item:hover{color:#f97316;opacity:1;}
+.chat-right{flex:1;display:flex;flex-direction:column;background:radial-gradient(circle at top left,rgba(219,234,254,0.45),transparent 55%),radial-gradient(circle at bottom right,rgba(254,215,170,0.4),transparent 60%),rgba(255,255,255,0.98);border-radius:16px;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,0.4);border:1px solid rgba(148,163,184,0.22);}
+.chat-hdr{padding:10px 14px;background:linear-gradient(135deg,#041e42,#1d4ed8,#f97316);color:#fff;display:flex;align-items:center;justify-content:space-between;}
+.chat-hdr-left{display:flex;align-items:center;gap:8px;}
+.ch-av{width:32px;height:32px;border-radius:50%;overflow:hidden;border:2px solid rgba(255,255,255,0.45);}
+.ch-av img{width:100%;height:100%;object-fit:cover;object-position:top center;}
+.ch-title{font-weight:800;font-size:14px;}
+.ch-sub{font-size:10px;opacity:0.9;}
+.ch-pill{font-size:10px;padding:3px 9px;border-radius:999px;border:1px solid rgba(255,255,255,0.5);background:rgba(15,23,42,0.22);}
+.chat-body{flex:1;overflow-y:auto;padding:12px 14px;background:radial-gradient(circle at top left,rgba(219,234,254,0.18),transparent 45%),radial-gradient(circle at bottom right,rgba(254,215,170,0.15),transparent 55%),linear-gradient(to bottom,rgba(249,250,251,0.98),rgba(255,255,255,0.98));min-height:300px;}
+.chat-body::-webkit-scrollbar{width:6px;}
+.chat-body::-webkit-scrollbar-thumb{background:rgba(148,163,184,0.7);border-radius:999px;}
+.empty-st{color:#334155;font-size:13px;padding:10px 12px;border-radius:12px;background:linear-gradient(to right,rgba(219,234,254,0.55),rgba(254,215,170,0.55));border:1px dashed rgba(148,163,184,0.65);line-height:1.5;}
+.msg-row{margin-bottom:10px;display:flex;}
+.msg-row.user{justify-content:flex-end;}
+.msg-row.assistant{justify-content:flex-start;}
+.msg-bubble{max-width:76%;padding:9px 12px;border-radius:16px;font-size:14px;line-height:1.5;white-space:pre-wrap;word-wrap:break-word;box-shadow:0 8px 18px rgba(15,23,42,0.1);}
+.msg-row.user .msg-bubble{background:linear-gradient(135deg,#1d4ed8,#041e42);color:#fff;border-bottom-right-radius:4px;}
+.msg-row.assistant .msg-bubble{background:rgba(255,255,255,0.92);color:#0b1120;border:1px solid rgba(148,163,184,0.32);border-bottom-left-radius:4px;}
+.typing-ind{display:flex;gap:4px;align-items:center;padding:4px 0;}
+.td{width:7px;height:7px;border-radius:50%;background:#1d4ed8;opacity:0.6;animation:bop 1s infinite;}
+.td:nth-child(2){animation-delay:0.15s;}.td:nth-child(3){animation-delay:0.3s;}
+@keyframes bop{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-5px)}}
+.chat-input-bar{padding:8px 10px 10px;border-top:1px solid rgba(209,213,219,0.75);background:linear-gradient(to right,rgba(249,250,251,0.96),rgba(255,255,255,0.98));}
+.input-row{display:flex;gap:8px;align-items:flex-end;}
+.ta-wrap{position:relative;flex:1;}
+.mic-btn{position:absolute;left:8px;bottom:10px;font-size:13px;background:rgba(219,234,254,0.92);border-radius:999px;padding:2px 5px;cursor:pointer;border:none;z-index:1;}
+.chat-ta{width:100%;min-height:42px;max-height:120px;padding:10px 90px 10px 36px;border-radius:14px;border:1px solid rgba(148,163,184,0.55);font-family:inherit;font-size:13px;background:rgba(255,255,255,0.98);outline:none;resize:none;box-shadow:0 0 0 1px rgba(148,163,184,0.18);}
+.chat-ta:focus{border-color:rgba(29,78,216,0.65);box-shadow:0 0 0 3px rgba(29,78,216,0.18);}
+.file-ctrls{position:absolute;right:8px;bottom:8px;display:flex;gap:5px;}
+.att-btn,.fb-btn{border:1px solid rgba(148,163,184,0.55);background:rgba(249,250,251,0.95);cursor:pointer;border-radius:9px;color:#0b1120;font-size:12px;padding:4px 7px;}
+.send-btn{border:none;background:linear-gradient(135deg,#f97316,#1d4ed8);color:#fff;padding:10px 14px;border-radius:12px;font-size:13px;cursor:pointer;box-shadow:0 10px 20px rgba(15,23,42,0.25);white-space:nowrap;}
+
+/* UPLOAD */
+.upload-wrap{flex:1;padding:20px;display:flex;flex-direction:column;gap:16px;}
+.upload-wrap h2{color:#f9fafb;font-size:20px;font-weight:800;}
+.up-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.up-card{background:rgba(255,255,255,0.03);border:1px solid rgba(148,163,184,0.18);border-radius:16px;padding:18px;}
+.up-card h3{color:#f9fafb;font-size:14px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px;}
+.up-card h3 svg{width:18px;height:18px;fill:none;stroke:#f97316;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
+.drop-zone{border:2px dashed rgba(249,115,22,0.4);border-radius:12px;padding:26px;text-align:center;cursor:pointer;margin-bottom:12px;transition:all 0.2s;}
+.drop-zone:hover{border-color:rgba(249,115,22,0.7);background:rgba(249,115,22,0.04);}
+.drop-icon{font-size:26px;margin-bottom:7px;}
+.drop-text{color:rgba(148,163,184,0.8);font-size:13px;}
+.drop-sub{color:rgba(148,163,184,0.5);font-size:11px;margin-top:4px;}
+.up-select{width:100%;padding:8px 10px;border-radius:9px;border:1px solid rgba(148,163,184,0.3);background:rgba(255,255,255,0.05);color:#f1f5f9;font-size:13px;margin-bottom:10px;}
+.up-btn{width:100%;padding:10px;border-radius:10px;border:none;background:linear-gradient(135deg,#f97316,#1d4ed8);color:#fff;font-size:13px;cursor:pointer;font-weight:600;}
+.file-list{display:flex;flex-direction:column;gap:6px;}
+.file-item{display:flex;align-items:center;gap:10px;padding:8px 10px;background:rgba(255,255,255,0.04);border-radius:9px;border:1px solid rgba(148,163,184,0.12);}
+.fi{width:30px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.fi svg{width:15px;height:15px;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
+.fi-pdf{background:rgba(239,68,68,0.2);}.fi-pdf svg{stroke:#fca5a5;}
+.fi-doc{background:rgba(29,78,216,0.2);}.fi-doc svg{stroke:#93c5fd;}
+.file-name{flex:1;font-size:12px;color:#f1f5f9;}
+.file-sz{font-size:10px;color:rgba(148,163,184,0.6);}
+.file-del{color:rgba(148,163,184,0.5);cursor:pointer;font-size:16px;padding:0 4px;}
+.file-del:hover{color:#f87171;}
+
+@media(max-width:768px){
+  .nav-tabs{overflow-x:auto;}.nav-tab{padding:0 10px;font-size:11px;}
+  .stat-grid{grid-template-columns:repeat(2,1fr);}
+  .dash-cols,.crs-grid,.up-grid{grid-template-columns:1fr;}
+  .cal-wrap{flex-direction:column;}.cal-side{width:100%;}
+  .chat-wrap{flex-direction:column;}.chat-left{width:100%;}
+  .dash-hero{flex-direction:column;text-align:center;}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="topnav">
+    <div class="topnav-brand">
+      <img class="tnav-img" src="/static/WINK.jpeg" alt="WINK"/>
+      <div><div class="tnav-name">WINK</div><div class="tnav-sub">UTEP · Dr. Trevino</div></div>
+    </div>
+    <div class="nav-tabs">
+      <div class="nav-tab active" onclick="goPage('dashboard',this)">
+        <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Dashboard
+      </div>
+      <div class="nav-tab" onclick="goPage('courses',this)">
+        <svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>My Courses
+      </div>
+      <div class="nav-tab" onclick="goPage('calendar',this)">
+        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Calendar
+      </div>
+      <div class="nav-tab" onclick="goPage('chat',this)">
+        <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Ask WINK
+      </div>
+      <div class="nav-tab" onclick="goPage('upload',this)">
+        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Upload Docs
+      </div>
+    </div>
+    <div class="tnav-pill">/wink/lhall</div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="page active" id="page-dashboard" style="background:radial-gradient(circle at top left,#0b1120,#020617);">
+    <div class="dash-wrap">
+      <div class="dash-hero">
+        <img class="dash-hero-img" src="/static/WINK.jpeg" alt="WINK"/>
+        <div class="dash-hero-text">
+          <h2>Good morning! Ready to crush it today?</h2>
+          <p>You have 3 assignments due this week and your busiest day is Thursday. Your MIS 3350 case analysis draft is due tomorrow — want me to help you outline it?</p>
+          <button class="hero-btn" onclick="goPage('chat',document.querySelectorAll('.nav-tab')[3]);setTimeout(()=>{document.getElementById('chat-ta').value='Help me outline my MIS 3350 case analysis draft.';},80);">Ask WINK for help ›</button>
+        </div>
+      </div>
+      <div class="stat-grid">
+        <div class="stat-card"><div class="stat-num">4</div><div class="stat-lbl">Active Courses</div></div>
+        <div class="stat-card"><div class="stat-num">12</div><div class="stat-lbl">Docs Uploaded</div></div>
+        <div class="stat-card"><div class="stat-num">3</div><div class="stat-lbl">Due This Week</div></div>
+        <div class="stat-card"><div class="stat-num">87%</div><div class="stat-lbl">Engagement Score</div></div>
+      </div>
+      <div class="dash-cols">
+        <div class="panel">
+          <div class="panel-title">Upcoming Deadlines</div>
+          <div class="dl-item"><div class="dl-dot dot-hot"></div><div class="dl-info"><div class="dl-course">MIS 3350</div><div class="dl-task">Case Analysis Draft</div></div><div class="dl-due">Tomorrow</div></div>
+          <div class="dl-item"><div class="dl-dot dot-mid"></div><div class="dl-info"><div class="dl-course">CS 2401</div><div class="dl-task">Programming Lab 4</div></div><div class="dl-due">Thu Apr 3</div></div>
+          <div class="dl-item"><div class="dl-dot dot-ok"></div><div class="dl-info"><div class="dl-course">ENGL 1301</div><div class="dl-task">Reflection Essay</div></div><div class="dl-due">Fri Apr 4</div></div>
+          <div class="dl-item"><div class="dl-dot dot-ok"></div><div class="dl-info"><div class="dl-course">MATH 1411</div><div class="dl-task">Chapter 7 Quiz</div></div><div class="dl-due">Mon Apr 7</div></div>
+        </div>
+        <div class="panel">
+          <div class="panel-title">Campus Resources</div>
+          <div class="res-item"><div class="res-icon"><svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></div><div><div class="res-name">University Writing Center</div><div class="res-desc">Free writing help, all levels</div></div><a class="res-link" href="https://www.utep.edu/uwc/" target="_blank">Visit ›</a></div>
+          <div class="res-item"><div class="res-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z"/></svg></div><div><div class="res-name">UTEP Tutoring Center</div><div class="res-desc">CASS — free subject tutoring</div></div><a class="res-link" href="https://www.utep.edu/student-affairs/cass/" target="_blank">Visit ›</a></div>
+          <div class="res-item"><div class="res-icon"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div><div class="res-name">Advising &amp; Student Support</div><div class="res-desc">Academic planning &amp; guidance</div></div><a class="res-link" href="https://www.utep.edu/student-affairs/cass/" target="_blank">Visit ›</a></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- COURSES -->
+  <div class="page" id="page-courses" style="background:radial-gradient(circle at top left,#0b1120,#020617);">
+    <div class="courses-wrap">
+      <div class="courses-hdr"><h2>My Courses — Spring 2025</h2><button class="add-btn">+ Add Course</button></div>
+      <div class="crs-grid">
+        <div class="crs-card"><div class="crs-top" style="background:linear-gradient(90deg,#1d4ed8,#f97316);"></div><div class="crs-body"><div class="crs-code">MIS 3350</div><div class="crs-name">Management Information Systems</div><div class="crs-prof">Dr. Trevino · Tu/Th 9:30–10:50am</div><div class="crs-meta"><span class="badge b-orange">1 due soon</span><span class="badge b-blue">4 docs</span><span class="crs-docs">Syllabus uploaded</span></div></div><div class="crs-footer"><div class="prog-bar"><div class="prog-fill" style="width:68%"></div></div><span class="prog-lbl">68% complete</span></div></div>
+        <div class="crs-card"><div class="crs-top" style="background:linear-gradient(90deg,#7c3aed,#1d4ed8);"></div><div class="crs-body"><div class="crs-code">CS 2401</div><div class="crs-name">Computer Science I</div><div class="crs-prof">Prof. Hernandez · MWF 11:00am–12:20pm</div><div class="crs-meta"><span class="badge b-orange">Lab due Thu</span><span class="badge b-purple">3 docs</span><span class="crs-docs">Syllabus uploaded</span></div></div><div class="crs-footer"><div class="prog-bar"><div class="prog-fill" style="width:55%"></div></div><span class="prog-lbl">55% complete</span></div></div>
+        <div class="crs-card"><div class="crs-top" style="background:linear-gradient(90deg,#059669,#1d4ed8);"></div><div class="crs-body"><div class="crs-code">ENGL 1301</div><div class="crs-name">Rhetoric and Composition I</div><div class="crs-prof">Dr. Morales · MWF 1:30–2:50pm</div><div class="crs-meta"><span class="badge b-green">Essay Fri</span><span class="badge b-blue">3 docs</span><span class="crs-docs">Syllabus uploaded</span></div></div><div class="crs-footer"><div class="prog-bar"><div class="prog-fill" style="width:72%"></div></div><span class="prog-lbl">72% complete</span></div></div>
+        <div class="crs-card"><div class="crs-top" style="background:linear-gradient(90deg,#d97706,#f97316);"></div><div class="crs-body"><div class="crs-code">MATH 1411</div><div class="crs-name">Calculus I</div><div class="crs-prof">Prof. Ramirez · Tu/Th 2:00–3:20pm</div><div class="crs-meta"><span class="badge b-green">Quiz Mon</span><span class="badge b-blue">2 docs</span><span class="crs-docs">Syllabus uploaded</span></div></div><div class="crs-footer"><div class="prog-bar"><div class="prog-fill" style="width:41%"></div></div><span class="prog-lbl">41% complete</span></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CALENDAR -->
+  <div class="page" id="page-calendar" style="background:radial-gradient(circle at top left,#0b1120,#020617);">
+    <div class="cal-wrap">
+      <div class="cal-main">
+        <div class="cal-hdr"><h2>April 2025</h2><div class="cal-nav"><button class="cal-nav-btn">&#8249;</button><span class="cal-month-lbl">April 2025</span><button class="cal-nav-btn">&#8250;</button></div></div>
+        <div class="cal-grid">
+          <div class="cal-wds"><div class="cal-wd">SUN</div><div class="cal-wd">MON</div><div class="cal-wd">TUE</div><div class="cal-wd">WED</div><div class="cal-wd">THU</div><div class="cal-wd">FRI</div><div class="cal-wd">SAT</div></div>
+          <div class="cal-days" id="cal-days"></div>
+        </div>
+      </div>
+      <div class="cal-side">
+        <div class="upcoming-panel">
+          <div class="panel-title">Upcoming</div>
+          <div class="up-item"><div class="up-date">APR 2</div><div class="up-name">Case Analysis Draft</div><div class="up-course">MIS 3350</div></div>
+          <div class="up-item"><div class="up-date">APR 3</div><div class="up-name">Programming Lab 4</div><div class="up-course">CS 2401</div></div>
+          <div class="up-item"><div class="up-date">APR 4</div><div class="up-name">Reflection Essay</div><div class="up-course">ENGL 1301</div></div>
+          <div class="up-item"><div class="up-date">APR 7</div><div class="up-name">Chapter 7 Quiz</div><div class="up-course">MATH 1411</div></div>
+          <div class="up-item"><div class="up-date">APR 10</div><div class="up-name">Midterm Exam</div><div class="up-course">MIS 3350</div></div>
+          <div class="up-item"><div class="up-date">APR 14</div><div class="up-name">Research Paper Draft</div><div class="up-course">ENGL 1301</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHAT -->
+  <div class="page" id="page-chat" style="background:radial-gradient(circle at top left,#0b1120,#020617);">
+    <div class="chat-wrap">
+      <div class="chat-left">
+        <div class="chat-left-inner">
+          <div class="lft-badge"><div class="lt">Entering Student Experience</div><div class="ls">Dr. Trevino's Course</div></div>
+          <div class="wink-ring"><div class="wink-ring-inner"><img src="/static/WINK.jpeg" alt="WINK"/></div></div>
+          <div class="lft-name">WINK</div>
+          <div class="lft-tag">What I Need to Know,<br>When I Need to Know It!</div>
+          <button class="clr-btn" onclick="clearChat()"><span class="clr-dot"></span>Clear chat history</button>
+          <div class="try-box">
+            <div class="try-title">Try asking WINK:</div>
+            <div class="try-item" onclick="fillChat('What is due this week in this class?')">"What is due this week?"</div>
+            <div class="try-item" onclick="fillChat('Help me draft an email to my instructor.')">"Draft an email to my instructor."</div>
+            <div class="try-item" onclick="fillChat('Where can I get tutoring at UTEP?')">"Where can I get tutoring?"</div>
+            <div class="try-item" onclick="fillChat('Help me break my big project into steps.')">"Break my project into steps."</div>
+          </div>
+        </div>
+      </div>
+      <div class="chat-right">
+        <div class="chat-hdr">
+          <div class="chat-hdr-left">
+            <div class="ch-av"><img src="/static/WINK.jpeg" alt="WINK"/></div>
+            <div><div class="ch-title">WINK</div><div class="ch-sub">Dr. Trevino · What I Need to Know</div></div>
+          </div>
+          <div class="ch-pill">/wink/lhall</div>
+        </div>
+        <div class="chat-body" id="chat-body">
+          <div class="empty-st" id="empty-st">Ask about your course, syllabus, assignments, campus resources, or how to succeed this week. Try "What is due this week?" or "Help me break the big project into steps."</div>
+          <div id="chat-anchor"></div>
+        </div>
+        <div class="chat-input-bar">
+          <div class="input-row">
+            <div class="ta-wrap">
+              <button class="mic-btn" id="mic-btn">&#127908;</button>
+              <textarea class="chat-ta" id="chat-ta" placeholder="Type your question here..." rows="1"></textarea>
+              <div class="file-ctrls"><button class="att-btn">+</button><button class="fb-btn">Choose File</button></div>
+            </div>
+            <button class="send-btn" id="send-btn" onclick="sendMsg()">Send</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- UPLOAD -->
+  <div class="page" id="page-upload" style="background:radial-gradient(circle at top left,#0b1120,#020617);">
+    <div class="upload-wrap">
+      <h2>Upload Course Documents</h2>
+      <div class="up-grid">
+        <div class="up-card">
+          <h3><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Upload New Document</h3>
+          <div class="drop-zone"><div class="drop-icon">&#128196;</div><div class="drop-text">Drag &amp; drop files here</div><div class="drop-sub">Syllabi, assignments, notes — PDF, DOCX, TXT</div></div>
+          <select class="up-select"><option>MIS 3350 — Management Information Systems</option><option>CS 2401 — Computer Science I</option><option>ENGL 1301 — Rhetoric and Composition I</option><option>MATH 1411 — Calculus I</option></select>
+          <button class="up-btn">Upload to WINK</button>
+        </div>
+        <div class="up-card">
+          <h3><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Uploaded Documents</h3>
+          <div class="file-list">
+            <div class="file-item"><div class="fi fi-pdf"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div><div class="file-name">MIS3350_Syllabus_Spring25.pdf</div><div class="file-sz">142 KB</div><div class="file-del">&#215;</div></div>
+            <div class="file-item"><div class="fi fi-doc"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div><div class="file-name">CaseAnalysis_Rubric.docx</div><div class="file-sz">38 KB</div><div class="file-del">&#215;</div></div>
+            <div class="file-item"><div class="fi fi-pdf"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div><div class="file-name">CS2401_Syllabus_Spring25.pdf</div><div class="file-sz">98 KB</div><div class="file-del">&#215;</div></div>
+            <div class="file-item"><div class="fi fi-doc"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div><div class="file-name">ENGL1301_Essay_Prompt.docx</div><div class="file-sz">24 KB</div><div class="file-del">&#215;</div></div>
+            <div class="file-item"><div class="fi fi-pdf"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div><div class="file-name">MATH1411_Syllabus_Spring25.pdf</div><div class="file-sz">76 KB</div><div class="file-del">&#215;</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+function goPage(name,tab){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  if(tab) tab.classList.add('active');
+}
+const calEvents={2:[{t:'Case Analysis',c:'ev-orange'}],3:[{t:'CS Lab 4',c:'ev-blue'}],4:[{t:'Essay Due',c:'ev-green'}],7:[{t:'Math Quiz',c:'ev-blue'}],10:[{t:'MIS Midterm',c:'ev-orange'}],14:[{t:'Research Draft',c:'ev-green'}],17:[{t:'CS Project',c:'ev-blue'}],22:[{t:'ENGL Final',c:'ev-orange'}],28:[{t:'Finals Week',c:'ev-orange'},{t:'CS Final',c:'ev-blue'}]};
+(function(){const g=document.getElementById('cal-days');if(!g)return;const first=2,total=30;let h='';for(let i=0;i<first;i++)h+=`<div class="cal-day other"><div class="day-num">${31-first+i+1}</div></div>`;for(let d=1;d<=total;d++){const evts=(calEvents[d]||[]).map(e=>`<div class="cal-evt ${e.c}">${e.t}</div>`).join('');h+=`<div class="cal-day${d===1?' today':''}"><div class="day-num">${d}</div>${evts}</div>`;}const rem=(7-((first+total)%7))%7;for(let i=1;i<=rem;i++)h+=`<div class="cal-day other"><div class="day-num">${i}</div></div>`;g.innerHTML=h;})();
+let msgs=[];
+async function sendMsg(){const ta=document.getElementById('chat-ta');const text=ta.value.trim();if(!text)return;ta.value='';ta.style.height='auto';document.getElementById('send-btn').disabled=true;const es=document.getElementById('empty-st');if(es)es.style.display='none';msgs.push({role:'user',content:text});addBubble('user',text);showTyping();try{const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:`You are WINK — a warm, encouraging AI academic companion for UTEP students in Dr. Trevino's Entering Student Experience course. Help with coursework, deadlines, campus resources, study strategies, and navigating college life. Current courses: MIS 3350 (case analysis draft due Apr 2), CS 2401 (Lab 4 due Apr 3), ENGL 1301 (essay due Apr 4), MATH 1411 (quiz Apr 7). UTEP resources: University Writing Center, CASS tutoring, Advising & Student Support. Be concise, warm, and actionable.`,messages:msgs})});const data=await res.json();removeTyping();const reply=data.content?.map(b=>b.text||'').join('')||"I had a little trouble — try again!";msgs.push({role:'assistant',content:reply});addBubble('assistant',reply);}catch(e){removeTyping();addBubble('assistant',"Hmm, I couldn't connect right now. Please try again!");}document.getElementById('send-btn').disabled=false;document.getElementById('chat-ta').focus();}
+function addBubble(role,text){const body=document.getElementById('chat-body');const anchor=document.getElementById('chat-anchor');const row=document.createElement('div');row.className='msg-row '+role;const b=document.createElement('div');b.className='msg-bubble';b.textContent=text;row.appendChild(b);body.insertBefore(row,anchor);anchor.scrollIntoView({behavior:'smooth',block:'end'});}
+function showTyping(){const body=document.getElementById('chat-body');const anchor=document.getElementById('chat-anchor');const row=document.createElement('div');row.className='msg-row assistant';row.id='typing-row';row.innerHTML='<div class="msg-bubble"><div class="typing-ind"><div class="td"></div><div class="td"></div><div class="td"></div></div></div>';body.insertBefore(row,anchor);anchor.scrollIntoView({behavior:'smooth',block:'end'});}
+function removeTyping(){const t=document.getElementById('typing-row');if(t)t.remove();}
+function clearChat(){msgs=[];document.querySelectorAll('.msg-row').forEach(r=>r.remove());const es=document.getElementById('empty-st');if(es)es.style.display='block';}
+function fillChat(text){goPage('chat',document.querySelectorAll('.nav-tab')[3]);setTimeout(()=>{const ta=document.getElementById('chat-ta');if(ta){ta.value=text;ta.focus();}},60);}
+const ta=document.getElementById('chat-ta');
+if(ta){ta.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg();}});ta.addEventListener('input',()=>{ta.style.height='auto';ta.style.height=Math.min(ta.scrollHeight,120)+'px';});}
+const micBtn=document.getElementById('mic-btn');let recog=null,listening=false;
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+if(SR){recog=new SR();recog.continuous=false;recog.interimResults=true;recog.lang='en-US';recog.onstart=()=>{listening=true;micBtn.textContent='&#9209;';};recog.onend=()=>{listening=false;micBtn.textContent='&#127908;';};recog.onerror=()=>{listening=false;micBtn.textContent='&#127908;';};recog.onresult=e=>{let t='';for(let i=e.resultIndex;i<e.results.length;i++)t+=e.results[i][0].transcript;const ta=document.getElementById('chat-ta');if(ta){ta.value=t.trim();ta.dispatchEvent(new Event('input'));ta.focus();}}}
+if(micBtn)micBtn.addEventListener('click',()=>{if(!recog){alert('Speech not supported. Use Chrome or Edge.');return;}try{listening?recog.stop():recog.start();}catch(e){}});
+</script>
+</body>
+</html>
