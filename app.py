@@ -15,7 +15,7 @@ app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
 
 DB_URL            = os.environ.get("DATABASE_URL", "")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "lhall@utep.edu").lower()
+ADMIN_EMAIL = "lhall@utep.edu"  # Administrator email
 
 CLASSIFICATIONS = ["Freshman","Sophomore","Junior","Senior","Graduate"]
 MAJORS = [
