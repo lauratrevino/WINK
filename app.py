@@ -700,6 +700,50 @@ def student_conversations(sid):
         print(f"student_conversations error: {e}"); traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
+
+
+@app.route("/reset-admin-password")
+def reset_admin_password():
+    """One-time admin password reset. Remove after use."""
+    new_password = "WinkAdmin2025!"
+    if not DB_URL:
+        return "<p>No database.</p>"
+    try:
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("SELECT email FROM students WHERE email=%s", (ADMIN_EMAIL,))
+        if not cur.fetchone():
+            cur.close(); conn.close()
+            return f"<p>No account found for {ADMIN_EMAIL}. Please register first at /register.</p>"
+        hashed = generate_password_hash(new_password)
+        cur.execute("UPDATE students SET password_hash=%s WHERE email=%s", (hashed, ADMIN_EMAIL))
+        conn.commit(); cur.close(); conn.close()
+        return f"""
+        <h2>✅ Password Reset!</h2>
+        <p>Account: <strong>{ADMIN_EMAIL}</strong></p>
+        <p>New password: <strong>{new_password}</strong></p>
+        <p><a href="/login">Click here to log in</a></p>
+        <p style="color:red;margin-top:20px;"><strong>Important:</strong> Remove this route from app.py after logging in!</p>
+        """
+    except Exception as e:
+        return f"<p>Error: {e}</p>"
+
+@app.route("/admin-check")
+def admin_check():
+    """Temporary helper to find registered emails."""
+    if not DB_URL:
+        return "<p>No database.</p>"
+    try:
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("SELECT email, first_name, last_name, created_at FROM students ORDER BY created_at ASC")
+        rows = cur.fetchall(); cur.close(); conn.close()
+        out = "<h2>Registered accounts</h2><ul>"
+        for r in rows:
+            out += f"<li>{r['first_name']} {r['last_name']} — <strong>{r['email']}</strong></li>"
+        out += "</ul>"
+        return out
+    except Exception as e:
+        return f"<p>Error: {e}</p>"
+
 @app.route("/health")
 def health():
     db_ok = False
