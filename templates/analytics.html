@@ -5,38 +5,69 @@
 .a-hero img{width:58px;height:58px;border-radius:50%;object-fit:cover;object-position:top center;border:3px solid var(--orange);}
 .a-hero h2{color:#fff;font-size:20px;font-weight:900;margin-bottom:3px;}
 .a-hero p{color:rgba(255,255,255,.78);font-size:13px;}
-.ref-btn{margin-left:auto;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:999px;padding:8px 18px;font-size:13px;cursor:pointer;font-weight:600;flex-shrink:0;}
+.a-hero-btns{margin-left:auto;display:flex;gap:8px;flex-shrink:0;}
+.ref-btn{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:999px;padding:8px 16px;font-size:12px;cursor:pointer;font-weight:600;}
 .ref-btn:hover{background:rgba(255,255,255,.25);}
+.csv-btn{background:var(--orange);border:none;color:#fff;border-radius:999px;padding:8px 16px;font-size:12px;cursor:pointer;font-weight:600;}
+.csv-btn:hover{opacity:.9;}
 .stat-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:22px;}
-.stat{background:#ffffff;border:1.5px solid var(--border);border-radius:16px;padding:18px;text-align:center;box-shadow:0 2px 8px rgba(4,30,66,.04);}
+.stat{background:#fff;border:1.5px solid var(--border);border-radius:16px;padding:18px;text-align:center;box-shadow:0 2px 8px rgba(4,30,66,.04);}
 .stat-n{font-size:34px;font-weight:900;color:var(--orange);}
 .stat-l{font-size:11px;color:var(--muted);margin-top:4px;text-transform:uppercase;letter-spacing:.06em;font-weight:600;}
-.grid3{display:grid;grid-template-columns:2fr 1fr 1fr;gap:18px;margin-bottom:20px;}
-.a-panel{background:#ffffff;border:1.5px solid var(--border);border-radius:16px;padding:20px;box-shadow:0 2px 8px rgba(4,30,66,.04);}
-.a-panel h3{font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:14px;display:flex;align-items:center;gap:6px;}
-.a-panel h3::before{content:'';width:3px;height:13px;background:var(--orange);border-radius:2px;display:block;}
+.tabs{display:flex;gap:4px;margin-bottom:16px;background:#f0f5ff;border-radius:12px;padding:4px;}
+.tab{padding:8px 18px;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;color:var(--muted);border:none;background:transparent;}
+.tab.active{background:#fff;color:var(--navy);box-shadow:0 2px 8px rgba(4,30,66,.1);}
+.tab-content{display:none;}
+.tab-content.active{display:block;}
+.a-panel{background:#fff;border:1.5px solid var(--border);border-radius:16px;padding:20px;box-shadow:0 2px 8px rgba(4,30,66,.04);margin-bottom:18px;}
+.a-panel h3{font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:6px;}
+.a-panel h3 span{display:flex;align-items:center;gap:6px;}
+.a-panel h3 span::before{content:'';width:3px;height:13px;background:var(--orange);border-radius:2px;display:block;}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px;}
 table{width:100%;border-collapse:collapse;font-size:13px;}
-th{text-align:left;color:var(--muted);font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:8px 10px;border-bottom:2px solid var(--border);background:#f4f8ff;white-space:nowrap;}
-td{padding:9px 10px;color:var(--text);border-bottom:1px solid var(--border);vertical-align:middle;}
+th{text-align:left;color:var(--muted);font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:8px 10px;border-bottom:2px solid var(--border);background:var(--card-bg);white-space:nowrap;}
+td{padding:9px 10px;color:var(--text);border-bottom:1px solid var(--border);vertical-align:top;}
 tr:last-child td{border-bottom:none;}
-tr:hover td{background:#f4f8ff;}
+tr:hover td{background:var(--card-bg);}
 .etag{font-size:10px;padding:3px 9px;border-radius:999px;font-weight:700;white-space:nowrap;}
-.e-login{background:var(--pale-blue);color:var(--blue);}
+.e-login{background:#dbeafe;color:#1d4ed8;}
 .e-new{background:#dcfce7;color:#15803d;}
 .e-q{background:#ffedd5;color:#c2410c;}
 .e-up{background:#f0fdf4;color:#15803d;}
 .e-del{background:#fee2e2;color:#dc2626;}
 .e-ans{background:#f3e8ff;color:#7c3aed;}
-.e-view{background:var(--pale-bg);color:var(--navy);}
+.e-view{background:#f0f5ff;color:#1d4ed8;}
 .bar-row{display:flex;align-items:center;gap:10px;margin-bottom:9px;}
-.bar-lbl{font-size:12px;color:var(--text);width:130px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.bar-lbl{font-size:12px;color:var(--text);width:160px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .bar-track{flex:1;height:10px;background:var(--border);border-radius:999px;overflow:hidden;}
 .bar-fill{height:100%;background:linear-gradient(90deg,var(--blue),var(--orange));border-radius:999px;}
-.bar-n{font-size:12px;color:var(--muted);font-weight:700;min-width:20px;text-align:right;}
+.bar-n{font-size:12px;color:var(--muted);font-weight:700;min-width:24px;text-align:right;}
+.no-data{color:var(--muted);font-size:13px;text-align:center;padding:24px;background:var(--card-bg);border-radius:10px;border:1.5px dashed var(--border);}
 .loading{color:var(--muted);font-size:13px;padding:20px;text-align:center;}
-.no-data{color:var(--muted);font-size:13px;text-align:center;padding:22px;background:#f4f8ff;border-radius:10px;border:1.5px dashed var(--border);}
-.auto-badge{font-size:10px;background:#dcfce7;color:#15803d;border-radius:999px;padding:2px 8px;font-weight:600;margin-left:8px;}
-@media(max-width:768px){.stat-grid{grid-template-columns:repeat(2,1fr);}.grid3{grid-template-columns:1fr;}}
+.risk-badge{font-size:11px;padding:3px 9px;border-radius:999px;font-weight:700;}
+.risk-high{background:#fee2e2;color:#dc2626;}
+.risk-med{background:#ffedd5;color:#c2410c;}
+.risk-ok{background:#dcfce7;color:#15803d;}
+.student-row{cursor:pointer;}
+.student-row:hover td{background:#fffbf5;}
+.conv-wrap{display:none;background:var(--card-bg);border-radius:10px;padding:12px;margin-top:8px;}
+.conv-wrap.open{display:block;}
+.conv-q{background:#fff;border:1.5px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:8px;}
+.conv-q .who{font-size:11px;font-weight:700;color:var(--orange);margin-bottom:4px;}
+.conv-a{background:linear-gradient(135deg,#f0f5ff,#e8f0fe);border:1.5px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:8px;}
+.conv-a .who{font-size:11px;font-weight:700;color:var(--blue);margin-bottom:4px;}
+.conv-text{font-size:13px;color:var(--text);line-height:1.6;white-space:pre-wrap;word-wrap:break-word;}
+.conv-ts{font-size:10px;color:var(--muted);margin-top:4px;}
+.search-box{width:100%;padding:8px 12px;border:1.5px solid var(--border);border-radius:9px;font-size:13px;outline:none;margin-bottom:12px;}
+.search-box:focus{border-color:var(--blue);}
+.trend-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px;}
+.trend-row:last-child{border-bottom:none;}
+.trend-n{font-weight:700;color:var(--navy);min-width:28px;}
+.trend-q{flex:1;color:var(--text);}
+.trend-who{font-size:11px;color:var(--muted);}
+.at-risk-note{font-size:12px;color:#dc2626;font-weight:600;}
+.session-dur{font-size:11px;color:var(--muted);}
+@media(max-width:768px){.stat-grid{grid-template-columns:repeat(2,1fr);}.grid2{grid-template-columns:1fr;}}
 {% endblock %}
 {% block content %}
 <div class="wrap">
@@ -44,10 +75,12 @@ tr:hover td{background:#f4f8ff;}
     <img src="/static/WINK.jpeg" alt="WINK"/>
     <div>
       <h2>WINK Analytics Dashboard</h2>
-      <p>Real-time student engagement data · Dr. Trevino's Course</p>
+      <p>Real-time student engagement · Dr. Trevino's Course · Auto-refreshes every 30s</p>
     </div>
-    <span class="auto-badge">Auto-refresh 30s</span>
-    <button class="ref-btn" onclick="load()">↻ Refresh Now</button>
+    <div class="a-hero-btns">
+      <button class="ref-btn" onclick="loadAll()">↻ Refresh</button>
+      <button class="csv-btn" onclick="exportCSV()">⬇ Export CSV</button>
+    </div>
   </div>
 
   <div class="stat-grid">
@@ -57,124 +90,339 @@ tr:hover td{background:#f4f8ff;}
     <div class="stat"><div class="stat-n" id="au">—</div><div class="stat-l">Files Uploaded</div></div>
   </div>
 
-  <div class="grid3">
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('roster')">👥 Student Roster</button>
+    <button class="tab" onclick="switchTab('conversations')">💬 Conversations</button>
+    <button class="tab" onclick="switchTab('questions')">❓ Top Questions</button>
+    <button class="tab" onclick="switchTab('activity')">📊 Activity Feed</button>
+    <button class="tab" onclick="switchTab('demographics')">🎓 Demographics</button>
+    <button class="tab" onclick="switchTab('atrisk')">⚠️ At-Risk</button>
+  </div>
+
+  <!-- ROSTER -->
+  <div class="tab-content active" id="tab-roster">
     <div class="a-panel">
-      <h3>Student Roster</h3>
-      <div id="roster"><div class="loading">Loading…</div></div>
-    </div>
-    <div class="a-panel">
-      <h3>By Major</h3>
-      <div id="bmajor"><div class="loading">Loading…</div></div>
-    </div>
-    <div class="a-panel">
-      <h3>By Classification</h3>
-      <div id="bclass"><div class="loading">Loading…</div></div>
+      <h3><span>Student Roster</span></h3>
+      <input class="search-box" type="text" id="roster-search" placeholder="Search by name, email, major..." oninput="filterRoster()"/>
+      <div id="roster-table"><div class="loading">Loading...</div></div>
     </div>
   </div>
 
-  <div class="a-panel">
-    <h3>Recent Activity Feed</h3>
-    <div id="feed"><div class="loading">Loading…</div></div>
+  <!-- CONVERSATIONS -->
+  <div class="tab-content" id="tab-conversations">
+    <div class="a-panel">
+      <h3><span>Full Conversation History</span></h3>
+      <input class="search-box" type="text" id="conv-search" placeholder="Search conversations..." oninput="filterConversations()"/>
+      <div id="conv-list"><div class="loading">Loading...</div></div>
+    </div>
+  </div>
+
+  <!-- TOP QUESTIONS -->
+  <div class="tab-content" id="tab-questions">
+    <div class="a-panel">
+      <h3><span>Questions Asked by Students (full text)</span></h3>
+      <div id="questions-list"><div class="loading">Loading...</div></div>
+    </div>
+  </div>
+
+  <!-- ACTIVITY FEED -->
+  <div class="tab-content" id="tab-activity">
+    <div class="a-panel">
+      <h3><span>Recent Activity Feed</span><span style="font-size:11px;font-weight:400;color:var(--muted);">Last 100 events</span></h3>
+      <div id="feed"><div class="loading">Loading...</div></div>
+    </div>
+  </div>
+
+  <!-- DEMOGRAPHICS -->
+  <div class="tab-content" id="tab-demographics">
+    <div class="grid2">
+      <div class="a-panel"><h3><span>By Major</span></h3><div id="bmajor"><div class="loading">Loading...</div></div></div>
+      <div class="a-panel"><h3><span>By Classification</span></h3><div id="bclass"><div class="loading">Loading...</div></div></div>
+    </div>
+    <div class="grid2">
+      <div class="a-panel"><h3><span>Documents Uploaded by Course</span></h3><div id="by-course"><div class="loading">Loading...</div></div></div>
+      <div class="a-panel"><h3><span>Daily Usage (last 7 days)</span></h3><div id="daily-usage"><div class="loading">Loading...</div></div></div>
+    </div>
+  </div>
+
+  <!-- AT RISK -->
+  <div class="tab-content" id="tab-atrisk">
+    <div class="a-panel">
+      <h3><span>⚠️ Students Who May Need Support</span></h3>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:14px;">Students flagged based on login frequency, question count, and document uploads.</p>
+      <div id="at-risk-list"><div class="loading">Loading...</div></div>
+    </div>
   </div>
 </div>
 
 <script>
-const BADGE = {login:'e-login',account_created:'e-new',question_asked:'e-q',file_uploaded:'e-up',file_deleted:'e-del',answer_given:'e-ans',page_view:'e-view'};
-const LABEL = {login:'Login',account_created:'New Account',question_asked:'Question',file_uploaded:'Upload',file_deleted:'Delete',answer_given:'Answer',page_view:'Page View'};
+const BADGE={login:'e-login',account_created:'e-new',question_asked:'e-q',file_uploaded:'e-up',file_deleted:'e-del',answer_given:'e-ans',page_view:'e-view'};
+const LABEL={login:'Login',account_created:'New Account',question_asked:'Question',file_uploaded:'Upload',file_deleted:'Delete',answer_given:'Answer',page_view:'Page View'};
+
+let allData = null;
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.target.classList.add('active');
+}
 
 function showErr(msg) {
-  ['roster','bmajor','bclass','feed'].forEach(id => {
+  ['roster-table','conv-list','questions-list','feed','bmajor','bclass','by-course','daily-usage','at-risk-list'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.innerHTML = `<div class="no-data" style="color:#dc2626;">⚠️ ${msg}</div>`;
   });
 }
 
-async function load() {
+async function loadAll() {
   try {
-    const r = await fetch('/analytics-data');
-
-    // Check for non-200 or redirect to login
-    if (r.status === 401) { showErr('Session expired — please refresh the page and log in again.'); return; }
-    if (!r.ok) { showErr(`Server error: ${r.status} ${r.statusText}`); return; }
-
-    // Make sure we got JSON back, not an HTML error page
-    const contentType = r.headers.get('content-type') || '';
-    if (!contentType.includes('application/json')) {
-      const text = await r.text();
-      showErr(`Unexpected response (not JSON). Check server logs. Preview: ${text.slice(0,120)}`);
-      return;
-    }
-
+    const r = await fetch('/analytics-data-full');
+    if (r.status === 401) { showErr('Session expired — please refresh and log in.'); return; }
+    if (!r.ok) { showErr(`Server error: ${r.status}`); return; }
+    const ct = r.headers.get('content-type') || '';
+    if (!ct.includes('application/json')) { showErr('Unexpected server response.'); return; }
     const d = await r.json();
-    if (!d) { showErr('Empty response from server.'); return; }
-    if (d.error) { showErr(d.error); return; }
-
-    document.getElementById('as').textContent  = d.total_students  ?? 0;
-    document.getElementById('ase').textContent = d.total_sessions  ?? 0;
-    document.getElementById('aq').textContent  = d.total_questions ?? 0;
-    document.getElementById('au').textContent  = d.total_uploads   ?? 0;
-
-    // Roster
-    const el = document.getElementById('roster');
-    if (d.students?.length) {
-      el.innerHTML = `<div style="overflow-x:auto"><table>
-        <thead><tr><th>Name</th><th>Email</th><th>Class.</th><th>Major</th><th style="text-align:center">Sessions</th><th style="text-align:center">Questions</th><th style="text-align:center">Uploads</th><th>Joined</th></tr></thead>
-        <tbody>${d.students.map(s=>`<tr>
-          <td><strong>${s.first_name} ${s.last_name}</strong></td>
-          <td style="font-size:12px;color:#64748b;">${s.email}</td>
-          <td>${s.classification}</td>
-          <td style="font-size:12px;">${s.major}</td>
-          <td style="text-align:center;font-weight:700;color:var(--blue);">${s.sessions}</td>
-          <td style="text-align:center;font-weight:700;color:var(--orange);">${s.questions}</td>
-          <td style="text-align:center;font-weight:700;color:#15803d;">${s.uploads}</td>
-          <td style="font-size:11px;color:#64748b;">${s.joined||''}</td>
-        </tr>`).join('')}</tbody></table></div>`;
-    } else { el.innerHTML = '<div class="no-data">No students registered yet.</div>'; }
-
-    // By major
-    const bm = document.getElementById('bmajor');
-    if (d.by_major?.length) {
-      const mx = d.by_major[0].n;
-      bm.innerHTML = d.by_major.map(m=>`<div class="bar-row"><div class="bar-lbl" title="${m.major}">${m.major}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.round(m.n/mx*100)}%"></div></div><div class="bar-n">${m.n}</div></div>`).join('');
-    } else { bm.innerHTML = '<div class="no-data">No data yet.</div>'; }
-
-    // By class
-    const bc = document.getElementById('bclass');
-    if (d.by_class?.length) {
-      const mx = d.by_class[0].n;
-      bc.innerHTML = d.by_class.map(c=>`<div class="bar-row"><div class="bar-lbl">${c.classification}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.round(c.n/mx*100)}%"></div></div><div class="bar-n">${c.n}</div></div>`).join('');
-    } else { bc.innerHTML = '<div class="no-data">No data yet.</div>'; }
-
-    // Feed
-    const ef = document.getElementById('feed');
-    if (d.recent?.length) {
-      ef.innerHTML = `<div style="overflow-x:auto"><table>
-        <thead><tr><th>Time</th><th>Student</th><th>Event</th><th>Detail</th></tr></thead>
-        <tbody>${d.recent.map(e=>{
-          const cls=BADGE[e.event_type]||'e-view', lbl=LABEL[e.event_type]||e.event_type;
-          const name=e.first_name?`${e.first_name} ${e.last_name}`:'Unknown';
-          const p=e.payload||{};
-          let detail='';
-          if(e.event_type==='question_asked') detail=(p.q||'').slice(0,50)+((p.q||'').length>50?'…':'');
-          else if(e.event_type==='file_uploaded') detail=p.name||'';
-          else if(e.event_type==='answer_given') detail=(p.len||0)+' chars';
-          else if(e.event_type==='account_created') detail=p.major||'';
-          else detail=p.page||p.email||'';
-          return `<tr>
-            <td style="font-size:11px;color:#64748b;white-space:nowrap;">${e.ts||''}</td>
-            <td style="font-weight:600;">${name}</td>
-            <td><span class="etag ${cls}">${lbl}</span></td>
-            <td style="font-size:12px;color:#64748b;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${detail}</td>
-          </tr>`;
-        }).join('')}</tbody></table></div>`;
-    } else { ef.innerHTML = '<div class="no-data">No activity yet — events will appear here as students use WINK.</div>'; }
+    if (!d || d.error) { showErr(d ? d.error : 'No data'); return; }
+    allData = d;
+    renderStats(d);
+    renderRoster(d);
+    renderConversations(d);
+    renderQuestions(d);
+    renderFeed(d);
+    renderDemographics(d);
+    renderAtRisk(d);
   } catch(e) {
-    console.error('Analytics load error:', e);
     showErr('Could not load analytics: ' + e.message);
   }
 }
 
-load();
-setInterval(load, 30000);
+function renderStats(d) {
+  document.getElementById('as').textContent  = d.total_students  ?? 0;
+  document.getElementById('ase').textContent = d.total_sessions  ?? 0;
+  document.getElementById('aq').textContent  = d.total_questions ?? 0;
+  document.getElementById('au').textContent  = d.total_uploads   ?? 0;
+}
+
+function renderRoster(d) {
+  const el = document.getElementById('roster-table');
+  if (!d.students?.length) { el.innerHTML = '<div class="no-data">No students registered yet.</div>'; return; }
+  el.innerHTML = `<div style="overflow-x:auto"><table>
+    <thead><tr><th>Name</th><th>Email</th><th>Class.</th><th>Major</th><th style="text-align:center">Sessions</th><th style="text-align:center">Questions</th><th style="text-align:center">Uploads</th><th style="text-align:center">Docs</th><th>Joined</th></tr></thead>
+    <tbody>${d.students.map(s=>`
+      <tr class="student-row" onclick="toggleStudentConv(${s.id}, this)">
+        <td><strong>${s.first_name} ${s.last_name}</strong></td>
+        <td style="font-size:12px;color:#64748b;">${s.email}</td>
+        <td>${s.classification}</td>
+        <td style="font-size:12px;">${s.major}</td>
+        <td style="text-align:center;font-weight:700;color:var(--blue);">${s.sessions}</td>
+        <td style="text-align:center;font-weight:700;color:var(--orange);">${s.questions}</td>
+        <td style="text-align:center;font-weight:700;color:#15803d;">${s.uploads}</td>
+        <td style="text-align:center;font-weight:700;color:#7c3aed;">${s.docs}</td>
+        <td style="font-size:11px;color:#64748b;">${s.joined||''}</td>
+      </tr>
+      <tr id="conv-${s.id}" style="display:none;">
+        <td colspan="9">
+          <div class="conv-wrap open" id="convwrap-${s.id}">
+            <div class="loading">Loading conversations...</div>
+          </div>
+        </td>
+      </tr>`).join('')}
+    </tbody></table></div>`;
+}
+
+function filterRoster() {
+  const q = document.getElementById('roster-search').value.toLowerCase();
+  if (!allData) return;
+  const filtered = {...allData, students: allData.students.filter(s =>
+    `${s.first_name} ${s.last_name} ${s.email} ${s.major} ${s.classification}`.toLowerCase().includes(q)
+  )};
+  renderRoster(filtered);
+}
+
+async function toggleStudentConv(sid, row) {
+  const convRow = document.getElementById('conv-' + sid);
+  if (!convRow) return;
+  const isOpen = convRow.style.display !== 'none';
+  // Close all
+  document.querySelectorAll('[id^="conv-"]').forEach(r => { if(r.tagName==='TR') r.style.display='none'; });
+  if (isOpen) return;
+  convRow.style.display = '';
+  const wrap = document.getElementById('convwrap-' + sid);
+  wrap.innerHTML = '<div class="loading">Loading...</div>';
+  try {
+    const r = await fetch(`/student-conversations/${sid}`);
+    const d = await r.json();
+    if (d.error || !d.conversations?.length) {
+      wrap.innerHTML = '<div class="no-data">No conversations yet for this student.</div>';
+      return;
+    }
+    let html = `<p style="font-size:12px;color:var(--muted);margin-bottom:10px;">${d.conversations.length} conversation(s) found</p>`;
+    d.conversations.forEach((c,i) => {
+      html += `<div style="margin-bottom:12px;border-left:3px solid var(--orange);padding-left:10px;">`;
+      html += `<div style="font-size:11px;color:var(--muted);margin-bottom:6px;">Session ${i+1} · ${c.ts||''}</div>`;
+      if (c.question) {
+        html += `<div class="conv-q"><div class="who">🎓 Student asked:</div><div class="conv-text">${escHtml(c.question)}</div></div>`;
+      }
+      if (c.answer) {
+        html += `<div class="conv-a"><div class="who">🤖 WINK answered:</div><div class="conv-text">${escHtml(c.answer)}</div></div>`;
+      }
+      html += `</div>`;
+    });
+    wrap.innerHTML = html;
+  } catch(e) {
+    wrap.innerHTML = `<div class="no-data">Error loading: ${e.message}</div>`;
+  }
+}
+
+function renderConversations(d) {
+  const el = document.getElementById('conv-list');
+  if (!d.conversations?.length) { el.innerHTML = '<div class="no-data">No conversations yet.</div>'; return; }
+  renderConvList(d.conversations, el);
+}
+
+function renderConvList(convs, el) {
+  if (!convs?.length) { el.innerHTML = '<div class="no-data">No conversations found.</div>'; return; }
+  el.innerHTML = convs.map(c => `
+    <div style="margin-bottom:16px;border-left:3px solid var(--orange);padding-left:12px;">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:6px;display:flex;gap:12px;">
+        <strong style="color:var(--navy);">${c.first_name||''} ${c.last_name||''}</strong>
+        <span>${c.email||''}</span>
+        <span>${c.ts||''}</span>
+      </div>
+      ${c.question ? `<div class="conv-q"><div class="who">🎓 Student asked:</div><div class="conv-text">${escHtml(c.question)}</div></div>` : ''}
+      ${c.answer   ? `<div class="conv-a"><div class="who">🤖 WINK answered:</div><div class="conv-text">${escHtml(c.answer)}</div></div>` : ''}
+    </div>`).join('');
+}
+
+function filterConversations() {
+  const q = document.getElementById('conv-search').value.toLowerCase();
+  if (!allData?.conversations) return;
+  const filtered = allData.conversations.filter(c =>
+    `${c.first_name} ${c.last_name} ${c.question} ${c.answer}`.toLowerCase().includes(q)
+  );
+  renderConvList(filtered, document.getElementById('conv-list'));
+}
+
+function renderQuestions(d) {
+  const el = document.getElementById('questions-list');
+  if (!d.questions?.length) { el.innerHTML = '<div class="no-data">No questions asked yet.</div>'; return; }
+  el.innerHTML = `<table>
+    <thead><tr><th>#</th><th>Student</th><th>Question (full text)</th><th>Time</th></tr></thead>
+    <tbody>${d.questions.map((q,i) => `<tr>
+      <td style="color:var(--muted);font-weight:700;">${i+1}</td>
+      <td style="white-space:nowrap;font-weight:600;">${q.first_name||''} ${q.last_name||''}</td>
+      <td style="font-size:13px;">${escHtml(q.question||'')}</td>
+      <td style="font-size:11px;color:var(--muted);white-space:nowrap;">${q.ts||''}</td>
+    </tr>`).join('')}
+    </tbody></table>`;
+}
+
+function renderFeed(d) {
+  const ef = document.getElementById('feed');
+  if (!d.recent?.length) { ef.innerHTML = '<div class="no-data">No activity yet.</div>'; return; }
+  ef.innerHTML = `<div style="overflow-x:auto"><table>
+    <thead><tr><th>Time</th><th>Student</th><th>Event</th><th>Detail</th></tr></thead>
+    <tbody>${d.recent.map(e => {
+      const cls=BADGE[e.event_type]||'e-view', lbl=LABEL[e.event_type]||e.event_type;
+      const name=e.first_name?`${e.first_name} ${e.last_name}`:'Unknown';
+      const p=e.payload||{};
+      let detail='';
+      if(e.event_type==='question_asked') detail=escHtml((p.q||'').slice(0,80)+((p.q||'').length>80?'…':''));
+      else if(e.event_type==='file_uploaded') detail=escHtml(p.name||'');
+      else if(e.event_type==='answer_given') detail=(p.len||0)+' chars';
+      else if(e.event_type==='account_created') detail=escHtml(p.major||'');
+      else detail=escHtml(p.page||p.email||'');
+      return `<tr><td style="font-size:11px;color:#64748b;white-space:nowrap;">${e.ts||''}</td>
+        <td style="font-weight:600;white-space:nowrap;">${name}</td>
+        <td><span class="etag ${cls}">${lbl}</span></td>
+        <td style="font-size:12px;color:#64748b;">${detail}</td></tr>`;
+    }).join('')}</tbody></table></div>`;
+}
+
+function renderDemographics(d) {
+  // By major
+  const bm = document.getElementById('bmajor');
+  if (d.by_major?.length) {
+    const mx = d.by_major[0].n;
+    bm.innerHTML = d.by_major.map(m=>`<div class="bar-row"><div class="bar-lbl" title="${m.major}">${m.major}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.round(m.n/mx*100)}%"></div></div><div class="bar-n">${m.n}</div></div>`).join('');
+  } else bm.innerHTML = '<div class="no-data">No data yet.</div>';
+
+  // By classification
+  const bc = document.getElementById('bclass');
+  if (d.by_class?.length) {
+    const mx = d.by_class[0].n;
+    bc.innerHTML = d.by_class.map(c=>`<div class="bar-row"><div class="bar-lbl">${c.classification}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.round(c.n/mx*100)}%"></div></div><div class="bar-n">${c.n}</div></div>`).join('');
+  } else bc.innerHTML = '<div class="no-data">No data yet.</div>';
+
+  // By course
+  const bco = document.getElementById('by-course');
+  if (d.by_course?.length) {
+    const mx = d.by_course[0].n;
+    bco.innerHTML = d.by_course.map(c=>`<div class="bar-row"><div class="bar-lbl">${c.course}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.round(c.n/mx*100)}%"></div></div><div class="bar-n">${c.n}</div></div>`).join('');
+  } else bco.innerHTML = '<div class="no-data">No documents uploaded yet.</div>';
+
+  // Daily usage
+  const du = document.getElementById('daily-usage');
+  if (d.daily?.length) {
+    const mx = Math.max(...d.daily.map(x=>x.n));
+    du.innerHTML = d.daily.map(x=>`<div class="bar-row"><div class="bar-lbl">${x.day}</div><div class="bar-track"><div class="bar-fill" style="width:${mx>0?Math.round(x.n/mx*100):0}%"></div></div><div class="bar-n">${x.n}</div></div>`).join('');
+  } else du.innerHTML = '<div class="no-data">No usage data yet.</div>';
+}
+
+function renderAtRisk(d) {
+  const el = document.getElementById('at-risk-list');
+  if (!d.students?.length) { el.innerHTML = '<div class="no-data">No students yet.</div>'; return; }
+  const risks = d.students.map(s => {
+    let score = 0, flags = [];
+    if (s.sessions <= 1) { score += 3; flags.push('Only logged in once'); }
+    if (s.questions === 0) { score += 3; flags.push('Never asked WINK a question'); }
+    if (s.uploads === 0) { score += 2; flags.push('No documents uploaded'); }
+    if (s.docs === 0) { score += 1; flags.push('No docs in library'); }
+    return {...s, score, flags};
+  }).sort((a,b) => b.score - a.score);
+
+  const atRisk = risks.filter(s => s.score > 0);
+  if (!atRisk.length) {
+    el.innerHTML = '<div class="no-data" style="color:#15803d;">✅ All students appear engaged — no at-risk flags at this time.</div>';
+    return;
+  }
+  el.innerHTML = `<table>
+    <thead><tr><th>Student</th><th>Email</th><th>Risk Level</th><th>Flags</th><th>Sessions</th><th>Questions</th><th>Uploads</th></tr></thead>
+    <tbody>${atRisk.map(s => {
+      const lvl = s.score >= 5 ? 'HIGH' : s.score >= 3 ? 'MEDIUM' : 'LOW';
+      const cls = s.score >= 5 ? 'risk-high' : s.score >= 3 ? 'risk-med' : 'risk-ok';
+      return `<tr>
+        <td><strong>${s.first_name} ${s.last_name}</strong></td>
+        <td style="font-size:12px;color:#64748b;">${s.email}</td>
+        <td><span class="risk-badge ${cls}">${lvl}</span></td>
+        <td style="font-size:12px;color:#dc2626;">${s.flags.join(' · ')}</td>
+        <td style="text-align:center;">${s.sessions}</td>
+        <td style="text-align:center;">${s.questions}</td>
+        <td style="text-align:center;">${s.uploads}</td>
+      </tr>`;
+    }).join('')}</tbody></table>`;
+}
+
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function exportCSV() {
+  if (!allData) { alert('Data not loaded yet — wait for the page to load.'); return; }
+  const rows = [['Name','Email','Classification','Major','Sessions','Questions','Uploads','Docs','Joined']];
+  (allData.students||[]).forEach(s => {
+    rows.push([s.first_name+' '+s.last_name, s.email, s.classification, s.major,
+               s.sessions, s.questions, s.uploads, s.docs, s.joined||'']);
+  });
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = 'WINK_analytics_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+}
+
+loadAll();
+setInterval(loadAll, 30000);
 </script>
 {% endblock %}
