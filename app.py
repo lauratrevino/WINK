@@ -36,7 +36,6 @@ def extract_text(filepath, orig_name):
         if ext == "txt":
             with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
                 text = f.read()
-
         elif ext == "pdf":
             try:
                 from pypdf import PdfReader
@@ -52,9 +51,7 @@ def extract_text(filepath, orig_name):
                 text = "\n\n".join(pages)
                 print(f"PDF extracted {len(text)} chars from {len(reader.pages)} pages")
             except Exception as e:
-                print(f"PDF extract failed: {e}")
-                traceback.print_exc()
-
+                print(f"PDF extract failed: {e}"); traceback.print_exc()
         elif ext in ("doc", "docx"):
             try:
                 from docx import Document
@@ -71,9 +68,7 @@ def extract_text(filepath, orig_name):
                 text = "\n".join(parts)
                 print(f"DOCX extracted {len(text)} chars")
             except Exception as e:
-                print(f"DOCX extract failed: {e}")
-                traceback.print_exc()
-
+                print(f"DOCX extract failed: {e}"); traceback.print_exc()
         elif ext == "pptx":
             try:
                 from pptx import Presentation
@@ -89,28 +84,19 @@ def extract_text(filepath, orig_name):
                 text = "\n\n".join(slides)
                 print(f"PPTX extracted {len(text)} chars")
             except Exception as e:
-                print(f"PPTX extract failed: {e}")
-                traceback.print_exc()
-
+                print(f"PPTX extract failed: {e}"); traceback.print_exc()
         elif ext in ("jpg","jpeg","png"):
             text = f"[Image file: {orig_name}]"
-
         else:
             try:
                 with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
                     text = f.read()
             except:
                 text = ""
-
     except Exception as e:
-        print(f"extract_text top-level error for {orig_name}: {e}")
-        traceback.print_exc()
-        text = ""
-
-    # Cap at 60,000 chars to stay within token limits
+        print(f"extract_text error for {orig_name}: {e}"); text = ""
     if len(text) > 60000:
-        text = text[:60000] + "\n\n[Document truncated — showing first 60,000 characters]"
-
+        text = text[:60000] + "\n\n[Document truncated at 60,000 characters]"
     return text.strip()
 
 def build_doc_context(docs):
@@ -121,20 +107,16 @@ def build_doc_context(docs):
         ctx = f"\n\nThe student has {len(docs)} uploaded file(s) but no text could be extracted. "
         ctx += "Files: " + ", ".join(d["orig_name"] for d in docs)
         return ctx
-    ctx = f"\n\n{'='*60}\n"
-    ctx += f"STUDENT'S UPLOADED COURSE DOCUMENTS ({len(docs)} files)\n"
+    ctx = f"\n\n{'='*60}\nSTUDENT'S UPLOADED COURSE DOCUMENTS ({len(docs)} files)\n"
     ctx += "Answer questions using the actual content of these documents.\n"
-    ctx += "Quote specific text, deadlines, requirements, and grades directly from the documents.\n"
+    ctx += "Quote specific text, deadlines, requirements directly from the documents.\n"
     ctx += f"{'='*60}\n\n"
     for i, d in enumerate(docs):
         content = (d.get("content") or "").strip()
         ctx += f"[DOCUMENT {i+1}] {d['orig_name']}\n"
         ctx += f"Course: {d['course']} | Size: {round(d.get('size_bytes',0)/1024,1)} KB\n"
-        ctx += f"Content ({len(content)} chars extracted):\n"
-        if content:
-            ctx += content
-        else:
-            ctx += "[No text content could be extracted from this file type]"
+        ctx += f"Content ({len(content)} chars):\n"
+        ctx += content if content else "[No text could be extracted]"
         ctx += f"\n\n{'-'*40}\n\n"
     ctx += f"{'='*60}\n"
     return ctx
@@ -164,9 +146,11 @@ def init_db():
             content TEXT DEFAULT '',
             uploaded_at TIMESTAMP DEFAULT NOW())""")
         cur.execute("ALTER TABLE documents ADD COLUMN IF NOT EXISTS content TEXT DEFAULT ''")
+        # Use TEXT for payload — simple and reliable across all Postgres versions
         cur.execute("""CREATE TABLE IF NOT EXISTS events (
             id SERIAL PRIMARY KEY, student_id INTEGER,
-            event_type TEXT NOT NULL, payload TEXT DEFAULT '{}',
+            event_type TEXT NOT NULL,
+            payload TEXT DEFAULT '{}',
             created_at TIMESTAMP DEFAULT NOW())""")
         conn.commit(); cur.close(); conn.close()
         print("DB initialized OK.")
@@ -188,14 +172,20 @@ def current_student():
         print(f"current_student error: {e}"); return None
 
 def log_event(sid, etype, payload=None):
-    if not DB_URL: return
+    """Log every user action to the events table."""
+    if not DB_URL:
+        return
     try:
         conn = get_db(); cur = conn.cursor()
-        cur.execute("INSERT INTO events(student_id,event_type,payload) VALUES(%s,%s,%s)",
-                    (sid, etype, json.dumps(payload or {})))
+        cur.execute(
+            "INSERT INTO events(student_id, event_type, payload) VALUES(%s, %s, %s)",
+            (sid, etype, json.dumps(payload or {}))
+        )
         conn.commit(); cur.close(); conn.close()
+        print(f"EVENT LOGGED: {etype} for student {sid}")
     except Exception as e:
-        print(f"log_event error: {e}")
+        print(f"log_event ERROR: {e}")
+        traceback.print_exc()
 
 def get_docs(sid):
     if not DB_URL: return []
@@ -207,13 +197,22 @@ def get_docs(sid):
     except Exception as e:
         print(f"get_docs error: {e}"); return []
 
+def safe_payload(raw):
+    """Safely parse a payload value regardless of whether it's str, dict, or None."""
+    if raw is None:
+        return {}
+    if isinstance(raw, dict):
+        return raw
+    try:
+        return json.loads(raw)
+    except:
+        return {}
+
 # ── Auth ──────────────────────────────────────────────────
 @app.route("/")
 def landing():
+    # Always show landing page so students see the welcome screen first
     try:
-        if "sid" in session:
-            s = current_student()
-            if s: return redirect(url_for("dashboard"))
         return render_template("landing.html")
     except Exception as e:
         print(f"landing error: {e}"); return render_template("landing.html")
@@ -325,6 +324,7 @@ def analytics_page():
     try:
         s = current_student()
         if not s: return redirect(url_for("login"))
+        log_event(s["id"], "page_view", {"page":"analytics"})
         return render_template("analytics.html", s=s, active="analytics")
     except Exception as e:
         print(f"analytics_page error: {e}"); traceback.print_exc()
@@ -402,15 +402,18 @@ def chat():
         log_event(s["id"], "question_asked", {"q": user_msg[:200]})
         docs    = get_docs(s["id"])
         doc_ctx = build_doc_context(docs)
-        system  = (
+        import datetime
+        now   = datetime.datetime.now()
+        today = now.strftime("%A, %B %d, %Y")
+        system = (
             f"You are WINK, a warm encouraging AI academic companion for UTEP students. "
+            f"Today's date is {today}. Always use this when answering questions about "
+            f"deadlines, schedules, or anything time-related. "
             f"You are helping {s['first_name']} {s['last_name']}, "
             f"a {s['classification']} majoring in {s['major']}. "
             f"IMPORTANT: The student's actual uploaded course documents are included below. "
             f"Always read and reference the document content to answer questions. "
-            f"Quote specific deadlines, requirements, grading criteria, and instructions "
-            f"directly from their documents when answering. "
-            f"If the answer is in their documents, cite it specifically. "
+            f"Quote specific deadlines, requirements, and grading criteria directly from their documents. "
             f"UTEP resources: University Writing Center, CASS Tutoring, Advising & Student Support. "
             f"Be warm, specific, and actionable. End with an encouraging note."
             + doc_ctx
@@ -419,9 +422,7 @@ def chat():
         client = ac.Anthropic(api_key=ANTHROPIC_API_KEY, http_client=httpx.Client())
         resp   = client.messages.create(
             model="claude-sonnet-4-20250514",
-            max_tokens=1500,
-            system=system,
-            messages=messages
+            max_tokens=1500, system=system, messages=messages
         )
         reply = resp.content[0].text
         log_event(s["id"], "answer_given", {"len": len(reply)})
@@ -432,7 +433,6 @@ def chat():
 
 @app.route("/debug-docs")
 def debug_docs():
-    """Shows exactly what content WINK can see from uploaded documents."""
     s = current_student()
     if not s: return redirect(url_for("login"))
     docs = get_docs(s["id"])
@@ -449,8 +449,8 @@ def debug_docs():
             if len(content) > 2000:
                 out += f"<p><em>...and {len(content)-2000} more characters</em></p>"
         else:
-            out += "<p style='color:red;'><strong>⚠️ No text extracted from this file!</strong></p>"
-    out += "<hr><p><a href='/documents'>← Back to Documents</a></p>"
+            out += "<p style='color:red;'><strong>No text extracted from this file!</strong></p>"
+    out += "<hr><p><a href='/documents'>Back to Documents</a></p>"
     return out
 
 @app.route("/analytics-data")
@@ -460,57 +460,99 @@ def analytics_data():
         if not s: return jsonify({"error":"Not logged in"}), 401
         if not DB_URL: return jsonify({"error":"No database"}), 500
         conn = get_db(); cur = conn.cursor()
-        cur.execute("SELECT COUNT(*) as n FROM students"); total_s = cur.fetchone()["n"]
-        cur.execute("SELECT COUNT(*) as n FROM events WHERE event_type IN ('login','account_created')"); total_sess = cur.fetchone()["n"]
-        cur.execute("SELECT COUNT(*) as n FROM events WHERE event_type='question_asked'"); total_q = cur.fetchone()["n"]
-        cur.execute("SELECT COUNT(*) as n FROM events WHERE event_type='file_uploaded'"); total_up = cur.fetchone()["n"]
+
+        cur.execute("SELECT COUNT(*) as n FROM students")
+        total_s = cur.fetchone()["n"]
+
+        cur.execute("SELECT COUNT(*) as n FROM events WHERE event_type IN ('login','account_created')")
+        total_sess = cur.fetchone()["n"]
+
+        cur.execute("SELECT COUNT(*) as n FROM events WHERE event_type='question_asked'")
+        total_q = cur.fetchone()["n"]
+
+        cur.execute("SELECT COUNT(*) as n FROM events WHERE event_type='file_uploaded'")
+        total_up = cur.fetchone()["n"]
+
+        # Per-student summary
         cur.execute("""
-            SELECT s.id,s.first_name,s.last_name,s.email,s.classification,s.major,
-                   to_char(s.created_at,'Mon DD YYYY') as joined,
-                   COUNT(DISTINCT CASE WHEN e.event_type IN ('login','account_created') THEN e.id END) as sessions,
-                   COUNT(DISTINCT CASE WHEN e.event_type='question_asked' THEN e.id END) as questions,
-                   COUNT(DISTINCT CASE WHEN e.event_type='file_uploaded' THEN e.id END) as uploads,
-                   COUNT(DISTINCT d.id) as docs
+            SELECT
+                s.id, s.first_name, s.last_name, s.email,
+                s.classification, s.major,
+                to_char(s.created_at, 'Mon DD YYYY') as joined,
+                (SELECT COUNT(*) FROM events e WHERE e.student_id=s.id
+                 AND e.event_type IN ('login','account_created')) as sessions,
+                (SELECT COUNT(*) FROM events e WHERE e.student_id=s.id
+                 AND e.event_type='question_asked') as questions,
+                (SELECT COUNT(*) FROM events e WHERE e.student_id=s.id
+                 AND e.event_type='file_uploaded') as uploads,
+                (SELECT COUNT(*) FROM documents d WHERE d.student_id=s.id) as docs
             FROM students s
-            LEFT JOIN events e ON e.student_id=s.id
-            LEFT JOIN documents d ON d.student_id=s.id
-            GROUP BY s.id ORDER BY s.created_at DESC""")
+            ORDER BY s.created_at DESC
+        """)
         students = [dict(r) for r in cur.fetchall()]
+
+        # Recent events feed
         cur.execute("""
-            SELECT e.event_type, e.payload,
-                   to_char(e.created_at,'Mon DD HH24:MI') as ts,
-                   s.first_name, s.last_name, s.email
-            FROM events e LEFT JOIN students s ON s.id=e.student_id
-            ORDER BY e.created_at DESC LIMIT 60""")
+            SELECT
+                e.id, e.event_type, e.payload,
+                to_char(e.created_at, 'Mon DD HH24:MI') as ts,
+                s.first_name, s.last_name, s.email
+            FROM events e
+            LEFT JOIN students s ON s.id = e.student_id
+            ORDER BY e.created_at DESC
+            LIMIT 60
+        """)
         recent = []
         for r in cur.fetchall():
             row = dict(r)
-            try:
-                row["payload"] = json.loads(row["payload"]) if isinstance(row["payload"],str) else (row["payload"] or {})
-            except:
-                row["payload"] = {}
+            row["payload"] = safe_payload(row.get("payload"))
             recent.append(row)
+
         cur.execute("SELECT major, COUNT(*) as n FROM students GROUP BY major ORDER BY n DESC")
         by_major = [dict(r) for r in cur.fetchall()]
+
         cur.execute("SELECT classification, COUNT(*) as n FROM students GROUP BY classification ORDER BY n DESC")
         by_class = [dict(r) for r in cur.fetchall()]
+
         cur.close(); conn.close()
-        return jsonify({"total_students":total_s,"total_sessions":total_sess,
-                        "total_questions":total_q,"total_uploads":total_up,
-                        "students":students,"recent":recent,
-                        "by_major":by_major,"by_class":by_class})
+        return jsonify({
+            "total_students":  total_s,
+            "total_sessions":  total_sess,
+            "total_questions": total_q,
+            "total_uploads":   total_up,
+            "students":        students,
+            "recent":          recent,
+            "by_major":        by_major,
+            "by_class":        by_class
+        })
     except Exception as e:
-        print(f"analytics error: {e}"); traceback.print_exc()
+        print(f"analytics_data error: {e}"); traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 @app.route("/health")
 def health():
     db_ok = False
+    event_count = 0
+    student_count = 0
     if DB_URL:
         try:
-            conn = get_db(); conn.close(); db_ok = True
-        except: pass
-    return jsonify({"status":"ok","db":db_ok,"db_url":bool(DB_URL),"api_key":bool(ANTHROPIC_API_KEY)})
+            conn = get_db(); cur = conn.cursor()
+            db_ok = True
+            cur.execute("SELECT COUNT(*) as n FROM events")
+            event_count = cur.fetchone()["n"]
+            cur.execute("SELECT COUNT(*) as n FROM students")
+            student_count = cur.fetchone()["n"]
+            cur.close(); conn.close()
+        except Exception as e:
+            print(f"health check db error: {e}")
+    return jsonify({
+        "status":        "ok",
+        "db":            db_ok,
+        "db_url":        bool(DB_URL),
+        "api_key":       bool(ANTHROPIC_API_KEY),
+        "total_events":  event_count,
+        "total_students": student_count
+    })
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT",10000)), debug=False)
