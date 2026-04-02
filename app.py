@@ -412,15 +412,23 @@ def chat():
         now   = datetime.datetime.now()
         today = now.strftime("%A, %B %d, %Y")
         system = (
-            f"You are WINK, a warm encouraging AI-powered Personal Academic Success Coach for college students. "
+            f"You are WINK, a warm encouraging AI-powered Academic Support System for college students. "
             f"Today's date is {today}. Always use this when answering questions about "
             f"deadlines, schedules, or anything time-related. "
             f"You are helping {s['first_name']} {s['last_name']}, "
             f"a {s['classification']} majoring in {s['major']}. "
-            f"IMPORTANT: The student's actual uploaded course documents are included below. "
-            f"Always read and reference the document content to answer questions. "
-            f"Quote specific deadlines, requirements, and grading criteria directly from their documents. "
-            f"UTEP resources: University Writing Center, CASS Tutoring, Advising & Student Support. "
+            f"ANSWERING STRATEGY — follow this order: "
+            f"1. FIRST check the student's uploaded documents below for the answer. "
+            f"If found, quote directly from their documents with specific details. "
+            f"2. If the answer is NOT in their documents, use the web_search tool "
+            f"to find current, accurate information from the internet. "
+            f"This includes questions about professors, university staff, campus resources, "
+            f"current events, university policies, people at the university, and anything "
+            f"not covered in their uploaded files. "
+            f"3. Always tell the student whether your answer came from their documents "
+            f"or from a web search, so they know the source. "
+            f"UTEP president is Heather Wilson. UTEP resources: University Writing Center, "
+            f"CASS Tutoring, Advising & Student Support. "
             f"Be warm, specific, and actionable. End with an encouraging note."
             + doc_ctx
         )
@@ -428,9 +436,18 @@ def chat():
         client = ac.Anthropic(api_key=ANTHROPIC_API_KEY, http_client=httpx.Client())
         resp   = client.messages.create(
             model="claude-sonnet-4-20250514",
-            max_tokens=1500, system=system, messages=messages
+            max_tokens=1500,
+            system=system,
+            messages=messages,
+            tools=[{"type": "web_search_20250305", "name": "web_search"}]
         )
-        reply = resp.content[0].text
+        # Extract text from all content blocks (text + tool results)
+        reply_parts = []
+        for block in resp.content:
+            if hasattr(block, "type"):
+                if block.type == "text" and block.text.strip():
+                    reply_parts.append(block.text.strip())
+        reply = "\n\n".join(reply_parts) if reply_parts else "I had trouble finding an answer — please try again."
         log_event(s["id"], "answer_given", {"len": len(reply), "full_answer": reply})
         return jsonify({"reply": reply})
     except Exception as e:
