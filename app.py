@@ -15,6 +15,7 @@ app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
 
 DB_URL            = os.environ.get("DATABASE_URL", "")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "lhall@utep.edu").lower()
 
 CLASSIFICATIONS = ["Freshman","Sophomore","Junior","Senior","Graduate"]
 MAJORS = [
@@ -271,6 +272,9 @@ def login():
             if s and check_password_hash(s["password_hash"], pw):
                 session["sid"] = s["id"]
                 log_event(s["id"], "login", {"email": email})
+                # Admin goes straight to analytics
+                if email == ADMIN_EMAIL:
+                    return redirect(url_for("analytics_page"))
                 return redirect(url_for("dashboard"))
             return render_template("login.html", error="Invalid email or password.")
         return render_template("login.html", error=None)
@@ -290,7 +294,7 @@ def dashboard():
         if not s: return redirect(url_for("login"))
         docs = get_docs(s["id"])
         log_event(s["id"], "page_view", {"page":"dashboard"})
-        return render_template("dashboard.html", s=s, docs=docs, active="dashboard")
+        return render_template("dashboard.html", s=s, admin_email=ADMIN_EMAIL, docs=docs, active="dashboard")
     except Exception as e:
         print(f"dashboard error: {e}"); traceback.print_exc()
         return f"<h2>Error</h2><pre>{e}</pre><a href='/logout'>Logout</a>", 500
@@ -302,7 +306,7 @@ def documents():
         if not s: return redirect(url_for("login"))
         docs = get_docs(s["id"])
         log_event(s["id"], "page_view", {"page":"documents"})
-        return render_template("documents.html", s=s, docs=docs, active="documents")
+        return render_template("documents.html", s=s, admin_email=ADMIN_EMAIL, docs=docs, active="documents")
     except Exception as e:
         print(f"documents error: {e}"); traceback.print_exc()
         return f"<h2>Error</h2><pre>{e}</pre><a href='/logout'>Logout</a>", 500
@@ -314,7 +318,7 @@ def chat_page():
         if not s: return redirect(url_for("login"))
         docs = get_docs(s["id"])
         log_event(s["id"], "page_view", {"page":"chat"})
-        return render_template("chat.html", s=s, docs=docs, active="chat")
+        return render_template("chat.html", s=s, admin_email=ADMIN_EMAIL, docs=docs, active="chat")
     except Exception as e:
         print(f"chat_page error: {e}"); traceback.print_exc()
         return f"<h2>Error</h2><pre>{e}</pre><a href='/logout'>Logout</a>", 500
@@ -324,8 +328,10 @@ def analytics_page():
     try:
         s = current_student()
         if not s: return redirect(url_for("login"))
+        if s["email"].lower() != ADMIN_EMAIL:
+            return redirect(url_for("dashboard"))
         log_event(s["id"], "page_view", {"page":"analytics"})
-        return render_template("analytics.html", s=s, active="analytics")
+        return render_template("analytics.html", s=s, admin_email=ADMIN_EMAIL, active="analytics")
     except Exception as e:
         print(f"analytics_page error: {e}"); traceback.print_exc()
         return f"<h2>Error</h2><pre>{e}</pre><a href='/logout'>Logout</a>", 500
@@ -425,7 +431,7 @@ def chat():
             max_tokens=1500, system=system, messages=messages
         )
         reply = resp.content[0].text
-        log_event(s["id"], "answer_given", {"len": len(reply)})
+        log_event(s["id"], "answer_given", {"len": len(reply), "full_answer": reply})
         return jsonify({"reply": reply})
     except Exception as e:
         print(f"chat error: {e}"); traceback.print_exc()
@@ -527,6 +533,171 @@ def analytics_data():
         })
     except Exception as e:
         print(f"analytics_data error: {e}"); traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/analytics-data-full")
+def analytics_data_full():
+    try:
+        s = current_student()
+        if not s: return jsonify({"error":"Not logged in"}), 401
+        if s["email"].lower() != ADMIN_EMAIL: return jsonify({"error":"Not authorized"}), 403
+        if not DB_URL: return jsonify({"error":"No database"}), 500
+        conn = get_db(); cur = conn.cursor()
+
+        cur.execute("SELECT COUNT(*) as n FROM students"); total_s = cur.fetchone()["n"]
+        cur.execute("SELECT COUNT(*) as n FROM events WHERE event_type IN ('login','account_created')"); total_sess = cur.fetchone()["n"]
+        cur.execute("SELECT COUNT(*) as n FROM events WHERE event_type='question_asked'"); total_q = cur.fetchone()["n"]
+        cur.execute("SELECT COUNT(*) as n FROM events WHERE event_type='file_uploaded'"); total_up = cur.fetchone()["n"]
+
+        # Per-student summary
+        cur.execute("""
+            SELECT s.id, s.first_name, s.last_name, s.email, s.classification, s.major,
+                   to_char(s.created_at,'Mon DD YYYY') as joined,
+                   (SELECT COUNT(*) FROM events e WHERE e.student_id=s.id AND e.event_type IN ('login','account_created')) as sessions,
+                   (SELECT COUNT(*) FROM events e WHERE e.student_id=s.id AND e.event_type='question_asked') as questions,
+                   (SELECT COUNT(*) FROM events e WHERE e.student_id=s.id AND e.event_type='file_uploaded') as uploads,
+                   (SELECT COUNT(*) FROM documents d WHERE d.student_id=s.id) as docs
+            FROM students s ORDER BY s.created_at DESC""")
+        students = [dict(r) for r in cur.fetchall()]
+
+        # Full questions list (no truncation)
+        cur.execute("""
+            SELECT e.payload, to_char(e.created_at,'Mon DD HH24:MI') as ts,
+                   s.first_name, s.last_name, s.email
+            FROM events e LEFT JOIN students s ON s.id=e.student_id
+            WHERE e.event_type='question_asked'
+            ORDER BY e.created_at DESC LIMIT 200""")
+        questions = []
+        for r in cur.fetchall():
+            row = dict(r)
+            p = safe_payload(row.get("payload"))
+            questions.append({
+                "first_name": row.get("first_name",""),
+                "last_name":  row.get("last_name",""),
+                "email":      row.get("email",""),
+                "question":   p.get("q",""),
+                "ts":         row.get("ts","")
+            })
+
+        # Paired Q&A conversations
+        cur.execute("""
+            SELECT e.id, e.event_type, e.payload, e.created_at,
+                   to_char(e.created_at,'Mon DD HH24:MI') as ts,
+                   s.first_name, s.last_name, s.email, s.id as sid
+            FROM events e LEFT JOIN students s ON s.id=e.student_id
+            WHERE e.event_type IN ('question_asked','answer_given')
+            ORDER BY s.id, e.created_at ASC LIMIT 400""")
+        raw_events = [dict(r) for r in cur.fetchall()]
+        conversations = []
+        i = 0
+        while i < len(raw_events):
+            ev = raw_events[i]
+            p  = safe_payload(ev.get("payload"))
+            if ev["event_type"] == "question_asked":
+                conv = {
+                    "first_name": ev.get("first_name",""),
+                    "last_name":  ev.get("last_name",""),
+                    "email":      ev.get("email",""),
+                    "question":   p.get("q",""),
+                    "answer":     "",
+                    "ts":         ev.get("ts",""),
+                    "sid":        ev.get("sid")
+                }
+                if i+1 < len(raw_events) and raw_events[i+1]["event_type"] == "answer_given" and raw_events[i+1].get("sid") == ev.get("sid"):
+                    ap = safe_payload(raw_events[i+1].get("payload"))
+                    conv["answer"] = ap.get("full_answer", "")
+                    i += 2
+                else:
+                    i += 1
+                conversations.append(conv)
+            else:
+                i += 1
+
+        # Recent activity feed (last 100)
+        cur.execute("""
+            SELECT e.event_type, e.payload, to_char(e.created_at,'Mon DD HH24:MI') as ts,
+                   s.first_name, s.last_name, s.email
+            FROM events e LEFT JOIN students s ON s.id=e.student_id
+            ORDER BY e.created_at DESC LIMIT 100""")
+        recent = []
+        for r in cur.fetchall():
+            row = dict(r)
+            row["payload"] = safe_payload(row.get("payload"))
+            recent.append(row)
+
+        # By major / classification
+        cur.execute("SELECT major, COUNT(*) as n FROM students GROUP BY major ORDER BY n DESC")
+        by_major = [dict(r) for r in cur.fetchall()]
+        cur.execute("SELECT classification, COUNT(*) as n FROM students GROUP BY classification ORDER BY n DESC")
+        by_class = [dict(r) for r in cur.fetchall()]
+
+        # By course (documents)
+        cur.execute("SELECT course, COUNT(*) as n FROM documents GROUP BY course ORDER BY n DESC")
+        by_course = [dict(r) for r in cur.fetchall()]
+
+        # Daily usage last 7 days
+        cur.execute("""
+            SELECT to_char(created_at,'Mon DD') as day, COUNT(*) as n
+            FROM events
+            WHERE created_at >= NOW() - INTERVAL '7 days'
+            GROUP BY to_char(created_at,'Mon DD'), DATE(created_at)
+            ORDER BY DATE(created_at) ASC""")
+        daily = [dict(r) for r in cur.fetchall()]
+
+        cur.close(); conn.close()
+        return jsonify({
+            "total_students":  total_s,
+            "total_sessions":  total_sess,
+            "total_questions": total_q,
+            "total_uploads":   total_up,
+            "students":        students,
+            "questions":       questions,
+            "conversations":   conversations,
+            "recent":          recent,
+            "by_major":        by_major,
+            "by_class":        by_class,
+            "by_course":       by_course,
+            "daily":           daily
+        })
+    except Exception as e:
+        print(f"analytics_data_full error: {e}"); traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/student-conversations/<int:sid>")
+def student_conversations(sid):
+    try:
+        s = current_student()
+        if not s: return jsonify({"error":"Not logged in"}), 401
+        if s["email"].lower() != ADMIN_EMAIL: return jsonify({"error":"Not authorized"}), 403
+        if not DB_URL: return jsonify({"error":"No database"}), 500
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("""
+            SELECT e.event_type, e.payload, to_char(e.created_at,'Mon DD HH24:MI') as ts
+            FROM events e
+            WHERE e.student_id=%s AND e.event_type IN ('question_asked','answer_given')
+            ORDER BY e.created_at ASC""", (sid,))
+        rows = [dict(r) for r in cur.fetchall()]
+        cur.close(); conn.close()
+        conversations = []
+        i = 0
+        while i < len(rows):
+            ev = rows[i]
+            p  = safe_payload(ev.get("payload"))
+            if ev["event_type"] == "question_asked":
+                conv = {"question": p.get("q",""), "answer":"", "ts": ev.get("ts","")}
+                if i+1 < len(rows) and rows[i+1]["event_type"] == "answer_given":
+                    ap = safe_payload(rows[i+1].get("payload"))
+                    conv["answer"] = ap.get("full_answer","")
+                    i += 2
+                else:
+                    i += 1
+                conversations.append(conv)
+            else:
+                i += 1
+        return jsonify({"conversations": conversations})
+    except Exception as e:
+        print(f"student_conversations error: {e}"); traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 @app.route("/health")
