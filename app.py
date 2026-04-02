@@ -412,7 +412,7 @@ def chat():
         now   = datetime.datetime.now()
         today = now.strftime("%A, %B %d, %Y")
         system = (
-            f"You are WINK, a warm encouraging AI academic companion for UTEP students. "
+            f"You are WINK, a warm encouraging AI-powered Personal Academic Success Coach for college students. "
             f"Today's date is {today}. Always use this when answering questions about "
             f"deadlines, schedules, or anything time-related. "
             f"You are helping {s['first_name']} {s['last_name']}, "
