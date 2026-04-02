@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+{% block title %}My Documents{% endblock %}
+{% block extra_style %}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:22px;}
+.drop-zone{border:2px dashed var(--border);border-radius:14px;padding:34px 20px;text-align:center;cursor:pointer;background:var(--bg);transition:all .2s;margin-bottom:14px;}
+.drop-zone:hover,.drop-zone.over{border-color:var(--orange);background:rgba(249,115,22,.04);}
+.drop-icon{font-size:36px;margin-bottom:8px;}
+.drop-main{font-size:14px;font-weight:700;color:var(--navy);margin-bottom:4px;}
+.drop-sub{font-size:12px;color:var(--muted);}
+.pending{display:flex;flex-direction:column;gap:6px;margin-bottom:12px;}
+.pending-item{display:flex;align-items:center;gap:8px;background:var(--pale-blue);border-radius:8px;padding:7px 12px;font-size:12px;color:var(--navy);font-weight:500;}
+.pending-item svg{width:13px;height:13px;fill:none;stroke:var(--blue);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;}
+.pending-sz{color:var(--muted);margin-left:auto;font-weight:400;}
+.up-select{width:100%;padding:10px 12px;border-radius:10px;border:1.5px solid var(--border);background:#fff;color:var(--text);font-size:13px;margin-bottom:12px;outline:none;}
+.up-select:focus{border-color:var(--blue);}
+.up-btn{width:100%;padding:12px;border-radius:12px;border:none;background:linear-gradient(135deg,var(--navy),var(--blue));color:#fff;font-size:14px;cursor:pointer;font-weight:700;box-shadow:0 2px 8px rgba(4,30,66,.2);}
+.up-btn:disabled{opacity:.45;cursor:not-allowed;}
+
+/* Progress */
+.prog-wrap{display:none;margin-top:12px;}
+.prog-wrap.show{display:block;}
+.prog-header{display:flex;justify-content:space-between;font-size:12px;color:var(--navy);font-weight:600;margin-bottom:6px;}
+.prog-track{height:9px;background:var(--border);border-radius:999px;overflow:hidden;}
+.prog-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--blue),var(--orange));border-radius:999px;transition:width .3s ease;}
+.up-msg{font-size:13px;margin-top:8px;min-height:18px;font-weight:500;}
+.up-msg.ok{color:#16a34a;}.up-msg.err{color:#dc2626;}
+
+/* File list */
+.file-list{display:flex;flex-direction:column;gap:8px;max-height:500px;overflow-y:auto;padding-right:2px;}
+.file-list::-webkit-scrollbar{width:5px;}
+.file-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:999px;}
+.file-card{display:flex;align-items:center;gap:11px;padding:12px 14px;background:var(--bg);border-radius:12px;border:1.5px solid var(--border);transition:border-color .15s;}
+.file-card:hover{border-color:var(--blue);}
+.file-ico{width:38px;height:38px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
+.ico-pdf{background:#fee2e2;}.ico-doc{background:var(--pale-blue);}
+.ico-ppt{background:#ffedd5;}.ico-img{background:#dcfce7;}.ico-txt{background:#fef9c3;}
+.file-info{flex:1;min-width:0;}
+.file-name{font-size:13px;color:var(--text);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.file-meta{font-size:11px;color:var(--muted);margin-top:2px;}
+.file-course{font-size:10px;font-weight:700;color:var(--blue);background:var(--pale-blue);padding:2px 8px;border-radius:999px;display:inline-block;margin-top:3px;}
+.file-del{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:16px;color:#94a3b8;cursor:pointer;flex-shrink:0;transition:all .15s;background:transparent;border:none;}
+.file-del:hover{background:#fee2e2;color:#dc2626;}
+.no-files{color:var(--muted);font-size:14px;text-align:center;padding:36px 20px;background:var(--bg);border-radius:12px;border:2px dashed var(--border);line-height:1.8;}
+.doc-count{font-size:12px;color:var(--muted);font-weight:600;margin-bottom:10px;}
+@media(max-width:768px){.two-col{grid-template-columns:1fr;}}
+{% endblock %}
+{% block content %}
+<div class="wrap">
+  <div class="page-title">My Course Documents</div>
+  <div class="page-sub">Upload syllabi, assignments, and notes so WINK can answer questions specific to YOUR courses.</div>
+
+  <div class="two-col">
+    <!-- Upload panel -->
+    <div class="panel">
+      <div class="panel-title">Upload New Document</div>
+      <div class="drop-zone" id="dz">
+        <div class="drop-icon">📨</div>
+        <div class="drop-main" id="dz-text">Drag &amp; drop files here</div>
+        <div class="drop-sub">or click to browse · PDF, DOCX, TXT, PPTX, XLSX · Max 16 MB</div>
+      </div>
+      <input type="file" id="fi" style="display:none" accept=".pdf,.doc,.docx,.txt,.pptx,.xlsx,.png,.jpg,.jpeg" multiple/>
+      <div class="pending" id="pending"></div>
+      <select class="up-select" id="course-sel">
+        <option value="General">General / All Courses</option>
+        <option value="MIS 3350">MIS 3350 — Management Information Systems</option>
+        <option value="CS 2401">CS 2401 — Computer Science I</option>
+        <option value="ENGL 1301">ENGL 1301 — Rhetoric and Composition</option>
+        <option value="MATH 1411">MATH 1411 — Calculus I</option>
+        <option value="Other">Other Course</option>
+      </select>
+      <button class="up-btn" id="up-btn" onclick="doUpload()">⬆ Upload to WINK</button>
+      <div class="prog-wrap" id="pw">
+        <div class="prog-header"><span id="pf">Uploading...</span><span id="pp">0%</span></div>
+        <div class="prog-track"><div class="prog-bar" id="pb"></div></div>
+      </div>
+      <div class="up-msg" id="up-msg"></div>
+    </div>
+
+    <!-- Files panel -->
+    <div class="panel">
+      <div class="panel-title">Your Uploaded Documents</div>
+      <div class="doc-count" id="doc-count">{{ docs|length }} document{{ 's' if docs|length != 1 else '' }} uploaded</div>
+      <div class="file-list" id="file-list">
+        {% if docs %}
+          {% for d in docs %}
+          {% set ext = d.orig_name.rsplit('.',1)[-1].lower() if '.' in d.orig_name else '' %}
+          <div class="file-card" id="dc-{{ d.id }}">
+            <div class="file-ico {{ 'ico-pdf' if ext=='pdf' else 'ico-doc' if ext in ['doc','docx'] else 'ico-ppt' if ext=='pptx' else 'ico-img' if ext in ['jpg','jpeg','png'] else 'ico-txt' }}">
+              {{ '📄' if ext=='pdf' else '📝' if ext in ['doc','docx'] else '📊' if ext=='pptx' else '🖼️' if ext in ['jpg','jpeg','png'] else '📃' }}
+            </div>
+            <div class="file-info">
+              <div class="file-name">{{ d.orig_name }}</div>
+              <div class="file-meta">{{ (d.size_bytes/1024)|round(1) }} KB · {{ d.uploaded_at.strftime('%b %d, %Y') if d.uploaded_at else '' }}</div>
+              <span class="file-course">{{ d.course }}</span>
+            </div>
+            <button class="file-del" onclick="delFile({{ d.id }})" title="Delete">✕</button>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="no-files" id="nf">
+            📄 No documents uploaded yet.<br>
+            <strong>Upload your syllabi, assignments, and notes</strong><br>
+            so WINK can give you personalized answers!
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let pending = [];
+const dz = document.getElementById('dz');
+const fi = document.getElementById('fi');
+
+dz.addEventListener('click', () => fi.click());
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('over'));
+dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('over'); pending = Array.from(e.dataTransfer.files); showPending(); });
+fi.addEventListener('change', () => { pending = Array.from(fi.files); showPending(); });
+
+function showPending() {
+  const c = document.getElementById('pending');
+  document.getElementById('dz-text').textContent = pending.length ? `${pending.length} file(s) selected` : 'Drag & drop files here';
+  c.innerHTML = pending.map(f => `<div class="pending-item"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>${f.name}<span class="pending-sz">${(f.size/1024).toFixed(1)} KB</span></div>`).join('');
+}
+
+function setMsg(t, c) { const m = document.getElementById('up-msg'); m.textContent = t; m.className = 'up-msg' + (c ? ' '+c : ''); }
+function setProgress(name, pct) {
+  document.getElementById('pw').classList.add('show');
+  document.getElementById('pf').textContent = name;
+  document.getElementById('pp').textContent = pct + '%';
+  document.getElementById('pb').style.width = pct + '%';
+}
+function hideProgress() { setTimeout(() => { document.getElementById('pw').classList.remove('show'); document.getElementById('pb').style.width = '0%'; }, 900); }
+
+async function doUpload() {
+  if (!pending.length) { setMsg('Please select at least one file first.', 'err'); return; }
+  const course = document.getElementById('course-sel').value;
+  const btn = document.getElementById('up-btn');
+  btn.disabled = true;
+  let ok = 0;
+  for (let i = 0; i < pending.length; i++) {
+    const f = pending[i];
+    setMsg(`Uploading ${f.name} (${i+1} of ${pending.length})…`, '');
+    setProgress(f.name, 5);
+    const interval = setInterval(() => {
+      const pb = document.getElementById('pb');
+      const cur = parseFloat(pb.style.width) || 5;
+      if (cur < 88) { pb.style.width = (cur + 7) + '%'; document.getElementById('pp').textContent = Math.round(cur+7) + '%'; }
+    }, 200);
+    const fd = new FormData();
+    fd.append('file', f);
+    fd.append('course', course);
+    try {
+      const res = await fetch('/upload', { method: 'POST', body: fd });
+      clearInterval(interval);
+      const data = await res.json();
+      if (data.success) { ok++; setProgress(f.name, 100); renderFiles(data.docs); }
+      else setMsg(data.error || 'Upload failed', 'err');
+    } catch(e) { clearInterval(interval); setMsg('Error: ' + e.message, 'err'); }
+  }
+  hideProgress();
+  if (ok) setMsg(`✓ ${ok} file(s) uploaded successfully!`, 'ok');
+  pending = []; fi.value = '';
+  document.getElementById('dz-text').textContent = 'Drag & drop files here';
+  document.getElementById('pending').innerHTML = '';
+  btn.disabled = false;
+}
+
+function getIcon(name) {
+  const e = name.split('.').pop().toLowerCase();
+  if (e === 'pdf') return { cls:'ico-pdf', ico:'📄' };
+  if (['doc','docx'].includes(e)) return { cls:'ico-doc', ico:'📝' };
+  if (e === 'pptx') return { cls:'ico-ppt', ico:'📊' };
+  if (['jpg','jpeg','png'].includes(e)) return { cls:'ico-img', ico:'🖼️' };
+  return { cls:'ico-txt', ico:'📃' };
+}
+
+function renderFiles(docs) {
+  const list = document.getElementById('file-list');
+  const cnt  = document.getElementById('doc-count');
+  cnt.textContent = `${docs.length} document${docs.length !== 1 ? 's' : ''} uploaded`;
+  if (!docs.length) {
+    list.innerHTML = `<div class="no-files" id="nf">📄 No documents uploaded yet.<br><strong>Upload your syllabi and assignments</strong><br>so WINK can give you personalized answers!</div>`;
+    return;
+  }
+  list.innerHTML = docs.map(d => {
+    const { cls, ico } = getIcon(d.orig_name);
+    const kb = (d.size_bytes/1024).toFixed(1);
+    const dt = d.uploaded_at ? String(d.uploaded_at).slice(0,10) : '';
+    return `<div class="file-card" id="dc-${d.id}">
+      <div class="file-ico ${cls}">${ico}</div>
+      <div class="file-info">
+        <div class="file-name">${d.orig_name}</div>
+        <div class="file-meta">${kb} KB · ${dt}</div>
+        <span class="file-course">${d.course}</span>
+      </div>
+      <button class="file-del" onclick="delFile(${d.id})" title="Delete">✕</button>
+    </div>`;
+  }).join('');
+}
+
+async function delFile(id) {
+  if (!confirm('Delete this document from WINK?')) return;
+  const el = document.getElementById('dc-' + id);
+  if (el) { el.style.opacity = '.4'; el.style.pointerEvents = 'none'; }
+  try {
+    const res  = await fetch('/delete-file', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ doc_id: id }) });
+    const data = await res.json();
+    if (data.success) renderFiles(data.docs);
+    else if (el) { el.style.opacity = '1'; el.style.pointerEvents = 'auto'; }
+  } catch(e) { if (el) { el.style.opacity = '1'; el.style.pointerEvents = 'auto'; } }
+}
+</script>
+{% endblock %}

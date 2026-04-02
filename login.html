@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WINK — Sign In</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{--navy:#041e42;--blue:#1d4ed8;--orange:#f97316;--pale:#dbeafe;--bg:#f0f5ff;--border:#c7d7f5;--muted:#64748b;}
+body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);min-height:100vh;}
+.bar{background:var(--navy);height:56px;padding:0 32px;display:flex;align-items:center;gap:12px;}
+.bar img{width:36px;height:36px;border-radius:50%;object-fit:cover;object-position:top center;border:2px solid var(--orange);}
+.bar-name{color:#fff;font-weight:900;font-size:18px;letter-spacing:.08em;}
+.bar a{margin-left:auto;color:rgba(255,255,255,.6);font-size:13px;text-decoration:none;}
+.bar a:hover{color:#fff;}
+.page{display:flex;justify-content:center;align-items:center;padding:60px 16px;min-height:calc(100vh - 56px);}
+.card{background:#fff;border:1.5px solid var(--border);border-radius:20px;padding:40px;width:100%;max-width:420px;box-shadow:0 4px 24px rgba(4,30,66,.08);}
+.card-hdr{text-align:center;margin-bottom:26px;}
+.card-hdr img{width:80px;height:80px;border-radius:50%;object-fit:cover;object-position:top center;border:3px solid var(--orange);margin-bottom:12px;}
+.card-hdr h1{font-size:26px;font-weight:900;color:var(--navy);margin-bottom:4px;}
+.card-hdr p{font-size:13px;color:var(--muted);}
+.err{background:#fee2e2;color:#dc2626;border:1.5px solid #fecaca;border-radius:10px;padding:10px 14px;font-size:13px;margin-bottom:16px;font-weight:600;}
+.fg{margin-bottom:16px;}
+.fg label{display:block;font-size:12px;font-weight:700;color:var(--navy);letter-spacing:.04em;text-transform:uppercase;margin-bottom:5px;}
+.fg input{width:100%;padding:11px 13px;border:1.5px solid var(--border);border-radius:10px;font-size:14px;color:var(--navy);background:#fff;outline:none;}
+.fg input:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(29,78,216,.1);}
+.fg input::placeholder{color:#94a3b8;}
+.sub{width:100%;padding:13px;background:linear-gradient(135deg,var(--orange),#ea580c);color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(249,115,22,.3);}
+.sub:hover{opacity:.92;}
+.foot{text-align:center;margin-top:16px;font-size:14px;color:var(--muted);}
+.foot a{color:var(--orange);font-weight:700;text-decoration:none;}
+</style>
+</head>
+<body>
+<div class="bar">
+  <img src="/static/WINK.jpeg" alt="WINK"/>
+  <div class="bar-name">WINK</div>
+  <a href="/">← Back to home</a>
+</div>
+<div class="page">
+  <div class="card">
+    <div class="card-hdr">
+      <img src="/static/WINK.jpeg" alt="WINK"/>
+      <h1>Welcome Back! 👋</h1>
+      <p>Sign in to your WINK account</p>
+    </div>
+    {% if error %}<div class="err">⚠️ {{ error }}</div>{% endif %}
+    <form method="POST">
+      <div class="fg"><label>UTEP Email</label><input type="email" name="email" placeholder="abc123@miners.utep.edu" required autofocus/></div>
+      <div class="fg"><label>Password</label><input type="password" name="password" placeholder="Your password" required/></div>
+      <button type="submit" class="sub">🔒 Sign In to WINK</button>
+    </form>
+    <div class="foot">New to WINK? <a href="/register">Create a free account</a></div>
+  </div>
+</div>
+</body>
+</html>

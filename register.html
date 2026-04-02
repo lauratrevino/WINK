@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WINK — Create Account</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{--navy:#041e42;--blue:#1d4ed8;--orange:#f97316;--pale:#dbeafe;--bg:#f0f5ff;--border:#c7d7f5;--muted:#64748b;}
+body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);min-height:100vh;}
+.bar{background:var(--navy);height:56px;padding:0 32px;display:flex;align-items:center;gap:12px;}
+.bar img{width:36px;height:36px;border-radius:50%;object-fit:cover;object-position:top center;border:2px solid var(--orange);}
+.bar-name{color:#fff;font-weight:900;font-size:18px;letter-spacing:.08em;}
+.bar a{margin-left:auto;color:rgba(255,255,255,.6);font-size:13px;text-decoration:none;}
+.bar a:hover{color:#fff;}
+.page{display:flex;justify-content:center;padding:36px 16px;}
+.card{background:#fff;border:1.5px solid var(--border);border-radius:20px;padding:36px 40px;width:100%;max-width:560px;box-shadow:0 4px 24px rgba(4,30,66,.08);}
+.card-hdr{text-align:center;margin-bottom:26px;}
+.card-hdr img{width:70px;height:70px;border-radius:50%;object-fit:cover;object-position:top center;border:3px solid var(--orange);margin-bottom:12px;}
+.card-hdr h1{font-size:24px;font-weight:900;color:var(--navy);margin-bottom:4px;}
+.card-hdr p{font-size:13px;color:var(--muted);}
+.err{background:#fee2e2;color:#dc2626;border:1.5px solid #fecaca;border-radius:10px;padding:10px 14px;font-size:13px;margin-bottom:16px;font-weight:600;}
+.section{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin:18px 0 12px;display:flex;align-items:center;gap:8px;}
+.section::after{content:'';flex:1;height:1px;background:var(--border);}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.fg{margin-bottom:14px;}
+.fg label{display:block;font-size:12px;font-weight:700;color:var(--navy);letter-spacing:.04em;text-transform:uppercase;margin-bottom:5px;}
+.fg input,.fg select{width:100%;padding:10px 13px;border:1.5px solid var(--border);border-radius:10px;font-size:14px;color:var(--navy);background:#fff;outline:none;}
+.fg input:focus,.fg select:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(29,78,216,.1);}
+.fg input::placeholder{color:#94a3b8;}
+.sub{width:100%;padding:13px;background:linear-gradient(135deg,var(--navy),var(--blue));color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;margin-top:6px;box-shadow:0 4px 16px rgba(4,30,66,.2);}
+.sub:hover{opacity:.92;}
+.foot{text-align:center;margin-top:16px;font-size:14px;color:var(--muted);}
+.foot a{color:var(--orange);font-weight:700;text-decoration:none;}
+@media(max-width:520px){.row{grid-template-columns:1fr;}.card{padding:24px 20px;}}
+</style>
+</head>
+<body>
+<div class="bar">
+  <img src="/static/WINK.jpeg" alt="WINK"/>
+  <div class="bar-name">WINK</div>
+  <a href="/">← Back to home</a>
+</div>
+<div class="page">
+  <div class="card">
+    <div class="card-hdr">
+      <img src="/static/WINK.jpeg" alt="WINK"/>
+      <h1>Create Your WINK Account</h1>
+      <p>Join with your UTEP email to get started</p>
+    </div>
+    {% if error %}<div class="err">⚠️ {{ error }}</div>{% endif %}
+    <form method="POST">
+      <div class="section">Personal Info</div>
+      <div class="row">
+        <div class="fg"><label>First Name</label><input type="text" name="first_name" placeholder="Maria" required/></div>
+        <div class="fg"><label>Last Name</label><input type="text" name="last_name" placeholder="Garcia" required/></div>
+      </div>
+      <div class="section">Academic Info</div>
+      <div class="row">
+        <div class="fg">
+          <label>Classification</label>
+          <select name="classification" required>
+            <option value="">Select...</option>
+            {% for c in classifications %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="fg">
+          <label>Major</label>
+          <select name="major" required>
+            <option value="">Select...</option>
+            {% for m in majors %}<option value="{{ m }}">{{ m }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="section">Login Credentials</div>
+      <div class="fg"><label>UTEP Email</label><input type="email" name="email" placeholder="abc123@miners.utep.edu" required/></div>
+      <div class="fg"><label>Password</label><input type="password" name="password" placeholder="At least 6 characters" required minlength="6"/></div>
+      <button type="submit" class="sub">✏️ Create My Account →</button>
+    </form>
+    <div class="foot">Already have an account? <a href="/login">Sign in here</a></div>
+  </div>
+</div>
+</body>
+</html>

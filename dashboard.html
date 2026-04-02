@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block extra_style %}
+.hero-card{background:linear-gradient(135deg,var(--navy) 0%,#1a3a6b 55%,var(--blue) 100%);border-radius:20px;padding:28px 32px;display:flex;align-items:center;gap:24px;margin-bottom:22px;box-shadow:0 4px 24px rgba(4,30,66,.15);}
+.hero-img{width:94px;height:94px;border-radius:50%;object-fit:cover;object-position:top center;border:4px solid var(--orange);flex-shrink:0;box-shadow:0 4px 16px rgba(249,115,22,.4);}
+.hero-text h2{color:#fff;font-size:21px;font-weight:900;margin-bottom:5px;}
+.hero-text p{color:rgba(255,255,255,.82);font-size:13px;line-height:1.6;max-width:520px;}
+.hero-tag{display:inline-flex;background:rgba(249,115,22,.25);color:#fdba74;border:1px solid rgba(249,115,22,.4);border-radius:999px;padding:3px 12px;font-size:11px;font-weight:700;margin-bottom:8px;}
+.hero-btn{margin-top:12px;display:inline-flex;align-items:center;gap:6px;background:#fff;color:var(--navy);border:none;border-radius:999px;padding:8px 18px;font-size:13px;cursor:pointer;font-weight:700;text-decoration:none;}
+.hero-btn:hover{background:var(--pale-bg);color:var(--orange);}
+.stat-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:22px;}
+.stat{background:var(--surface);border:1.5px solid var(--border);border-radius:16px;padding:18px;text-align:center;box-shadow:0 2px 8px rgba(4,30,66,.04);}
+.stat:hover{border-color:var(--orange);box-shadow:0 4px 16px rgba(249,115,22,.1);}
+.stat-n{font-size:30px;font-weight:900;color:var(--orange);}
+.stat-l{font-size:11px;color:var(--muted);margin-top:4px;text-transform:uppercase;letter-spacing:.06em;font-weight:600;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+.info-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);font-size:14px;}
+.info-row:last-child{border-bottom:none;}
+.il{color:var(--muted);font-weight:500;}
+.iv{color:var(--navy);font-weight:700;}
+.doc-item{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);}
+.doc-item:last-child{border-bottom:none;}
+.doc-ico{width:32px;height:32px;border-radius:8px;background:var(--pale-blue);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;}
+.doc-name{font-size:13px;color:var(--text);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:170px;}
+.doc-meta{font-size:11px;color:var(--muted);}
+.no-docs{color:var(--muted);font-size:13px;text-align:center;padding:20px;background:var(--bg);border-radius:10px;border:1.5px dashed var(--border);line-height:1.6;}
+.cta-link{display:inline-flex;align-items:center;gap:5px;background:linear-gradient(135deg,var(--navy),var(--blue));color:#fff;border:none;border-radius:999px;padding:7px 16px;font-size:12px;font-weight:600;text-decoration:none;margin-top:10px;}
+.res-item{display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--border);}
+.res-item:last-child{border-bottom:none;}
+.res-ico{width:34px;height:34px;border-radius:9px;background:var(--pale-blue);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.res-ico svg{width:16px;height:16px;fill:none;stroke:var(--blue);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+.res-name{font-size:13px;color:var(--text);font-weight:600;}
+.res-desc{font-size:11px;color:var(--muted);}
+.res-link{font-size:12px;color:var(--orange);margin-left:auto;text-decoration:none;font-weight:700;}
+@media(max-width:768px){.stat-grid{grid-template-columns:repeat(2,1fr);}.two-col{grid-template-columns:1fr;}.hero-card{flex-direction:column;text-align:center;}}
+{% endblock %}
+{% block content %}
+<div class="wrap">
+  <div class="hero-card">
+    <img class="hero-img" src="/static/WINK.jpeg" alt="WINK"/>
+    <div class="hero-text">
+      <div class="hero-tag">✨ Welcome back, {{ s.first_name }}!</div>
+      <h2>Ready to crush it today? 🎉</h2>
+      <p>Upload your syllabi and course documents on the <strong style="color:#fdba74;">My Documents</strong> tab so WINK can answer questions specific to YOUR assignments, deadlines, and expectations.</p>
+      <a href="/chat-page" class="hero-btn">💬 Ask WINK anything</a>
+    </div>
+  </div>
+
+  <div class="stat-grid">
+    <div class="stat"><div class="stat-n">{{ docs|length }}</div><div class="stat-l">Docs Uploaded</div></div>
+    <div class="stat"><div class="stat-n">{{ s.classification[0] }}</div><div class="stat-l">{{ s.classification }}</div></div>
+    <div class="stat"><div class="stat-n">📚</div><div class="stat-l">{{ s.major[:14] }}{% if s.major|length>14 %}…{% endif %}</div></div>
+    <div class="stat"><div class="stat-n">✨</div><div class="stat-l">WINK Ready</div></div>
+  </div>
+
+  <div class="two-col" style="margin-bottom:20px;">
+    <div class="panel">
+      <div class="panel-title">My Profile</div>
+      <div class="info-row"><span class="il">Name</span><span class="iv">{{ s.first_name }} {{ s.last_name }}</span></div>
+      <div class="info-row"><span class="il">Email</span><span class="iv" style="font-size:12px;">{{ s.email }}</span></div>
+      <div class="info-row"><span class="il">Classification</span><span class="iv">{{ s.classification }}</span></div>
+      <div class="info-row"><span class="il">Major</span><span class="iv">{{ s.major }}</span></div>
+      <div class="info-row"><span class="il">Documents</span><span class="iv">{{ docs|length }} uploaded</span></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Recent Documents</div>
+      {% if docs %}
+        {% for doc in docs[:4] %}
+        <div class="doc-item">
+          <div class="doc-ico">📄</div>
+          <div>
+            <div class="doc-name">{{ doc.orig_name }}</div>
+            <div class="doc-meta">{{ doc.course }} · {{ (doc.size_bytes/1024)|round(1) }} KB</div>
+          </div>
+        </div>
+        {% endfor %}
+        {% if docs|length > 4 %}<div style="font-size:12px;color:var(--muted);margin-top:8px;">+{{ docs|length-4 }} more · <a href="/documents" style="color:var(--orange);">View all</a></div>{% endif %}
+      {% else %}
+        <div class="no-docs">📄 No documents yet.<br>Upload your syllabi so WINK can help!</div>
+        <a href="/documents" class="cta-link">⬆ Upload Documents</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Campus Resources</div>
+    <div class="res-item"><div class="res-ico"><svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></div><div><div class="res-name">University Writing Center</div><div class="res-desc">Free writing help for all levels and all courses</div></div><a class="res-link" href="https://www.utep.edu/uwc/" target="_blank">Visit ›</a></div>
+    <div class="res-item"><div class="res-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z"/></svg></div><div><div class="res-name">CASS Tutoring Center</div><div class="res-desc">Free tutoring — math, science, writing, and more</div></div><a class="res-link" href="https://www.utep.edu/student-affairs/cass/" target="_blank">Visit ›</a></div>
+    <div class="res-item"><div class="res-ico"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div><div><div class="res-name">Advising &amp; Student Support</div><div class="res-desc">Academic planning, course selection, career guidance</div></div><a class="res-link" href="https://www.utep.edu/student-affairs/cass/" target="_blank">Visit ›</a></div>
+  </div>
+</div>
+{% endblock %}

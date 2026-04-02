@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WINK — {% block title %}{% endblock %}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --navy:#041e42;
+  --blue:#1d4ed8;
+  --orange:#f97316;
+  --pale-blue:#dbeafe;
+  --pale-bg:#e8f0fe;
+  --surface:#fff;
+  --bg:#f0f5ff;
+  --muted:#64748b;
+  --text:#1e293b;
+  --border:#c7d7f5;
+}
+body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);min-height:100vh;color:var(--text);}
+
+/* ── NAV ── */
+.topnav{background:var(--navy);height:56px;padding:0 24px;display:flex;align-items:center;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(4,30,66,0.25);}
+.nav-brand{display:flex;align-items:center;gap:10px;text-decoration:none;margin-right:24px;}
+.nav-brand img{width:38px;height:38px;border-radius:50%;object-fit:cover;object-position:top center;border:2px solid var(--orange);}
+.nav-brand-name{color:#fff;font-weight:900;font-size:18px;letter-spacing:0.08em;}
+.nav-brand-sub{color:rgba(255,255,255,0.55);font-size:10px;}
+.nav-links{display:flex;height:100%;}
+.nav-link{display:flex;align-items:center;gap:6px;padding:0 14px;height:100%;color:rgba(255,255,255,0.6);font-size:13px;font-weight:500;text-decoration:none;border-bottom:3px solid transparent;white-space:nowrap;transition:color .15s;}
+.nav-link:hover{color:#fff;}
+.nav-link.active{color:#fff;border-bottom-color:var(--orange);font-weight:700;}
+.nav-link svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+.nav-right{margin-left:auto;display:flex;align-items:center;gap:10px;}
+.nav-user{background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:999px;padding:5px 14px;color:rgba(255,255,255,0.9);font-size:12px;font-weight:600;}
+.nav-logout{color:rgba(255,255,255,0.5);font-size:12px;text-decoration:none;padding:5px 10px;border:1px solid rgba(255,255,255,0.2);border-radius:999px;}
+.nav-logout:hover{color:#fff;border-color:rgba(255,255,255,0.5);}
+
+/* ── SHARED COMPONENTS ── */
+.wrap{max-width:1160px;margin:0 auto;padding:24px;}
+.page-title{font-size:22px;font-weight:900;color:var(--navy);margin-bottom:4px;}
+.page-sub{font-size:13px;color:var(--muted);margin-bottom:22px;}
+.panel{background:var(--surface);border:1.5px solid var(--border);border-radius:18px;padding:22px;box-shadow:0 2px 10px rgba(4,30,66,0.05);}
+.panel-title{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:14px;display:flex;align-items:center;gap:6px;}
+.panel-title::before{content:'';width:3px;height:14px;background:var(--orange);border-radius:2px;display:block;}
+.badge{font-size:11px;padding:3px 10px;border-radius:999px;font-weight:700;}
+.badge-blue{background:var(--pale-blue);color:var(--blue);}
+.badge-orange{background:#ffedd5;color:#c2410c;}
+.badge-green{background:#dcfce7;color:#15803d;}
+.badge-purple{background:#f3e8ff;color:#7c3aed;}
+.badge-gray{background:#f1f5f9;color:#64748b;}
+
+{% block extra_style %}{% endblock %}
+</style>
+</head>
+<body>
+<nav class="topnav">
+  <a href="/dashboard" class="nav-brand">
+    <img src="/static/WINK.jpeg" alt="WINK"/>
+    <div><div class="nav-brand-name">WINK</div><div class="nav-brand-sub">UTEP · Dr. Trevino</div></div>
+  </a>
+  <div class="nav-links">
+    <a href="/dashboard"    class="nav-link {% if active=='dashboard' %}active{% endif %}"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Dashboard</a>
+    <a href="/documents"    class="nav-link {% if active=='documents' %}active{% endif %}"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>My Documents</a>
+    <a href="/chat-page"    class="nav-link {% if active=='chat' %}active{% endif %}"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Ask WINK</a>
+    <a href="/analytics-page" class="nav-link {% if active=='analytics' %}active{% endif %}"><svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Analytics</a>
+  </div>
+  <div class="nav-right">
+    <div class="nav-user">👋 {{ s.first_name }} {{ s.last_name }}</div>
+    <a href="/logout" class="nav-logout">Sign out</a>
+  </div>
+</nav>
+{% block content %}{% endblock %}
+</body>
+</html>
