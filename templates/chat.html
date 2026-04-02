@@ -3,16 +3,16 @@
 {% block extra_style %}
 .chat-shell{display:flex;gap:16px;height:calc(100vh - 56px - 48px);}
 /* LEFT SIDEBAR — pale UTEP blue background */
-.chat-side{width:238px;flex-shrink:0;background:#cddaf5;border:1.5px solid var(--border);border-radius:18px;padding:16px;overflow-y:auto;}
+.chat-side{width:320px;flex-shrink:0;background:#cddaf5;border:1.5px solid var(--border);border-radius:18px;padding:16px;overflow-y:auto;}
 .side-inner{background:var(--navy);border-radius:14px;padding:16px 14px;text-align:center;}
 .side-badge{padding:8px 10px 6px;border-radius:10px;background:rgba(255,255,255,.1);color:#e2e8f0;margin-bottom:12px;border:1px solid rgba(255,255,255,.15);}
 .side-badge .st{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;}
 .side-badge .ss{font-size:10px;margin-top:3px;opacity:.75;}
-.wink-ring{margin:10px auto 9px;width:140px;height:140px;border-radius:50%;padding:5px;background:conic-gradient(from 220deg,#f97316,#1d4ed8,#041e42,#f97316);box-shadow:0 8px 28px rgba(0,0,0,.3);}
+.wink-ring{margin:12px auto 10px;width:180px;height:180px;border-radius:50%;padding:5px;background:conic-gradient(from 220deg,#f97316,#1d4ed8,#041e42,#f97316);box-shadow:0 8px 28px rgba(0,0,0,.3);}
 .wink-ring-inner{width:100%;height:100%;border-radius:50%;background:#041e42;overflow:hidden;}
 .wink-ring-inner img{width:100%;height:100%;object-fit:cover;object-position:top center;}
-.side-name{margin:7px 0 2px;color:#fff;text-transform:uppercase;font-size:15px;font-weight:900;letter-spacing:.06em;}
-.side-tag{font-size:11px;color:rgba(255,255,255,.65);margin-bottom:10px;line-height:1.5;}
+.side-name{margin:8px 0 3px;color:#fff;text-transform:uppercase;font-size:18px;font-weight:900;letter-spacing:.06em;}
+.side-tag{font-size:13px;color:rgba(255,255,255,.65);margin-bottom:10px;line-height:1.5;}
 .student-pill{background:rgba(249,115,22,.2);border:1px solid rgba(249,115,22,.4);border-radius:9px;padding:8px 10px;margin-bottom:10px;text-align:left;}
 .sp-name{font-size:12px;font-weight:700;color:#fdba74;}
 .sp-info{font-size:10px;color:rgba(255,255,255,.6);margin-top:2px;}
@@ -20,8 +20,8 @@
 .clr-btn:hover{background:rgba(255,255,255,.14);}
 .clr-dot{width:6px;height:6px;border-radius:50%;background:var(--orange);flex-shrink:0;}
 .try-box{font-size:11px;color:rgba(255,255,255,.7);padding:9px 10px;border-radius:9px;background:rgba(255,255,255,.06);border:1px dashed rgba(255,255,255,.2);text-align:left;}
-.try-title{font-weight:700;color:#fff;margin-bottom:6px;font-size:12px;}
-.try-q{margin-bottom:5px;cursor:pointer;line-height:1.4;padding:3px 5px;border-radius:5px;}
+.try-title{font-weight:700;color:#fff;margin-bottom:6px;font-size:14px;}
+.try-q{margin-bottom:6px;cursor:pointer;line-height:1.5;padding:4px 7px;border-radius:5px;font-size:12px;}
 .try-q:hover{background:rgba(249,115,22,.2);color:#fdba74;}
 .docs-sec{margin-top:12px;text-align:left;}
 .ds-hdr{font-size:11px;font-weight:700;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;}
@@ -57,7 +57,7 @@
 .input-row{display:flex;gap:8px;align-items:flex-end;}
 .ta-wrap{position:relative;flex:1;}
 .mic{position:absolute;left:10px;bottom:10px;font-size:13px;background:var(--pale-blue);border-radius:999px;padding:3px 7px;cursor:pointer;border:none;z-index:1;}
-.chat-ta{width:100%;min-height:44px;max-height:120px;padding:11px 14px 11px 40px;border-radius:14px;border:1.5px solid var(--border);font-family:inherit;font-size:14px;background:#fff;outline:none;resize:none;color:var(--text);}
+.chat-ta{width:100%;min-height:44px;max-height:120px;padding:11px 60px 11px 14px;border-radius:14px;border:1.5px solid var(--border);font-family:inherit;font-size:14px;background:#fff;outline:none;resize:none;color:var(--text);}
 .chat-ta:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(29,78,216,.1);}
 .chat-ta::placeholder{color:#94a3b8;}
 .send{border:none;background:linear-gradient(135deg,var(--orange),#ea580c);color:#fff;padding:11px 20px;border-radius:12px;font-size:14px;cursor:pointer;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px rgba(249,115,22,.3);}
@@ -69,10 +69,10 @@
   <!-- Sidebar -->
   <div class="chat-side">
     <div class="side-inner">
-      <div class="side-badge"><div class="st">Entering Student Experience</div><div class="ss">Dr. Trevino's Course</div></div>
+      <div class="side-badge"><div class="st">WINK</div><div class="ss">Personal Academic Success Coach</div></div>
       <div class="wink-ring"><div class="wink-ring-inner"><img src="/static/WINK.jpeg" alt="WINK"/></div></div>
       <div class="side-name">WINK</div>
-      <div class="side-tag">What I Need to Know,<br>When I Need to Know It!</div>
+      <div class="side-tag">Your Personal<br>Academic Success Coach</div>
       <div class="student-pill">
         <div class="sp-name">👋 {{ s.first_name }} {{ s.last_name }}</div>
         <div class="sp-info">{{ s.classification }} · {{ s.major }}</div>
@@ -105,7 +105,7 @@
     <div class="chat-hdr">
       <div class="ch-left">
         <div class="ch-av"><img src="/static/WINK.jpeg" alt="WINK"/></div>
-        <div><div class="ch-title">WINK</div><div class="ch-sub">{{ s.first_name }}'s personal AI companion · UTEP</div></div>
+        <div><div class="ch-title">WINK</div><div class="ch-sub">{{ s.first_name }}'s Personal Academic Success Coach</div></div>
       </div>
       <div class="ch-pill">{{ docs|length }} doc{{ 's' if docs|length!=1 else '' }} loaded</div>
     </div>
