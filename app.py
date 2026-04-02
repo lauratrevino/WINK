@@ -702,6 +702,48 @@ def student_conversations(sid):
 
 
 
+
+@app.route("/create-admin")
+def create_admin():
+    """Creates the admin account directly. Remove after use."""
+    admin_email    = ADMIN_EMAIL
+    admin_password = "WinkAdmin2025!"
+    if not DB_URL:
+        return "<p>No database configured.</p>"
+    try:
+        conn = get_db(); cur = conn.cursor()
+        # Check if already exists
+        cur.execute("SELECT id FROM students WHERE email=%s", (admin_email,))
+        existing = cur.fetchone()
+        if existing:
+            # Just reset the password
+            from werkzeug.security import generate_password_hash
+            cur.execute("UPDATE students SET password_hash=%s WHERE email=%s",
+                        (generate_password_hash(admin_password), admin_email))
+            conn.commit(); cur.close(); conn.close()
+            return f"""
+            <h2>✅ Admin password reset!</h2>
+            <p>Email: <strong>{admin_email}</strong></p>
+            <p>Password: <strong>{admin_password}</strong></p>
+            <p><a href="/login">Click here to log in</a></p>
+            <p style="color:red"><strong>Remove /create-admin from app.py after logging in!</strong></p>"""
+        else:
+            from werkzeug.security import generate_password_hash
+            cur.execute("""INSERT INTO students
+                (email, password_hash, first_name, last_name, classification, major)
+                VALUES (%s,%s,%s,%s,%s,%s)""",
+                (admin_email, generate_password_hash(admin_password),
+                 "Laura", "Trevino", "Faculty", "Information Systems"))
+            conn.commit(); cur.close(); conn.close()
+            return f"""
+            <h2>✅ Admin account created!</h2>
+            <p>Email: <strong>{admin_email}</strong></p>
+            <p>Password: <strong>{admin_password}</strong></p>
+            <p><a href="/login">Click here to log in</a></p>
+            <p style="color:red"><strong>Remove /create-admin from app.py after logging in!</strong></p>"""
+    except Exception as e:
+        return f"<p>Error: {e}</p>"
+
 @app.route("/reset-admin-password")
 def reset_admin_password():
     """One-time admin password reset. Remove after use."""
