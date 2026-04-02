@@ -1,4 +1,4 @@
-import os, json, uuid, datetime, traceback
+import os, json, uuid, traceback
 from flask import (Flask, render_template, request, jsonify,
                    session, redirect, url_for)
 from werkzeug.utils import secure_filename
@@ -28,6 +28,118 @@ MAJORS = [
     "Social Work","Sociology","Spanish","Other"
 ]
 
+# ── Text Extraction ───────────────────────────────────────
+def extract_text(filepath, orig_name):
+    ext = orig_name.rsplit(".", 1)[-1].lower() if "." in orig_name else ""
+    text = ""
+    try:
+        if ext == "txt":
+            with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+                text = f.read()
+
+        elif ext == "pdf":
+            try:
+                from pypdf import PdfReader
+                reader = PdfReader(filepath)
+                pages = []
+                for i, page in enumerate(reader.pages):
+                    try:
+                        t = page.extract_text()
+                        if t and t.strip():
+                            pages.append(f"[Page {i+1}]\n{t.strip()}")
+                    except Exception as pe:
+                        print(f"PDF page {i+1} error: {pe}")
+                text = "\n\n".join(pages)
+                print(f"PDF extracted {len(text)} chars from {len(reader.pages)} pages")
+            except Exception as e:
+                print(f"PDF extract failed: {e}")
+                traceback.print_exc()
+
+        elif ext in ("doc", "docx"):
+            try:
+                from docx import Document
+                doc = Document(filepath)
+                parts = []
+                for p in doc.paragraphs:
+                    if p.text.strip():
+                        parts.append(p.text.strip())
+                for table in doc.tables:
+                    for row in table.rows:
+                        cells = [c.text.strip() for c in row.cells if c.text.strip()]
+                        if cells:
+                            parts.append(" | ".join(cells))
+                text = "\n".join(parts)
+                print(f"DOCX extracted {len(text)} chars")
+            except Exception as e:
+                print(f"DOCX extract failed: {e}")
+                traceback.print_exc()
+
+        elif ext == "pptx":
+            try:
+                from pptx import Presentation
+                prs = Presentation(filepath)
+                slides = []
+                for i, slide in enumerate(prs.slides):
+                    parts = []
+                    for shape in slide.shapes:
+                        if hasattr(shape, "text") and shape.text.strip():
+                            parts.append(shape.text.strip())
+                    if parts:
+                        slides.append(f"[Slide {i+1}]\n" + "\n".join(parts))
+                text = "\n\n".join(slides)
+                print(f"PPTX extracted {len(text)} chars")
+            except Exception as e:
+                print(f"PPTX extract failed: {e}")
+                traceback.print_exc()
+
+        elif ext in ("jpg","jpeg","png"):
+            text = f"[Image file: {orig_name}]"
+
+        else:
+            try:
+                with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+                    text = f.read()
+            except:
+                text = ""
+
+    except Exception as e:
+        print(f"extract_text top-level error for {orig_name}: {e}")
+        traceback.print_exc()
+        text = ""
+
+    # Cap at 60,000 chars to stay within token limits
+    if len(text) > 60000:
+        text = text[:60000] + "\n\n[Document truncated — showing first 60,000 characters]"
+
+    return text.strip()
+
+def build_doc_context(docs):
+    if not docs:
+        return "\n\nThe student has not uploaded any course documents yet."
+    has_content = any((d.get("content") or "").strip() for d in docs)
+    if not has_content:
+        ctx = f"\n\nThe student has {len(docs)} uploaded file(s) but no text could be extracted. "
+        ctx += "Files: " + ", ".join(d["orig_name"] for d in docs)
+        return ctx
+    ctx = f"\n\n{'='*60}\n"
+    ctx += f"STUDENT'S UPLOADED COURSE DOCUMENTS ({len(docs)} files)\n"
+    ctx += "Answer questions using the actual content of these documents.\n"
+    ctx += "Quote specific text, deadlines, requirements, and grades directly from the documents.\n"
+    ctx += f"{'='*60}\n\n"
+    for i, d in enumerate(docs):
+        content = (d.get("content") or "").strip()
+        ctx += f"[DOCUMENT {i+1}] {d['orig_name']}\n"
+        ctx += f"Course: {d['course']} | Size: {round(d.get('size_bytes',0)/1024,1)} KB\n"
+        ctx += f"Content ({len(content)} chars extracted):\n"
+        if content:
+            ctx += content
+        else:
+            ctx += "[No text content could be extracted from this file type]"
+        ctx += f"\n\n{'-'*40}\n\n"
+    ctx += f"{'='*60}\n"
+    return ctx
+
+# ── DB ────────────────────────────────────────────────────
 def get_db():
     import psycopg2
     from psycopg2.extras import RealDictCursor
@@ -45,20 +157,25 @@ def init_db():
             last_name TEXT NOT NULL, classification TEXT NOT NULL,
             major TEXT NOT NULL, created_at TIMESTAMP DEFAULT NOW())""")
         cur.execute("""CREATE TABLE IF NOT EXISTS documents (
-            id SERIAL PRIMARY KEY, student_id INTEGER REFERENCES students(id) ON DELETE CASCADE,
-            filename TEXT NOT NULL, orig_name TEXT NOT NULL, course TEXT NOT NULL,
-            size_bytes INTEGER DEFAULT 0, uploaded_at TIMESTAMP DEFAULT NOW())""")
+            id SERIAL PRIMARY KEY,
+            student_id INTEGER REFERENCES students(id) ON DELETE CASCADE,
+            filename TEXT NOT NULL, orig_name TEXT NOT NULL,
+            course TEXT NOT NULL, size_bytes INTEGER DEFAULT 0,
+            content TEXT DEFAULT '',
+            uploaded_at TIMESTAMP DEFAULT NOW())""")
+        cur.execute("ALTER TABLE documents ADD COLUMN IF NOT EXISTS content TEXT DEFAULT ''")
         cur.execute("""CREATE TABLE IF NOT EXISTS events (
             id SERIAL PRIMARY KEY, student_id INTEGER,
             event_type TEXT NOT NULL, payload TEXT DEFAULT '{}',
             created_at TIMESTAMP DEFAULT NOW())""")
         conn.commit(); cur.close(); conn.close()
-        print("DB initialized.")
+        print("DB initialized OK.")
     except Exception as e:
         print(f"DB init error: {e}"); traceback.print_exc()
 
 init_db()
 
+# ── Helpers ───────────────────────────────────────────────
 def current_student():
     if "sid" not in session or not DB_URL:
         return None
@@ -90,6 +207,7 @@ def get_docs(sid):
     except Exception as e:
         print(f"get_docs error: {e}"); return []
 
+# ── Auth ──────────────────────────────────────────────────
 @app.route("/")
 def landing():
     try:
@@ -120,7 +238,7 @@ def register():
             if len(pw) < 6:
                 return err("Password must be at least 6 characters.")
             if not DB_URL:
-                return err("Database not configured — contact your instructor.")
+                return err("Database not configured.")
             conn = get_db(); cur = conn.cursor()
             cur.execute("SELECT id FROM students WHERE email=%s", (email,))
             if cur.fetchone():
@@ -165,6 +283,7 @@ def login():
 def logout():
     session.clear(); return redirect(url_for("landing"))
 
+# ── Pages ─────────────────────────────────────────────────
 @app.route("/dashboard")
 def dashboard():
     try:
@@ -175,7 +294,7 @@ def dashboard():
         return render_template("dashboard.html", s=s, docs=docs, active="dashboard")
     except Exception as e:
         print(f"dashboard error: {e}"); traceback.print_exc()
-        return f"<h2>Dashboard error</h2><pre>{e}</pre><a href='/logout'>Logout</a>", 500
+        return f"<h2>Error</h2><pre>{e}</pre><a href='/logout'>Logout</a>", 500
 
 @app.route("/documents")
 def documents():
@@ -187,7 +306,7 @@ def documents():
         return render_template("documents.html", s=s, docs=docs, active="documents")
     except Exception as e:
         print(f"documents error: {e}"); traceback.print_exc()
-        return f"<h2>Documents error</h2><pre>{e}</pre><a href='/logout'>Logout</a>", 500
+        return f"<h2>Error</h2><pre>{e}</pre><a href='/logout'>Logout</a>", 500
 
 @app.route("/chat-page")
 def chat_page():
@@ -199,7 +318,7 @@ def chat_page():
         return render_template("chat.html", s=s, docs=docs, active="chat")
     except Exception as e:
         print(f"chat_page error: {e}"); traceback.print_exc()
-        return f"<h2>Chat error</h2><pre>{e}</pre><a href='/logout'>Logout</a>", 500
+        return f"<h2>Error</h2><pre>{e}</pre><a href='/logout'>Logout</a>", 500
 
 @app.route("/analytics-page")
 def analytics_page():
@@ -209,33 +328,41 @@ def analytics_page():
         return render_template("analytics.html", s=s, active="analytics")
     except Exception as e:
         print(f"analytics_page error: {e}"); traceback.print_exc()
-        return f"<h2>Analytics error</h2><pre>{e}</pre><a href='/logout'>Logout</a>", 500
+        return f"<h2>Error</h2><pre>{e}</pre><a href='/logout'>Logout</a>", 500
 
+# ── API ───────────────────────────────────────────────────
 @app.route("/upload", methods=["POST"])
 def upload_file():
     try:
         s = current_student()
         if not s: return jsonify({"error":"Not logged in"}), 401
-        if "file" not in request.files: return jsonify({"error":"No file"}), 400
+        if "file" not in request.files:
+            return jsonify({"error":"No file"}), 400
         file   = request.files["file"]
         course = request.form.get("course","General")
-        if not file or not file.filename: return jsonify({"error":"No file selected"}), 400
+        if not file or not file.filename:
+            return jsonify({"error":"No file selected"}), 400
         ext = file.filename.rsplit(".",1)[-1].lower() if "." in file.filename else ""
-        if ext not in ALLOWED_EXT: return jsonify({"error":f"File type .{ext} not allowed"}), 400
+        if ext not in ALLOWED_EXT:
+            return jsonify({"error":f"File type .{ext} not allowed"}), 400
         folder = os.path.join(UPLOAD_FOLDER, str(s["id"]))
         os.makedirs(folder, exist_ok=True)
         orig  = file.filename
         saved = f"{uuid.uuid4().hex[:8]}_{secure_filename(orig)}"
         path  = os.path.join(folder, saved)
         file.save(path)
-        size  = os.path.getsize(path)
+        size    = os.path.getsize(path)
+        content = extract_text(path, orig)
+        print(f"UPLOAD: {orig} → {len(content)} chars extracted")
         if DB_URL:
             conn = get_db(); cur = conn.cursor()
-            cur.execute("INSERT INTO documents(student_id,filename,orig_name,course,size_bytes) VALUES(%s,%s,%s,%s,%s)",
-                        (s["id"], saved, orig, course, size))
+            cur.execute("""INSERT INTO documents
+                           (student_id,filename,orig_name,course,size_bytes,content)
+                           VALUES(%s,%s,%s,%s,%s,%s)""",
+                        (s["id"], saved, orig, course, size, content))
             conn.commit(); cur.close(); conn.close()
-        log_event(s["id"], "file_uploaded", {"name":orig,"course":course,"kb":round(size/1024,1)})
-        return jsonify({"success":True, "docs": get_docs(s["id"])})
+        log_event(s["id"], "file_uploaded", {"name":orig,"course":course,"chars":len(content)})
+        return jsonify({"success":True, "docs":get_docs(s["id"]), "chars_extracted":len(content)})
     except Exception as e:
         print(f"upload error: {e}"); traceback.print_exc()
         return jsonify({"error": str(e)}), 500
@@ -257,7 +384,7 @@ def delete_file():
                 conn.commit()
                 log_event(s["id"], "file_deleted", {"doc_id": doc_id})
             cur.close(); conn.close()
-        return jsonify({"success":True, "docs": get_docs(s["id"])})
+        return jsonify({"success":True, "docs":get_docs(s["id"])})
     except Exception as e:
         print(f"delete error: {e}"); traceback.print_exc()
         return jsonify({"error": str(e)}), 500
@@ -267,35 +394,64 @@ def chat():
     try:
         s = current_student()
         if not s: return jsonify({"error":"Not logged in"}), 401
-        if not ANTHROPIC_API_KEY: return jsonify({"error":"ANTHROPIC_API_KEY not set"}), 500
+        if not ANTHROPIC_API_KEY:
+            return jsonify({"error":"ANTHROPIC_API_KEY not set"}), 500
         data     = request.get_json() or {}
         messages = data.get("messages", [])
         user_msg = messages[-1]["content"] if messages else ""
         log_event(s["id"], "question_asked", {"q": user_msg[:200]})
         docs    = get_docs(s["id"])
-        doc_ctx = ""
-        if docs:
-            doc_ctx = f"\n\nThis student has {len(docs)} uploaded document(s):\n"
-            for d in docs:
-                doc_ctx += f"  - {d['orig_name']} (Course: {d['course']}, {round(d['size_bytes']/1024,1)} KB)\n"
-        system = (
+        doc_ctx = build_doc_context(docs)
+        system  = (
             f"You are WINK, a warm encouraging AI academic companion for UTEP students. "
             f"You are helping {s['first_name']} {s['last_name']}, "
             f"a {s['classification']} majoring in {s['major']}. "
-            f"Help with coursework, deadlines, study strategies, campus resources, and college life. "
+            f"IMPORTANT: The student's actual uploaded course documents are included below. "
+            f"Always read and reference the document content to answer questions. "
+            f"Quote specific deadlines, requirements, grading criteria, and instructions "
+            f"directly from their documents when answering. "
+            f"If the answer is in their documents, cite it specifically. "
             f"UTEP resources: University Writing Center, CASS Tutoring, Advising & Student Support. "
-            f"Be concise, warm, and actionable. End with an encouraging note." + doc_ctx
+            f"Be warm, specific, and actionable. End with an encouraging note."
+            + doc_ctx
         )
         import httpx, anthropic as ac
         client = ac.Anthropic(api_key=ANTHROPIC_API_KEY, http_client=httpx.Client())
-        resp   = client.messages.create(model="claude-sonnet-4-20250514",
-                                        max_tokens=1000, system=system, messages=messages)
-        reply  = resp.content[0].text
+        resp   = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=1500,
+            system=system,
+            messages=messages
+        )
+        reply = resp.content[0].text
         log_event(s["id"], "answer_given", {"len": len(reply)})
         return jsonify({"reply": reply})
     except Exception as e:
         print(f"chat error: {e}"); traceback.print_exc()
         return jsonify({"error": str(e)}), 500
+
+@app.route("/debug-docs")
+def debug_docs():
+    """Shows exactly what content WINK can see from uploaded documents."""
+    s = current_student()
+    if not s: return redirect(url_for("login"))
+    docs = get_docs(s["id"])
+    out = f"<h2>WINK Document Debug — {s['first_name']} {s['last_name']}</h2>"
+    out += f"<p><strong>{len(docs)} document(s) uploaded</strong></p>"
+    for d in docs:
+        content = (d.get("content") or "").strip()
+        out += f"<hr><h3>{d['orig_name']}</h3>"
+        out += f"<p>Course: {d['course']} | Size: {round(d.get('size_bytes',0)/1024,1)} KB | "
+        out += f"Characters extracted: <strong>{len(content)}</strong></p>"
+        if content:
+            preview = content[:2000].replace("<","&lt;").replace(">","&gt;")
+            out += f"<pre style='background:#f0f0f0;padding:12px;border-radius:8px;white-space:pre-wrap;'>{preview}</pre>"
+            if len(content) > 2000:
+                out += f"<p><em>...and {len(content)-2000} more characters</em></p>"
+        else:
+            out += "<p style='color:red;'><strong>⚠️ No text extracted from this file!</strong></p>"
+    out += "<hr><p><a href='/documents'>← Back to Documents</a></p>"
+    return out
 
 @app.route("/analytics-data")
 def analytics_data():
@@ -329,8 +485,10 @@ def analytics_data():
         recent = []
         for r in cur.fetchall():
             row = dict(r)
-            try: row["payload"] = json.loads(row["payload"]) if isinstance(row["payload"],str) else (row["payload"] or {})
-            except: row["payload"] = {}
+            try:
+                row["payload"] = json.loads(row["payload"]) if isinstance(row["payload"],str) else (row["payload"] or {})
+            except:
+                row["payload"] = {}
             recent.append(row)
         cur.execute("SELECT major, COUNT(*) as n FROM students GROUP BY major ORDER BY n DESC")
         by_major = [dict(r) for r in cur.fetchall()]
@@ -342,7 +500,7 @@ def analytics_data():
                         "students":students,"recent":recent,
                         "by_major":by_major,"by_class":by_class})
     except Exception as e:
-        print(f"analytics_data error: {e}"); traceback.print_exc()
+        print(f"analytics error: {e}"); traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 @app.route("/health")
