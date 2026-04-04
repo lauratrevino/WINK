@@ -17,7 +17,7 @@ DB_URL            = os.environ.get("DATABASE_URL", "")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 ADMIN_EMAIL = "lhall@utep.edu"  # Administrator email
 
-CLASSIFICATIONS = ["Freshman","Sophomore","Junior","Senior","Graduate"]
+CLASSIFICATIONS = ["Freshman","Sophomore","Junior","Senior","Graduate","Faculty"]
 MAJORS = [
     "Accounting","Biology","Business Administration","Chemistry",
     "Civil Engineering","Communication","Computer Science",
