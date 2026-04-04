@@ -55,11 +55,14 @@
 @keyframes hop{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-5px)}}
 .chat-foot{padding:10px 14px 12px;border-top:1.5px solid var(--border);background:#ffffff;}
 .input-row{display:flex;gap:8px;align-items:flex-end;}
-.ta-wrap{position:relative;flex:1;}
-.mic{position:absolute;left:10px;bottom:10px;font-size:13px;background:var(--pale-blue);border-radius:999px;padding:3px 7px;cursor:pointer;border:none;z-index:1;}
-.chat-ta{width:100%;min-height:44px;max-height:120px;padding:11px 60px 11px 14px;border-radius:14px;border:1.5px solid var(--border);font-family:inherit;font-size:14px;background:#fff;outline:none;resize:none;color:var(--text);}
-.chat-ta:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(29,78,216,.1);}
+.ta-wrap{display:flex;align-items:center;gap:8px;flex:1;background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:6px 10px;}
+.ta-wrap:focus-within{border-color:var(--blue);box-shadow:0 0 0 3px rgba(29,78,216,.1);}
+.attach-btn{background:none;border:none;font-size:1.35rem;font-weight:400;color:var(--navy);cursor:pointer;padding:0 2px;flex-shrink:0;line-height:1;transition:color .15s;}
+.attach-btn:hover{color:var(--orange);}
+.chat-ta{flex:1;min-height:28px;max-height:120px;padding:4px 0;border:none;outline:none;font-family:inherit;font-size:14px;background:transparent;resize:none;color:var(--text);}
 .chat-ta::placeholder{color:#94a3b8;}
+.mic{background:none;border:none;font-size:1.1rem;cursor:pointer;flex-shrink:0;padding:0 2px;transition:transform .15s;}
+.mic:hover{transform:scale(1.15);}
 .send{border:none;background:linear-gradient(135deg,var(--orange),#ea580c);color:#fff;padding:11px 20px;border-radius:12px;font-size:14px;cursor:pointer;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px rgba(249,115,22,.3);}
 .send:hover{opacity:.92;}
 {% endblock %}
@@ -111,9 +114,9 @@
     </div>
     <div class="chat-body" id="cb">
       <div class="empty-msg" id="em">
-        👋 Hi <strong>{{ s.first_name }}</strong>! I'm WINK, your personal AI academic companion.<br><br>
+        👋 Hi <strong>{{ s.first_name }}</strong>! I'm WINK, your personal AI academic coach.
         {% if docs %}
-           Ask me anything about your courses, deadlines, assignments, or how to succeed this week!
+           Ask me anything about your courses, deadlines, assignments, or how to succeed this week or even what your teacher is like!  
         {% else %}
           I don't see any uploaded documents yet. <a href="/documents" style="color:var(--orange);font-weight:700;">Upload your syllabi and assignments</a> so I can give you personalized answers specific to YOUR courses!
         {% endif %}
@@ -123,8 +126,10 @@
     <div class="chat-foot">
       <div class="input-row">
         <div class="ta-wrap">
-          <button class="mic" id="mic">🎤</button>
-          <textarea class="chat-ta" id="ta" placeholder="       Ask WINK anything about your courses..." rows="1"></textarea>
+          <button class="attach-btn" id="attach" title="Attach file">+</button>
+          <input type="file" id="file-input" style="display:none" multiple>
+          <textarea class="chat-ta" id="ta" placeholder="Ask WINK anything about your courses..." rows="1"></textarea>
+          <button class="mic" id="mic" title="Voice input">🎤</button>
         </div>
         <button class="send" id="sbtn" onclick="send()">Send ➤</button>
       </div>
@@ -176,5 +181,13 @@ const mic = document.getElementById('mic'); let recog=null,listening=false;
 const SR = window.SpeechRecognition||window.webkitSpeechRecognition;
 if(SR){recog=new SR();recog.continuous=false;recog.interimResults=true;recog.lang='en-US';recog.onstart=()=>{listening=true;mic.textContent='⏹';};recog.onend=()=>{listening=false;mic.textContent='🎤';};recog.onerror=()=>{listening=false;mic.textContent='🎤';};recog.onresult=e=>{let t='';for(let i=e.resultIndex;i<e.results.length;i++)t+=e.results[i][0].transcript;const ta=document.getElementById('ta');ta.value=t.trim();ta.dispatchEvent(new Event('input'));ta.focus();};}
 mic.addEventListener('click',()=>{if(!recog){alert('Speech not supported. Use Chrome or Edge.');return;}try{listening?recog.stop():recog.start();}catch(e){}});
+document.getElementById('attach').addEventListener('click', () => {
+  document.getElementById('file-input').click();
+});
+document.getElementById('file-input').addEventListener('change', (e) => {
+  const files = Array.from(e.target.files);
+  // files are ready — wire into your upload/chat logic here
+  console.log('Files selected:', files.map(f => f.name));
+});
 </script>
 {% endblock %}
