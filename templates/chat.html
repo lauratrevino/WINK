@@ -113,7 +113,7 @@
       <div class="empty-msg" id="em">
         👋 Hi <strong>{{ s.first_name }}</strong>! I'm WINK, your personal AI academic companion.<br><br>
         {% if docs %}
-          I have your <strong>{{ docs|length }} uploaded document(s)</strong> loaded and ready. Ask me anything about your courses, deadlines, assignments, or how to succeed this week!
+           Ask me anything about your courses, deadlines, assignments, or how to succeed this week!
         {% else %}
           I don't see any uploaded documents yet. <a href="/documents" style="color:var(--orange);font-weight:700;">Upload your syllabi and assignments</a> so I can give you personalized answers specific to YOUR courses!
         {% endif %}
@@ -124,7 +124,7 @@
       <div class="input-row">
         <div class="ta-wrap">
           <button class="mic" id="mic">🎤</button>
-          <textarea class="chat-ta" id="ta" placeholder="Ask WINK anything about your courses..." rows="1"></textarea>
+          <textarea class="chat-ta" id="ta" placeholder="       Ask WINK anything about your courses..." rows="1"></textarea>
         </div>
         <button class="send" id="sbtn" onclick="send()">Send ➤</button>
       </div>
