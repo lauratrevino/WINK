@@ -6,295 +6,367 @@
   <title>WINK — What I Need to Know</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
-      background: #0a1628;
-      color: #fff;
       min-height: 100vh;
       overflow-x: hidden;
     }
 
-    /* ── Hero Section ── */
+    /* ── Full-bleed rich background ── */
     .hero {
-      min-height: 100vh;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      align-items: center;
       position: relative;
-      overflow: hidden;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background:
+        radial-gradient(ellipse 70% 55% at 68% 38%, rgba(0,200,180,0.14) 0%, transparent 55%),
+        radial-gradient(ellipse 55% 70% at 25% 65%, rgba(0,20,70,0.55) 0%, transparent 60%),
+        radial-gradient(ellipse 45% 45% at 88% 78%, rgba(90,0,130,0.13) 0%, transparent 50%),
+        radial-gradient(ellipse 40% 35% at 50% 10%, rgba(0,80,120,0.2) 0%, transparent 50%),
+        linear-gradient(145deg, #061522 0%, #0b2535 25%, #0d2e3e 50%, #102840 75%, #091c2d 100%);
     }
+
+    /* Left-side reading overlay so text is always legible */
     .hero::before {
       content: '';
       position: absolute; inset: 0;
-      background:
-        radial-gradient(ellipse 60% 70% at 65% 40%, rgba(255,130,0,0.07) 0%, transparent 65%),
-        radial-gradient(ellipse 50% 80% at 10% 70%, rgba(0,40,85,0.5) 0%, transparent 60%);
+      background: linear-gradient(
+        108deg,
+        rgba(3,10,22,0.78) 0%,
+        rgba(3,10,22,0.65) 38%,
+        rgba(3,10,22,0.18) 58%,
+        transparent 72%
+      );
       pointer-events: none;
-    }
-    /* Animated subtle glow particles */
-    .hero::after {
-      content: '';
-      position: absolute; inset: 0;
-      background-image:
-        radial-gradient(circle 2px at 20% 30%, rgba(255,130,0,0.4) 0%, transparent 100%),
-        radial-gradient(circle 1px at 80% 20%, rgba(255,255,255,0.3) 0%, transparent 100%),
-        radial-gradient(circle 1.5px at 50% 70%, rgba(255,130,0,0.25) 0%, transparent 100%),
-        radial-gradient(circle 1px at 90% 60%, rgba(255,255,255,0.2) 0%, transparent 100%);
-      pointer-events: none;
+      z-index: 1;
     }
 
+    /* Animated light-streak decorations */
+    .streaks { position: absolute; inset: 0; pointer-events: none; z-index: 1; overflow: hidden; }
+    .streak {
+      position: absolute; border-radius: 999px; opacity: 0;
+      animation: sa linear infinite;
+    }
+    @keyframes sa {
+      0%   { opacity: 0;   transform: translate(-40px, 15px) rotate(-10deg); }
+      12%  { opacity: 0.7; }
+      88%  { opacity: 0.25; }
+      100% { opacity: 0;   transform: translate(220px, -70px) rotate(-10deg); }
+    }
+
+    /* ── Content wrapper ── */
+    .hero-body-wrap {
+      position: relative;
+      z-index: 2;
+      flex: 1;
+      display: grid;
+      grid-template-columns: 52% 48%;
+      align-items: center;
+      padding: 44px 56px 16px 56px;
+      min-height: calc(100vh - 64px - 100px); /* leave room for cards + footer */
+    }
+
+    /* ── LEFT COLUMN ── */
     .hero-left {
-      padding: 80px 48px 80px 64px;
-      position: relative; z-index: 2;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      padding-right: 24px;
     }
 
-    /* Badge */
-    .hero-badge {
-      display: inline-flex; align-items: center; gap: 7px;
-      background: rgba(255,255,255,0.08);
-      border: 1px solid rgba(255,255,255,0.15);
-      border-radius: 999px;
-      padding: 6px 16px;
-      font-size: 13px; font-weight: 500;
-      color: rgba(255,255,255,0.8);
-      margin-bottom: 24px;
-    }
-    .hero-badge .dot {
-      width: 7px; height: 7px; border-radius: 50%;
-      background: #FF8200;
-      box-shadow: 0 0 6px rgba(255,130,0,0.8);
-      animation: pulse 2s ease-in-out infinite;
-    }
-    @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.6;transform:scale(0.8)} }
-
-    /* Wordmark */
-    .hero-wordmark {
-      font-size: 88px;
+    /* WINK — large serif display */
+    .wordmark {
+      font-size: 100px;
       font-weight: 900;
       color: #fff;
-      letter-spacing: -4px;
-      line-height: 0.9;
-      margin-bottom: 4px;
-    }
-    .hero-subtitle {
-      font-size: 20px;
-      font-weight: 600;
-      color: rgba(255,255,255,0.75);
-      margin-bottom: 20px;
-      letter-spacing: 0;
+      letter-spacing: -5px;
+      line-height: 0.88;
+      font-family: Georgia, 'Times New Roman', serif;
+      text-shadow: 0 3px 24px rgba(0,0,0,0.45);
     }
 
-    /* Headline */
-    .hero-headline {
-      font-size: 36px;
-      font-weight: 800;
-      text-transform: uppercase;
-      line-height: 1.15;
+    /* (What I Need to Know) — large, bold, same visual weight as the reference */
+    .wordmark-sub {
+      font-size: 32px;
+      font-weight: 700;
+      color: #fff;
+      margin-top: 8px;
       margin-bottom: 20px;
       letter-spacing: -0.5px;
+      text-shadow: 0 1px 10px rgba(0,0,0,0.35);
+      line-height: 1.1;
+    }
+
+    /* THE INTELLIGENCE TO SUCCEED headline */
+    .hero-headline {
+      font-size: 46px;
+      font-weight: 900;
+      text-transform: uppercase;
+      line-height: 1.05;
+      letter-spacing: -1px;
+      color: #fff;
+      margin-bottom: 22px;
+      text-shadow: 0 2px 14px rgba(0,0,0,0.3);
     }
     .hero-headline .accent { color: #FF8200; }
 
-    /* Body */
-    .hero-body {
+    /* Body paragraph */
+    .hero-copy {
       font-size: 15px;
-      color: rgba(255,255,255,0.65);
-      line-height: 1.7;
-      max-width: 440px;
-      margin-bottom: 32px;
+      color: rgba(255,255,255,0.72);
+      line-height: 1.72;
+      max-width: 430px;
+      margin-bottom: 30px;
     }
 
-    /* CTA Buttons */
-    .cta-row { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-bottom: 48px; }
+    /* CTA row */
+    .cta-row { display: flex; gap: 14px; align-items: center; }
     .btn-cta-primary {
-      display: inline-flex; align-items: center; gap: 8px;
       background: #FF8200; color: #fff;
-      font-size: 15px; font-weight: 700;
-      padding: 13px 28px; border-radius: 8px;
-      text-decoration: none; border: none; cursor: pointer;
+      font-size: 16px; font-weight: 700;
+      padding: 14px 30px; border-radius: 8px;
+      border: none; cursor: pointer; text-decoration: none;
       transition: all 0.18s;
-      box-shadow: 0 4px 20px rgba(255,130,0,0.35);
+      box-shadow: 0 4px 22px rgba(255,130,0,0.42);
     }
-    .btn-cta-primary:hover {
-      background: #e57200;
-      transform: translateY(-2px);
-      box-shadow: 0 6px 24px rgba(255,130,0,0.45);
-    }
+    .btn-cta-primary:hover { background: #e57200; transform: translateY(-2px); box-shadow: 0 6px 28px rgba(255,130,0,0.52); }
     .btn-cta-secondary {
-      display: inline-flex; align-items: center; gap: 8px;
-      background: transparent; color: #fff;
-      font-size: 15px; font-weight: 600;
-      padding: 12px 26px; border-radius: 8px;
-      text-decoration: none;
-      border: 1.5px solid rgba(255,255,255,0.4);
-      transition: all 0.18s;
+      background: rgba(255,255,255,0.10); color: #fff;
+      font-size: 16px; font-weight: 700;
+      padding: 13px 28px; border-radius: 8px;
+      border: 2px solid rgba(255,255,255,0.52);
+      cursor: pointer; text-decoration: none;
+      transition: all 0.18s; backdrop-filter: blur(4px);
     }
-    .btn-cta-secondary:hover { border-color: #fff; background: rgba(255,255,255,0.06); }
+    .btn-cta-secondary:hover { border-color: #fff; background: rgba(255,255,255,0.18); }
 
-    /* ── Feature Cards ── */
-    .feature-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 12px;
-    }
-    .feature-card {
-      background: rgba(255,255,255,0.07);
-      border: 1px solid rgba(255,255,255,0.12);
-      border-top: 2px solid #FF8200;
-      border-radius: 10px;
-      padding: 16px 18px;
-      transition: background 0.18s, transform 0.18s;
-    }
-    .feature-card:hover { background: rgba(255,255,255,0.11); transform: translateY(-2px); }
-    .feature-icon {
-      font-size: 22px; margin-bottom: 8px;
-      display: block;
-    }
-    .feature-title {
-      font-size: 14px; font-weight: 700;
-      color: #fff; margin-bottom: 4px;
-    }
-    .feature-body {
-      font-size: 12px;
-      color: rgba(255,255,255,0.55);
-      line-height: 1.5;
-    }
-
-    /* ── Hero Right: Character ── */
+    /* ── RIGHT COLUMN — Character image ── */
     .hero-right {
-      position: relative; z-index: 2;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: flex-end;
-      height: 100%;
-      padding-bottom: 0;
-    }
-    .character-wrap {
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
       position: relative;
-      display: flex; flex-direction: column; align-items: center;
     }
     .character-img {
       width: 100%;
-      max-width: 480px;
+      max-width: 580px;
       height: auto;
       display: block;
-      filter: drop-shadow(0 20px 60px rgba(255,130,0,0.15));
+      filter:
+        drop-shadow(0 0 80px rgba(255,130,0,0.08))
+        drop-shadow(0 32px 64px rgba(0,0,0,0.40));
+      position: relative;
+      z-index: 2;
     }
 
-    /* ── Footer Bar ── */
+    /* ── FEATURE CARDS ── */
+    .feature-section {
+      position: relative; z-index: 2;
+      padding: 0 44px 0;
+    }
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+    }
+    .feature-card {
+      background: rgba(255,255,255,0.88);
+      border-radius: 12px;
+      padding: 20px 18px 18px;
+      border: 1px solid rgba(255,255,255,0.55);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      transition: transform 0.18s, box-shadow 0.18s;
+    }
+    .feature-card:hover { transform: translateY(-3px); box-shadow: 0 10px 30px rgba(0,0,0,0.18); }
+    .feature-card-icon {
+      width: 56px; height: 56px;
+      margin-bottom: 12px;
+    }
+    .feature-card-title {
+      font-size: 15px; font-weight: 800;
+      color: #111; line-height: 1.25;
+      margin-bottom: 8px;
+    }
+    .feature-card-body {
+      font-size: 13px; color: #555; line-height: 1.55;
+    }
+
+    /* ── FOOTER ── */
     .landing-footer {
-      background: #070e1d;
-      padding: 16px 64px;
+      position: relative; z-index: 2;
+      padding: 14px 56px 18px;
       display: flex; align-items: center; justify-content: space-between;
-      border-top: 1px solid rgba(255,255,255,0.06);
+      border-top: 1px solid rgba(255,255,255,0.07);
+      margin-top: 18px;
     }
-    .landing-footer .footer-links {
-      display: flex; gap: 24px;
-    }
-    .landing-footer .footer-links a {
-      font-size: 13px; color: rgba(255,255,255,0.4);
-      text-decoration: none; transition: color 0.15s;
-    }
-    .landing-footer .footer-links a:hover { color: rgba(255,255,255,0.75); }
-    .landing-footer .footer-brand {
-      font-size: 12px; color: rgba(255,255,255,0.3);
-      display: flex; align-items: center; gap: 6px;
-    }
-    .footer-dot {
-      width: 6px; height: 6px; border-radius: 50%;
-      background: #FF8200; opacity: 0.7;
+    .footer-links { display: flex; gap: 24px; }
+    .footer-links a { font-size: 13px; color: rgba(255,255,255,0.42); text-decoration: none; transition: color 0.15s; }
+    .footer-links a:hover { color: rgba(255,255,255,0.8); }
+    .footer-brand-badge {
+      display: flex; align-items: center; gap: 7px;
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 8px; padding: 5px 12px;
+      font-size: 11px; font-weight: 700;
+      color: rgba(255,255,255,0.45);
+      letter-spacing: .04em;
     }
 
     /* ── Responsive ── */
-    @media (max-width: 900px) {
-      .hero { grid-template-columns: 1fr; }
-      .hero-left { padding: 60px 28px 32px; }
-      .hero-wordmark { font-size: 64px; }
-      .hero-headline { font-size: 28px; }
-      .hero-right { padding: 0 28px 40px; }
-      .character-img { max-width: 320px; }
-      .feature-grid { grid-template-columns: 1fr 1fr; }
-      .landing-footer { padding: 16px 28px; flex-direction: column; gap: 12px; text-align: center; }
+    @media (max-width: 960px) {
+      .hero-body-wrap { grid-template-columns: 1fr; padding: 36px 24px 0; }
+      .hero-right { display: none; }
+      .wordmark { font-size: 68px; }
+      .wordmark-sub { font-size: 23px; }
+      .hero-headline { font-size: 32px; }
+      .feature-grid { grid-template-columns: repeat(2, 1fr); }
+      .feature-section { padding: 0 20px; }
+      .landing-footer { padding: 14px 24px; flex-direction: column; gap: 12px; text-align: center; }
     }
   </style>
 </head>
 <body>
 
-  <main class="hero">
-    <div class="hero-left">
+  <div class="hero">
 
-      <div class="hero-badge">
-        <span class="dot"></span>
-        AI-Powered Academic Support System
-      </div>
-
-      <div class="hero-wordmark">WINK</div>
-      <div class="hero-subtitle">(What I Need to Know)</div>
-
-      <h1 class="hero-headline">
-        The Intelligence to<br>
-        Succeed. <span class="accent">Precisely<br>
-        When You Need It.</span>
-      </h1>
-
-      <p class="hero-body">
-        WINK is your personal AI-powered Academic Success Coach. Upload documents
-        from all your courses and ask WINK anything — deadlines, assignments, study
-        strategies — personalized to your courses, your major, and your goals.
-      </p>
-
-      <div class="cta-row">
-        <a href="/register" class="btn-cta-primary">
-          🚀 Create My Account
-        </a>
-        <a href="/login" class="btn-cta-secondary">
-          🔐 Sign In
-        </a>
-      </div>
-
-      <div class="feature-grid">
-        <div class="feature-card">
-          <span class="feature-icon">📚</span>
-          <div class="feature-title">Centralize Your Study Library</div>
-          <div class="feature-body">Sync syllabi, lecture notes, and research into one searchable hub.</div>
-        </div>
-        <div class="feature-card">
-          <span class="feature-icon">🤖</span>
-          <div class="feature-title">Instant, In-Depth Answers</div>
-          <div class="feature-body">Precise answers derived directly from your uploaded files.</div>
-        </div>
-        <div class="feature-card">
-          <span class="feature-icon">📅</span>
-          <div class="feature-title">Intelligent Academic Calendar</div>
-          <div class="feature-body">Never miss a deadline. AI generates personalized reminders.</div>
-        </div>
-        <div class="feature-card">
-          <span class="feature-icon">🎓</span>
-          <div class="feature-title">Navigate University Resources</div>
-          <div class="feature-body">Advising, mental health support, and career center at a click.</div>
-        </div>
-      </div>
-
+    <!-- Light streaks decoration -->
+    <div class="streaks">
+      <div class="streak" style="width:200px;height:2px;background:linear-gradient(90deg,transparent,rgba(255,200,80,0.55),transparent);top:30%;left:12%;animation-duration:5s;animation-delay:0s;"></div>
+      <div class="streak" style="width:130px;height:1.5px;background:linear-gradient(90deg,transparent,rgba(80,210,255,0.45),transparent);top:58%;left:6%;animation-duration:6.5s;animation-delay:1.4s;"></div>
+      <div class="streak" style="width:250px;height:2px;background:linear-gradient(90deg,transparent,rgba(255,130,50,0.38),transparent);top:44%;left:20%;animation-duration:7s;animation-delay:3s;"></div>
+      <div class="streak" style="width:100px;height:1px;background:linear-gradient(90deg,transparent,rgba(190,100,255,0.42),transparent);top:18%;left:35%;animation-duration:4.2s;animation-delay:0.8s;"></div>
+      <div class="streak" style="width:160px;height:1.5px;background:linear-gradient(90deg,transparent,rgba(255,220,100,0.30),transparent);top:70%;left:40%;animation-duration:5.8s;animation-delay:2s;"></div>
     </div>
 
-    <div class="hero-right">
-      <div class="character-wrap">
+    <!-- Hero: text left + character right -->
+    <div class="hero-body-wrap">
+
+      <div class="hero-left">
+        <div class="wordmark">WINK</div>
+        <div class="wordmark-sub">(What I Need to Know)</div>
+
+        <h1 class="hero-headline">
+          The Intelligence to<br>
+          Succeed. <span class="accent">Precisely<br>
+          When You Need It.</span>
+        </h1>
+
+        <p class="hero-copy">
+          WINK: Your Personalized AI Academic Success Coach. Streamline
+          your courses, dominate assignments, and reach your goals with
+          instant, accurate guidance based on your own study materials.
+        </p>
+
+        <div class="cta-row">
+          <a href="/register" class="btn-cta-primary">Create My Account</a>
+          <a href="/login" class="btn-cta-secondary">Sign In</a>
+        </div>
+      </div>
+
+      <div class="hero-right">
         <img src="/static/WINK.jpeg" alt="WINK — Your AI Academic Success Coach" class="character-img">
       </div>
-    </div>
-  </main>
 
-  <footer class="landing-footer">
-    <nav class="footer-links">
-      <a href="#">About</a>
-      <a href="#">Services</a>
-      <a href="#">Privacy</a>
-      <a href="#">Terms</a>
-    </nav>
-    <div class="footer-brand">
-      <span class="footer-dot"></span>
-      WINK Academic AI · UTEP
     </div>
-  </footer>
 
+    <!-- Feature cards -->
+    <div class="feature-section">
+      <div class="feature-grid">
+
+        <div class="feature-card">
+          <div class="feature-card-icon">
+            <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
+              <rect x="8" y="6" width="28" height="38" rx="4" fill="#edf0f8" stroke="#aab4cc" stroke-width="1.2"/>
+              <rect x="13" y="6" width="28" height="38" rx="4" fill="#f4f6fb" stroke="#aab4cc" stroke-width="1.2"/>
+              <line x1="18" y1="20" x2="36" y2="20" stroke="#FF8200" stroke-width="2" stroke-linecap="round"/>
+              <line x1="18" y1="26" x2="36" y2="26" stroke="#c8cedf" stroke-width="1.5" stroke-linecap="round"/>
+              <line x1="18" y1="32" x2="28" y2="32" stroke="#c8cedf" stroke-width="1.5" stroke-linecap="round"/>
+              <circle cx="40" cy="42" r="9" fill="#FF8200"/>
+              <line x1="37.5" y1="42" x2="42.5" y2="42" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>
+              <line x1="40" y1="39.5" x2="40" y2="44.5" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="feature-card-title">Centralize Your Study Library</div>
+          <div class="feature-card-body">Sync all course materials — syllabi, lecture notes, and research — into one searchable hub.</div>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card-icon">
+            <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
+              <circle cx="28" cy="28" r="14" fill="#fff3e6" stroke="#FF8200" stroke-width="1.5"/>
+              <circle cx="28" cy="28" r="6" fill="#FF8200" opacity="0.18"/>
+              <circle cx="28" cy="28" r="3" fill="#FF8200"/>
+              <line x1="28" y1="11" x2="28" y2="19" stroke="#FF8200" stroke-width="1.8" stroke-linecap="round"/>
+              <line x1="28" y1="37" x2="28" y2="45" stroke="#FF8200" stroke-width="1.8" stroke-linecap="round"/>
+              <line x1="11" y1="28" x2="19" y2="28" stroke="#FF8200" stroke-width="1.8" stroke-linecap="round"/>
+              <line x1="37" y1="28" x2="45" y2="28" stroke="#FF8200" stroke-width="1.8" stroke-linecap="round"/>
+              <line x1="16.2" y1="16.2" x2="22.5" y2="22.5" stroke="#FF8200" stroke-width="1.5" stroke-linecap="round"/>
+              <line x1="33.5" y1="33.5" x2="39.8" y2="39.8" stroke="#FF8200" stroke-width="1.5" stroke-linecap="round"/>
+              <line x1="39.8" y1="16.2" x2="33.5" y2="22.5" stroke="#FF8200" stroke-width="1.5" stroke-linecap="round"/>
+              <line x1="22.5" y1="33.5" x2="16.2" y2="39.8" stroke="#FF8200" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="feature-card-title">Instant, In-Depth Answers</div>
+          <div class="feature-card-body">Get precise answers derived directly from your uploaded files, from core concepts to specific assignment details.</div>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card-icon">
+            <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
+              <rect x="8" y="14" width="40" height="34" rx="5" fill="#edf0f8" stroke="#aab4cc" stroke-width="1.2"/>
+              <rect x="8" y="14" width="40" height="12" rx="5" fill="#002855"/>
+              <rect x="8" y="20" width="40" height="6" fill="#002855"/>
+              <line x1="18" y1="9" x2="18" y2="18" stroke="#002855" stroke-width="2.5" stroke-linecap="round"/>
+              <line x1="38" y1="9" x2="38" y2="18" stroke="#002855" stroke-width="2.5" stroke-linecap="round"/>
+              <rect x="14" y="31" width="8" height="6" rx="2" fill="#FF8200"/>
+              <rect x="25" y="31" width="8" height="6" rx="2" fill="#FF8200" opacity="0.4"/>
+              <rect x="36" y="31" width="8" height="6" rx="2" fill="#ddd"/>
+              <rect x="14" y="40" width="8" height="5" rx="2" fill="#ddd"/>
+              <rect x="25" y="40" width="8" height="5" rx="2" fill="#ddd"/>
+            </svg>
+          </div>
+          <div class="feature-card-title">Intelligent Academic Calendar</div>
+          <div class="feature-card-body">Never miss a deadline. Our AI generates personalized schedules and reminders based on your unique course load and goals.</div>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card-icon">
+            <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
+              <path d="M13 28 C13 18.6 19.9 11 28 11 C36.1 11 43 18.6 43 28" stroke="#002855" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+              <rect x="8" y="25" width="9" height="13" rx="4" fill="#002855"/>
+              <rect x="39" y="25" width="9" height="13" rx="4" fill="#FF8200"/>
+              <path d="M43 37 C43 42 36 45 28 45" stroke="#002855" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+              <circle cx="28" cy="45" r="3" fill="#FF8200"/>
+              <circle cx="17" cy="27" r="2" fill="#fff"/>
+              <circle cx="39" cy="27" r="2" fill="#fff"/>
+            </svg>
+          </div>
+          <div class="feature-card-title">Navigate University Resources</div>
+          <div class="feature-card-body">Access critical campus services like advising, mental health support, and career center connections with a single click.</div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="landing-footer">
+      <nav class="footer-links">
+        <a href="#">About</a>
+        <a href="#">Services</a>
+        <a href="#">Privacy</a>
+        <a href="#">Terms</a>
+      </nav>
+      <div class="footer-brand-badge">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+          <circle cx="6.5" cy="6.5" r="5.5" stroke="rgba(255,255,255,0.45)" stroke-width="1"/>
+          <path d="M3.5 6.8 L5.8 9 L9.5 4.5" stroke="rgba(255,255,255,0.6)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>
+        ACADEMIC AI
+      </div>
+    </footer>
+
+  </div>
 </body>
 </html>
