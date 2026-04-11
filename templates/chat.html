@@ -1,223 +1,383 @@
-{% extends "base.html" %}
-{% block title %}Ask WINK{% endblock %}
-{% block extra_style %}
-.chat-shell{display:flex;gap:16px;height:calc(100vh - 56px - 48px);}
-/* LEFT SIDEBAR — pale UTEP blue background */
-.chat-side{width:320px;flex-shrink:0;background:#cddaf5;border:1.5px solid var(--border);border-radius:18px;padding:16px;overflow-y:auto;}
-.side-inner{background:var(--navy);border-radius:14px;padding:16px 14px;text-align:center;}
-.side-badge{padding:8px 10px 6px;border-radius:10px;background:rgba(255,255,255,.1);color:#e2e8f0;margin-bottom:12px;border:1px solid rgba(255,255,255,.15);}
-.side-badge .st{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;}
-.side-badge .ss{font-size:11px;margin-top:3px;opacity:.75;}
-.wink-ring{margin:12px auto 10px;width:180px;height:180px;border-radius:50%;padding:5px;background:conic-gradient(from 220deg,#f97316,#1d4ed8,#041e42,#f97316);box-shadow:0 8px 28px rgba(0,0,0,.3);}
-.wink-ring-inner{width:100%;height:100%;border-radius:50%;background:#041e42;overflow:hidden;}
-.wink-ring-inner img{width:100%;height:100%;object-fit:cover;object-position:top center;}
-.side-name{margin:8px 0 3px;color:#fff;text-transform:uppercase;font-size:24px;font-weight:900;letter-spacing:.06em;}
-.side-tag{font-size:15px;color:rgba(255,255,255,.65);margin-bottom:10px;line-height:1.5;}
-.student-pill{background:rgba(249,115,22,.2);border:1px solid rgba(249,115,22,.4);border-radius:9px;padding:8px 10px;margin-bottom:10px;text-align:left;}
-.sp-name{font-size:12px;font-weight:700;color:#fdba74;}
-.sp-info{font-size:10px;color:rgba(255,255,255,.6);margin-top:2px;}
-.side-btns{display:flex;flex-direction:column;gap:8px;margin-bottom:12px;}
-.clr-btn{padding:10px 16px;border-radius:999px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.07);color:rgba(255,255,255,.9);font-size:13px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;width:100%;}
-.clr-btn:hover{background:rgba(255,255,255,.14);}
-.clr-dot{width:7px;height:7px;border-radius:50%;background:var(--orange);flex-shrink:0;}
-.tou-btn{padding:10px 16px;border-radius:999px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.07);color:rgba(255,255,255,.9);font-size:13px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;width:100%;}
-.tou-btn:hover{background:rgba(255,255,255,.14);}
-.try-box{font-size:11px;color:rgba(255,255,255,.7);padding:9px 10px;border-radius:9px;background:rgba(255,255,255,.06);border:1px dashed rgba(255,255,255,.2);text-align:left;}
-.try-title{font-weight:700;color:#fff;margin-bottom:6px;font-size:14px;}
-.try-q{margin-bottom:6px;cursor:pointer;line-height:1.5;padding:4px 7px;border-radius:5px;font-size:12px;}
-.try-q:hover{background:rgba(249,115,22,.2);color:#fdba74;}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ask WINK — Chat</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+      background: #f4f6fb; color: #444455;
+      display: flex; flex-direction: column;
+    }
+    /* ── Nav ── */
+    .app-nav {
+      background: #002855; padding: 0 32px;
+      display: flex; align-items: center; height: 60px;
+      flex-shrink: 0;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.18);
+    }
+    .nav-logo { font-size: 22px; font-weight: 900; color: #fff; letter-spacing: -1px; text-decoration: none; }
+    .nav-logo span { color: #FF8200; }
+    .nav-divider { width: 1px; height: 24px; background: rgba(255,255,255,0.2); margin: 0 20px; }
+    .nav-links { display: flex; align-items: center; gap: 4px; }
+    .nav-links a { color: rgba(255,255,255,0.65); text-decoration: none; font-size: 14px; font-weight: 500; padding: 6px 14px; border-radius: 6px; transition: all 0.15s; }
+    .nav-links a:hover { background: rgba(255,255,255,0.1); color: #fff; }
+    .nav-links a.active { background: #FF8200; color: #fff; }
+    .nav-right { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+    .nav-user { font-size: 13px; color: rgba(255,255,255,0.6); }
+    .nav-user strong { color: #fff; }
+    .btn-logout { font-size: 13px; color: rgba(255,255,255,0.6); text-decoration: none; padding: 5px 12px; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; transition: all 0.15s; }
+    .btn-logout:hover { background: rgba(255,255,255,0.1); color: #fff; }
 
-/* TERMS MODAL */
-.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:999;align-items:center;justify-content:center;}
-.modal-overlay.open{display:flex;}
-.modal-box{background:#fff;border-radius:18px;padding:28px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.25);}
-.modal-box h2{color:var(--navy);font-size:18px;margin:0 0 14px;}
-.modal-box p{font-size:13px;line-height:1.75;color:#334155;margin-bottom:10px;}
-.modal-close{margin-top:16px;padding:9px 22px;border-radius:999px;border:none;background:var(--navy);color:#fff;font-size:13px;cursor:pointer;font-weight:700;}
-.modal-close:hover{opacity:.88;}
+    /* ── Chat Layout ── */
+    .chat-container {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      min-height: 0;
+      max-height: calc(100vh - 60px);
+    }
 
-/* CHAT AREA */
-.chat-main{flex:1;display:flex;flex-direction:column;background:#ffffff;border-radius:18px;overflow:hidden;border:1.5px solid var(--border);box-shadow:0 2px 10px rgba(4,30,66,.06);}
-.chat-hdr{padding:12px 16px;background:linear-gradient(135deg,var(--navy),var(--blue));color:#fff;display:flex;align-items:center;justify-content:space-between;}
-.ch-left{display:flex;align-items:center;gap:10px;}
-.ch-av{width:34px;height:34px;border-radius:50%;overflow:hidden;border:2px solid rgba(255,255,255,.5);}
-.ch-av img{width:100%;height:100%;object-fit:cover;object-position:top center;}
-.ch-title{font-weight:800;font-size:15px;}
-.ch-sub{font-size:11px;opacity:.85;}
-.ch-pill{font-size:10px;padding:3px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.12);}
-.chat-body{flex:1;overflow-y:auto;padding:16px;background:var(--bg);}
-.chat-body::-webkit-scrollbar{width:6px;}
-.chat-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:999px;}
-.empty-msg{color:var(--muted);font-size:14px;padding:16px;border-radius:14px;background:#fff;border:1.5px dashed var(--border);line-height:1.75;}
-.msg-row{margin-bottom:12px;display:flex;}
-.msg-row.user{justify-content:flex-end;}
-.msg-row.asst{justify-content:flex-start;}
-.bubble{max-width:76%;padding:10px 14px;border-radius:18px;font-size:14px;line-height:1.6;white-space:pre-wrap;word-wrap:break-word;}
-.msg-row.user .bubble{background:linear-gradient(135deg,var(--blue),var(--navy));color:#fff;border-bottom-right-radius:4px;box-shadow:0 2px 8px rgba(29,78,216,.2);}
-.msg-row.asst .bubble{background:#fff;color:var(--text);border:1.5px solid var(--border);border-bottom-left-radius:4px;}
-.bubble a{color:var(--orange);text-decoration:underline;}
-.dots{display:flex;gap:4px;align-items:center;padding:3px 0;}
-.dot{width:7px;height:7px;border-radius:50%;background:var(--blue);opacity:.45;animation:hop 1s infinite;}
-.dot:nth-child(2){animation-delay:.15s;}.dot:nth-child(3){animation-delay:.3s;}
-@keyframes hop{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-5px)}}
-.chat-foot{padding:10px 14px 12px;border-top:1.5px solid var(--border);background:#ffffff;}
-.input-row{display:flex;gap:8px;align-items:flex-end;}
-.ta-wrap{display:flex;align-items:center;gap:8px;flex:1;background:#fff;border:1.5px solid var(--border);border-radius:14px;padding:6px 10px;}
-.ta-wrap:focus-within{border-color:var(--blue);box-shadow:0 0 0 3px rgba(29,78,216,.1);}
-.attach-btn{background:none;border:none;font-size:1.35rem;font-weight:400;color:var(--navy);cursor:pointer;padding:0 2px;flex-shrink:0;line-height:1;transition:color .15s;}
-.attach-btn:hover{color:var(--orange);}
-.chat-ta{flex:1;min-height:28px;max-height:120px;padding:4px 0;border:none;outline:none;font-family:inherit;font-size:14px;background:transparent;resize:none;color:var(--text);}
-.chat-ta::placeholder{color:#94a3b8;}
-.mic{background:none;border:none;font-size:1.1rem;cursor:pointer;flex-shrink:0;padding:0 2px;transition:transform .15s;}
-.mic:hover{transform:scale(1.15);}
-.send{border:none;background:linear-gradient(135deg,var(--orange),#ea580c);color:#fff;padding:11px 20px;border-radius:12px;font-size:14px;cursor:pointer;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px rgba(249,115,22,.3);}
-.send:hover{opacity:.92;}
-{% endblock %}
-{% block content %}
-<div style="padding:16px;max-width:1160px;margin:0 auto;width:100%;">
-<div class="chat-shell">
-  <!-- Sidebar -->
-  <div class="chat-side">
-    <div class="side-inner">
-      <div class="side-badge"><div class="st">WINK</div><div class="ss">Personal Academic Success Coach</div></div>
-      <div class="wink-ring"><div class="wink-ring-inner"><img src="/static/WINK.jpeg" alt="WINK"/></div></div>
-      <div class="side-name">WINK</div>
-      <div class="side-tag">Your Personal<br>Academic Success Coach</div>
-      <div class="student-pill">
-        <div class="sp-name">👋 {{ s.first_name }} {{ s.last_name }}</div>
-        <div class="sp-info">{{ s.classification }} · {{ s.major }}</div>
-      </div>
-      <div class="side-btns">
-        <button class="clr-btn" onclick="clearChat()"><span class="clr-dot"></span>Clear History</button>
-        <button class="tou-btn" onclick="document.getElementById('touModal').classList.add('open')">📋 Terms of Use</button>
-      </div>
-      <div class="try-box">
-        <div class="try-title">Try asking WINK:</div>
-        <div class="try-q" onclick="fill('What should I focus on this week?')">"What to focus on this week?"</div>
-        <div class="try-q" onclick="fill('Help me draft an email to my instructor.')">"Draft email to instructor."</div>
-        <div class="try-q" onclick="fill('Where can I get tutoring at UTEP?')">"Where can I get tutoring?"</div>
-        <div class="try-q" onclick="fill('Break my project into steps.')">"Break project into steps."</div>
-        <div class="try-q" onclick="fill('What campus resources are available to me?')">"What resources does UTEP offer?"</div>
-        <div class="try-q" onclick="fill('Show me the campus map.')">"Show me the campus map."</div>
-      </div>
+    /* ── Sidebar ── */
+    .chat-sidebar {
+      background: #fff;
+      border-right: 1px solid #dde3f0;
+      display: flex; flex-direction: column;
+      overflow-y: auto;
+    }
+    .sidebar-section { padding: 20px 18px; border-bottom: 1px solid #eef0f6; }
+    .sidebar-section h3 { font-size: 12px; font-weight: 700; color: #002855; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 12px; }
+    .wink-profile { text-align: center; padding: 20px 18px 16px; border-bottom: 1px solid #eef0f6; }
+    .wink-avatar {
+      width: 64px; height: 64px; border-radius: 50%;
+      border: 3px solid #FF8200;
+      object-fit: cover; margin: 0 auto 8px;
+      display: block;
+    }
+    .wink-name { font-size: 15px; font-weight: 800; color: #002855; }
+    .wink-role { font-size: 12px; color: #6b7a99; margin-top: 2px; }
+    .online-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 11px; color: #166534; font-weight: 600;
+      margin-top: 6px;
+    }
+    .online-dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; }
+
+    /* Doc list in sidebar */
+    .sidebar-doc { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid #f0f2f8; }
+    .sidebar-doc:last-child { border-bottom: none; }
+    .sidebar-doc-icon { font-size: 16px; flex-shrink: 0; }
+    .sidebar-doc-name { font-size: 12px; color: #444; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* Starter prompts */
+    .prompt-btn {
+      display: block; width: 100%;
+      text-align: left; padding: 8px 10px;
+      background: #f8f9ff; border: 1px solid #eef0f6;
+      border-radius: 6px; font-size: 12px; color: #002855;
+      cursor: pointer; margin-bottom: 6px;
+      transition: all 0.15s;
+    }
+    .prompt-btn:hover { background: #fff3e6; border-color: #FF8200; }
+    .prompt-btn:last-child { margin-bottom: 0; }
+
+    /* ── Chat Main ── */
+    .chat-main {
+      display: flex; flex-direction: column;
+      min-height: 0; overflow: hidden;
+    }
+
+    /* Messages area */
+    .messages-wrap {
+      flex: 1; overflow-y: auto;
+      padding: 24px 32px;
+      display: flex; flex-direction: column; gap: 20px;
+    }
+
+    /* Welcome message */
+    .welcome-msg {
+      text-align: center; padding: 32px 24px;
+    }
+    .welcome-msg h2 { font-size: 22px; font-weight: 700; color: #002855; }
+    .welcome-msg p { font-size: 14px; color: #6b7a99; margin-top: 6px; max-width: 480px; margin-left: auto; margin-right: auto; }
+
+    /* Message bubbles */
+    .msg { display: flex; gap: 12px; align-items: flex-start; max-width: 760px; }
+    .msg.user { flex-direction: row-reverse; margin-left: auto; }
+    .msg-avatar {
+      width: 34px; height: 34px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px; flex-shrink: 0; font-weight: 700;
+    }
+    .msg-avatar.wink-av { background: #002855; color: #FF8200; border: 2px solid #FF8200; }
+    .msg-avatar.user-av { background: #FF8200; color: #fff; }
+    .msg-bubble {
+      padding: 12px 16px; border-radius: 12px;
+      font-size: 14px; line-height: 1.65;
+      max-width: calc(100% - 50px);
+    }
+    .msg.wink .msg-bubble { background: #fff; border: 1px solid #dde3f0; color: #333; border-radius: 2px 12px 12px 12px; }
+    .msg.user .msg-bubble { background: #002855; color: #fff; border-radius: 12px 2px 12px 12px; }
+    .msg-bubble a { color: #FF8200; }
+    .msg-bubble p { margin-bottom: 8px; }
+    .msg-bubble p:last-child { margin-bottom: 0; }
+    .msg-bubble ul, .msg-bubble ol { padding-left: 20px; margin: 6px 0; }
+    .msg-bubble li { margin-bottom: 4px; }
+    .msg-bubble strong { font-weight: 700; }
+    .msg-bubble code { background: rgba(0,40,85,0.08); padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+
+    /* Typing indicator */
+    .typing { display: none; }
+    .typing .msg-bubble { display: flex; align-items: center; gap: 4px; padding: 14px 18px; }
+    .typing-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: #6b7a99; animation: typing 1.2s ease-in-out infinite;
+    }
+    .typing-dot:nth-child(2) { animation-delay: .2s; }
+    .typing-dot:nth-child(3) { animation-delay: .4s; }
+    @keyframes typing { 0%,80%,100%{transform:scale(0.7);opacity:.5} 40%{transform:scale(1);opacity:1} }
+
+    /* ── Input Bar ── */
+    .chat-input-bar {
+      flex-shrink: 0;
+      padding: 16px 24px;
+      background: #fff;
+      border-top: 1px solid #dde3f0;
+    }
+    .chat-input-row {
+      display: flex; align-items: flex-end; gap: 10px;
+      background: #f4f6fb; border: 1.5px solid #dde3f0;
+      border-radius: 12px; padding: 10px 10px 10px 16px;
+      transition: border-color 0.15s;
+    }
+    .chat-input-row:focus-within { border-color: #FF8200; }
+    #chat-input {
+      flex: 1; border: none; background: transparent;
+      font-size: 14px; color: #333; outline: none;
+      resize: none; min-height: 24px; max-height: 120px;
+      font-family: inherit; line-height: 1.5;
+    }
+    .btn-send {
+      width: 38px; height: 38px; border-radius: 8px;
+      background: #FF8200; border: none; color: #fff;
+      font-size: 18px; cursor: pointer; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.18s;
+    }
+    .btn-send:hover { background: #e57200; }
+    .btn-send:disabled { background: #dde3f0; cursor: not-allowed; }
+    .input-hint { font-size: 11px; color: #9ca3af; margin-top: 6px; text-align: center; }
+
+    @media (max-width: 768px) {
+      .chat-container { grid-template-columns: 1fr; }
+      .chat-sidebar { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="app-nav">
+    <a href="/dashboard" class="nav-logo">WINK<span>.</span></a>
+    <div class="nav-divider"></div>
+    <div class="nav-links">
+      <a href="/dashboard" class="{{ 'active' if active == 'dashboard' else '' }}">Dashboard</a>
+      <a href="/documents" class="{{ 'active' if active == 'documents' else '' }}">My Documents</a>
+      <a href="/chat-page" class="{{ 'active' if active == 'chat' else '' }}">Ask WINK</a>
+      {% if s.email == admin_email %}
+      <a href="/analytics-page" class="{{ 'active' if active == 'analytics' else '' }}">Analytics</a>
+      {% endif %}
     </div>
-  </div>
-
-  <!-- Chat -->
-  <div class="chat-main">
-    <div class="chat-hdr">
-      <div class="ch-left">
-        <div class="ch-av"><img src="/static/WINK.jpeg" alt="WINK"/></div>
-        <div><div class="ch-title">WINK</div><div class="ch-sub">{{ s.first_name }}'s Personal Academic Success Coach</div></div>
-      </div>
-      <div class="ch-pill">{{ docs|length }} doc{{ 's' if docs|length!=1 else '' }} loaded</div>
+    <div class="nav-right">
+      <div class="nav-user">Hello, <strong>{{ s.first_name }}</strong></div>
+      <a href="/logout" class="btn-logout">Log out</a>
     </div>
-    <div class="chat-body" id="cb">
-      <div class="empty-msg" id="em">
-        👋 Hi <strong>{{ s.first_name }}</strong>! I'm WINK, your personal AI academic coach.
+  </nav>
+
+  <div class="chat-container">
+
+    <!-- Sidebar -->
+    <aside class="chat-sidebar">
+      <div class="wink-profile">
+        <img src="/static/WINK.jpeg" alt="WINK" class="wink-avatar">
+        <div class="wink-name">WINK</div>
+        <div class="wink-role">Your AI Academic Coach</div>
+        <div class="online-badge"><span class="online-dot"></span> Online & Ready</div>
+      </div>
+
+      <div class="sidebar-section">
+        <h3>Try Asking</h3>
+        <button class="prompt-btn" onclick="setPrompt('What assignments are due this week?')">📅 What's due this week?</button>
+        <button class="prompt-btn" onclick="setPrompt('Summarize my course syllabi.')">📋 Summarize my syllabi</button>
+        <button class="prompt-btn" onclick="setPrompt('What are the main topics I need to study for my upcoming exams?')">📚 What should I study?</button>
+        <button class="prompt-btn" onclick="setPrompt('Where is the UTEP tutoring center and what are the hours?')">🏫 Campus resources</button>
+        <button class="prompt-btn" onclick="setPrompt('Help me create a study schedule for this week.')">🗓 Build a study plan</button>
+      </div>
+
+      <div class="sidebar-section">
+        <h3>Your Documents ({{ docs|length }})</h3>
         {% if docs %}
-           Ask me anything about your courses, deadlines, assignments, or how to succeed this week or even what your teacher is like!
+          {% for doc in docs[:8] %}
+          <div class="sidebar-doc">
+            <span class="sidebar-doc-icon">
+              {% if doc.orig_name.endswith('.pdf') %}📕
+              {% elif doc.orig_name.endswith('.docx') %}📘
+              {% elif doc.orig_name.endswith('.pptx') %}📙
+              {% else %}📄{% endif %}
+            </span>
+            <span class="sidebar-doc-name" title="{{ doc.orig_name }}">{{ doc.orig_name }}</span>
+          </div>
+          {% endfor %}
+          {% if docs|length > 8 %}<div style="font-size:12px;color:#6b7a99;padding-top:6px;">+{{ docs|length - 8 }} more</div>{% endif %}
         {% else %}
-          I don't see any uploaded documents yet. <a href="/documents" style="color:var(--orange);font-weight:700;">Upload your syllabi and assignments</a> so I can give you personalized answers specific to YOUR courses!
+          <div style="font-size:13px;color:#6b7a99;">
+            No documents yet. <a href="/documents" style="color:#FF8200;font-weight:600;">Upload some →</a>
+          </div>
         {% endif %}
       </div>
-      <div id="anchor"></div>
-    </div>
-    <div class="chat-foot">
-      <div class="input-row">
-        <div class="ta-wrap">
-          <button class="attach-btn" id="attach" title="Attach file">+</button>
-          <input type="file" id="file-input" style="display:none" multiple>
-          <textarea class="chat-ta" id="ta" placeholder="Ask WINK anything about your courses..." rows="1"></textarea>
-          <button class="mic" id="mic" title="Voice input">🎤</button>
+    </aside>
+
+    <!-- Chat Main -->
+    <div class="chat-main">
+      <div class="messages-wrap" id="messages">
+
+        <div class="welcome-msg" id="welcome">
+          <div style="font-size:40px;margin-bottom:12px;">🤖</div>
+          <h2>Hi {{ s.first_name }}, I'm WINK!</h2>
+          <p>Ask me anything about your courses, deadlines, assignments, or UTEP campus resources. I'll answer from your uploaded materials first.</p>
         </div>
-        <button class="send" id="sbtn" onclick="send()">Send ➤</button>
+
+        <!-- Typing indicator -->
+        <div class="msg wink typing" id="typing-indicator">
+          <div class="msg-avatar wink-av">W</div>
+          <div class="msg-bubble">
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="chat-input-bar">
+        <div class="chat-input-row">
+          <textarea id="chat-input" placeholder="Ask WINK anything about your courses…" rows="1" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+          <button class="btn-send" id="send-btn" onclick="sendMessage()">➤</button>
+        </div>
+        <div class="input-hint">Press Enter to send · Shift+Enter for new line · Answers come from your uploaded documents</div>
       </div>
     </div>
+
   </div>
-</div>
-</div>
 
-<!-- Terms of Use Modal -->
-<div class="modal-overlay" id="touModal" onclick="if(event.target===this)this.classList.remove('open')">
-  <div class="modal-box">
-    <h2>📋 WINK Terms of Use</h2>
-    <p><strong>1. Educational Tool.</strong> WINK is an AI-powered academic support tool designed to assist UTEP students with coursework, planning, and campus resources. It is not a substitute for official academic advising.</p>
-    <p><strong>2. Accuracy.</strong> WINK strives to provide helpful and accurate information, but responses may not always reflect the most current policies, deadlines, or requirements. Always verify critical information with your instructor or advisor.</p>
-    <p><strong>3. Privacy.</strong> Do not share sensitive personal information such as Social Security numbers, passwords, or financial details in this chat.</p>
-    <p><strong>4. Appropriate Use.</strong> WINK is intended for academic support purposes only. Misuse, including attempts to generate harmful or inappropriate content, may result in loss of access.</p>
-    <p><strong>5. Data.</strong> Conversations may be used to improve WINK's performance. No personally identifiable information is shared with third parties.</p>
-    <button class="modal-close" onclick="document.getElementById('touModal').classList.remove('open')">Close</button>
-  </div>
-</div>
+  <script>
+    const messages = [];
 
-<script>
-let msgs = [];
+    function setPrompt(text) {
+      document.getElementById('chat-input').value = text;
+      document.getElementById('chat-input').focus();
+    }
 
-// Campus map keyword shortcut
-const mapKeywords = ['campus map','map of campus','map of utep','utep map','find a building','navigate campus','get around campus','show me the campus','where is the'];
+    function autoResize(el) {
+      el.style.height = 'auto';
+      el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+    }
 
-async function send() {
-  const ta = document.getElementById('ta');
-  const txt = ta.value.trim(); if (!txt) return;
-  ta.value = ''; ta.style.height = 'auto';
-  document.getElementById('sbtn').disabled = true;
-  const em = document.getElementById('em'); if (em) em.style.display = 'none';
-  msgs.push({ role:'user', content:txt });
-  addBubble('user', txt);
+    function handleKey(e) {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+    }
 
-  // Check for campus map request
-  const lower = txt.toLowerCase();
-  if (mapKeywords.some(kw => lower.includes(kw))) {
-    const mapReply = '🗺️ Here\'s the UTEP Campus Map — search by building name, view floor plans, and get directions:\n\n👉 https://map.utep.edu\n\nNeed help finding a specific building?';
-    msgs.push({ role:'assistant', content:mapReply });
-    addBubble('asst', mapReply);
-    document.getElementById('sbtn').disabled = false;
-    document.getElementById('ta').focus();
-    return;
-  }
+    function escapeHtml(text) {
+      return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    }
 
-  showTyping();
-  try {
-    const r = await fetch('/chat', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({messages:msgs}) });
-    const d = await r.json(); removeTyping();
-    const reply = d.reply || d.error || "I had trouble — try again!";
-    msgs.push({ role:'assistant', content:reply });
-    addBubble('asst', reply);
-  } catch(e) { removeTyping(); addBubble('asst', 'Connection error — try again!'); }
-  document.getElementById('sbtn').disabled = false;
-  document.getElementById('ta').focus();
-}
+    function formatMessage(text) {
+      // Convert markdown-ish formatting to HTML
+      let html = escapeHtml(text);
+      // Bold
+      html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+      // Bullet lists
+      html = html.replace(/^[•\-\*] (.+)$/gm, '<li>$1</li>');
+      html = html.replace(/(<li>.*<\/li>\n?)+/g, m => `<ul>${m}</ul>`);
+      // Numbered lists
+      html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+      // Paragraphs
+      html = html.replace(/\n\n+/g, '</p><p>');
+      html = html.replace(/\n/g, '<br>');
+      html = '<p>' + html + '</p>';
+      html = html.replace(/<p><\/p>/g, '');
+      // URLs
+      html = html.replace(/(https?:\/\/[^\s<>"]+)/g, '<a href="$1" target="_blank">$1</a>');
+      return html;
+    }
 
-function addBubble(role, txt) {
-  const cb = document.getElementById('cb'), a = document.getElementById('anchor');
-  const row = document.createElement('div'); row.className = 'msg-row ' + role;
-  const b = document.createElement('div'); b.className = 'bubble';
-  // Render URLs as clickable links
-  b.innerHTML = txt.replace(/\bhttps?:\/\/\S+/g, url => `<a href="${url}" target="_blank" rel="noopener">${url}</a>`);
-  row.appendChild(b); cb.insertBefore(row, a);
-  a.scrollIntoView({ behavior:'smooth', block:'end' });
-}
-function showTyping() {
-  const cb = document.getElementById('cb'), a = document.getElementById('anchor');
-  const row = document.createElement('div'); row.className = 'msg-row asst'; row.id = 'tr';
-  row.innerHTML = '<div class="bubble"><div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div>';
-  cb.insertBefore(row, a); a.scrollIntoView({ behavior:'smooth', block:'end' });
-}
-function removeTyping() { const t = document.getElementById('tr'); if (t) t.remove(); }
-function clearChat() { msgs = []; document.querySelectorAll('.msg-row').forEach(r=>r.remove()); const em=document.getElementById('em'); if(em)em.style.display='block'; }
-function fill(t) { const ta=document.getElementById('ta'); ta.value=t; ta.focus(); }
-const ta = document.getElementById('ta');
-ta.addEventListener('keydown', e => { if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send();} });
-ta.addEventListener('input', () => { ta.style.height='auto'; ta.style.height=Math.min(ta.scrollHeight,120)+'px'; });
-const mic = document.getElementById('mic'); let recog=null,listening=false;
-const SR = window.SpeechRecognition||window.webkitSpeechRecognition;
-if(SR){recog=new SR();recog.continuous=false;recog.interimResults=true;recog.lang='en-US';recog.onstart=()=>{listening=true;mic.textContent='⏹';};recog.onend=()=>{listening=false;mic.textContent='🎤';};recog.onerror=()=>{listening=false;mic.textContent='🎤';};recog.onresult=e=>{let t='';for(let i=e.resultIndex;i<e.results.length;i++)t+=e.results[i][0].transcript;const ta=document.getElementById('ta');ta.value=t.trim();ta.dispatchEvent(new Event('input'));ta.focus();};}
-mic.addEventListener('click',()=>{if(!recog){alert('Speech not supported. Use Chrome or Edge.');return;}try{listening?recog.stop():recog.start();}catch(e){}});
-document.getElementById('attach').addEventListener('click', () => { document.getElementById('file-input').click(); });
-document.getElementById('file-input').addEventListener('change', (e) => {
-  const files = Array.from(e.target.files);
-  console.log('Files selected:', files.map(f => f.name));
-});
-</script>
-{% endblock %}
+    function addMessage(role, text) {
+      const welcome = document.getElementById('welcome');
+      if (welcome) welcome.remove();
+
+      const wrap = document.getElementById('messages');
+      const typing = document.getElementById('typing-indicator');
+
+      const div = document.createElement('div');
+      div.className = `msg ${role === 'user' ? 'user' : 'wink'}`;
+
+      const avatar = document.createElement('div');
+      avatar.className = `msg-avatar ${role === 'user' ? 'user-av' : 'wink-av'}`;
+      avatar.textContent = role === 'user' ? '{{ s.first_name[0] }}' : 'W';
+
+      const bubble = document.createElement('div');
+      bubble.className = 'msg-bubble';
+      bubble.innerHTML = role === 'user' ? escapeHtml(text) : formatMessage(text);
+
+      div.appendChild(avatar);
+      div.appendChild(bubble);
+      wrap.insertBefore(div, typing);
+      wrap.scrollTop = wrap.scrollHeight;
+    }
+
+    async function sendMessage() {
+      const input = document.getElementById('chat-input');
+      const text = input.value.trim();
+      if (!text) return;
+
+      input.value = '';
+      input.style.height = 'auto';
+      document.getElementById('send-btn').disabled = true;
+
+      messages.push({ role: 'user', content: text });
+      addMessage('user', text);
+
+      const typing = document.getElementById('typing-indicator');
+      typing.style.display = 'flex';
+      document.getElementById('messages').scrollTop = 99999;
+
+      try {
+        const res = await fetch('/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages })
+        });
+        const data = await res.json();
+        typing.style.display = 'none';
+        if (data.error) {
+          addMessage('wink', '❌ Error: ' + data.error);
+        } else {
+          messages.push({ role: 'assistant', content: data.reply });
+          addMessage('wink', data.reply);
+        }
+      } catch(e) {
+        typing.style.display = 'none';
+        addMessage('wink', '❌ Connection error. Please try again.');
+      }
+      document.getElementById('send-btn').disabled = false;
+      document.getElementById('chat-input').focus();
+    }
+  </script>
+
+</body>
+</html>

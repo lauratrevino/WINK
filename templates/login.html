@@ -1,57 +1,165 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>WINK — Sign In</title>
-<style>
-*{box-sizing:border-box;margin:0;padding:0;}
-:root{--navy:#041e42;--blue:#1d4ed8;--orange:#f97316;--pale:#dbeafe;--bg:#ccdaf5;--border:#b8ccf0;--muted:#64748b;}
-body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);min-height:100vh;}
-.bar{background:linear-gradient(135deg,var(--navy),#1a3a6b,var(--blue),var(--orange));height:56px;padding:0 32px;display:flex;align-items:center;gap:12px;}
-.bar img{width:36px;height:36px;border-radius:50%;object-fit:cover;object-position:top center;border:2px solid var(--orange);}
-.bar-name{color:#fff;font-weight:900;font-size:18px;letter-spacing:.08em;}
-.bar a{margin-left:auto;color:rgba(255,255,255,.6);font-size:13px;text-decoration:none;}
-.bar a:hover{color:#fff;}
-.page{display:flex;justify-content:center;align-items:center;padding:60px 16px;min-height:calc(100vh - 56px);}
-.card{background:#ffffff;border:1.5px solid var(--border);border-radius:20px;padding:40px;width:100%;max-width:420px;box-shadow:0 4px 24px rgba(4,30,66,.08);}
-.card-hdr{text-align:center;margin-bottom:26px;}
-.card-hdr img{width:80px;height:80px;border-radius:50%;object-fit:cover;object-position:top center;border:3px solid var(--orange);margin-bottom:12px;}
-.card-hdr h1{font-size:26px;font-weight:900;color:var(--navy);margin-bottom:4px;}
-.card-hdr p{font-size:13px;color:var(--muted);}
-.err{background:#fee2e2;color:#dc2626;border:1.5px solid #fecaca;border-radius:10px;padding:10px 14px;font-size:13px;margin-bottom:16px;font-weight:600;}
-.fg{margin-bottom:16px;}
-.fg label{display:block;font-size:12px;font-weight:700;color:var(--navy);letter-spacing:.04em;text-transform:uppercase;margin-bottom:5px;}
-.fg input{width:100%;padding:11px 13px;border:1.5px solid var(--border);border-radius:10px;font-size:14px;color:var(--navy);background:#fff;outline:none;}
-.fg input:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(29,78,216,.1);}
-.fg input::placeholder{color:#94a3b8;}
-.sub{width:100%;padding:13px;background:linear-gradient(135deg,var(--orange),#ea580c);color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(249,115,22,.3);}
-.sub:hover{opacity:.92;}
-.foot{text-align:center;margin-top:16px;font-size:14px;color:var(--muted);}
-.foot a{color:var(--orange);font-weight:700;text-decoration:none;}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign In — WINK</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+      background: #0a1628;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .auth-wrap {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      min-height: 100vh;
+    }
+    /* Left brand panel */
+    .auth-brand {
+      background: #0a1628;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 60px 48px;
+      position: relative; overflow: hidden;
+    }
+    .auth-brand::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse 70% 60% at 60% 45%, rgba(255,130,0,0.08) 0%, transparent 65%);
+      pointer-events: none;
+    }
+    .brand-logo { font-size: 72px; font-weight: 900; color: #fff; letter-spacing: -3px; line-height: 1; }
+    .brand-tagline { font-size: 17px; font-weight: 600; color: rgba(255,255,255,0.7); margin-top: 6px; margin-bottom: 32px; }
+    .brand-character { width: 100%; max-width: 320px; filter: drop-shadow(0 16px 40px rgba(255,130,0,0.12)); }
+    .brand-caption { font-size: 13px; color: rgba(255,255,255,0.4); margin-top: 16px; text-align: center; }
+
+    /* Right form panel */
+    .auth-form-panel {
+      background: #f4f6fb;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 60px 48px;
+    }
+    .auth-card {
+      width: 100%; max-width: 420px;
+      background: #fff;
+      border-radius: 16px;
+      border: 1px solid #dde3f0;
+      box-shadow: 0 4px 24px rgba(0,40,85,0.10);
+      padding: 40px 36px;
+    }
+    .auth-card-header { margin-bottom: 28px; }
+    .auth-card-header h1 {
+      font-size: 24px; font-weight: 700;
+      color: #002855; line-height: 1.2;
+    }
+    .auth-card-header p { font-size: 14px; color: #6b7a99; margin-top: 4px; }
+
+    .form-group { margin-bottom: 18px; }
+    .form-group label {
+      display: block; font-size: 13px; font-weight: 600;
+      color: #002855; margin-bottom: 6px;
+    }
+    .form-group input {
+      width: 100%; padding: 11px 14px;
+      border: 1.5px solid #dde3f0;
+      border-radius: 6px; font-size: 14px;
+      color: #444; outline: none;
+      transition: border-color 0.15s;
+    }
+    .form-group input:focus { border-color: #FF8200; }
+
+    .btn-submit {
+      width: 100%; padding: 13px;
+      background: #FF8200; color: #fff;
+      font-size: 15px; font-weight: 700;
+      border: none; border-radius: 6px;
+      cursor: pointer; transition: all 0.18s;
+      margin-top: 4px;
+    }
+    .btn-submit:hover { background: #e57200; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(255,130,0,0.3); }
+
+    .auth-alt {
+      text-align: center; margin-top: 20px;
+      font-size: 14px; color: #6b7a99;
+    }
+    .auth-alt a { color: #002855; font-weight: 600; text-decoration: none; }
+    .auth-alt a:hover { color: #FF8200; }
+
+    .alert-danger {
+      background: #fef2f2; border: 1px solid #fecaca;
+      color: #b91c1c; border-radius: 6px;
+      padding: 11px 14px; font-size: 14px;
+      margin-bottom: 18px;
+    }
+    .back-link {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 13px; color: rgba(255,255,255,0.5);
+      text-decoration: none; margin-top: 28px;
+    }
+    .back-link:hover { color: rgba(255,255,255,0.85); }
+
+    @media (max-width: 768px) {
+      .auth-wrap { grid-template-columns: 1fr; }
+      .auth-brand { display: none; }
+      .auth-form-panel { padding: 40px 20px; background: #0a1628; }
+      .auth-card { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); }
+      .auth-card-header h1 { color: #fff; }
+      .auth-card-header p { color: rgba(255,255,255,0.6); }
+      .form-group label { color: rgba(255,255,255,0.8); }
+      .form-group input { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15); color: #fff; }
+      .auth-alt { color: rgba(255,255,255,0.6); }
+      .auth-alt a { color: #FF8200; }
+    }
+  </style>
 </head>
 <body>
-<div class="bar">
-  <img src="/static/WINK.jpeg" alt="WINK"/>
-  <div class="bar-name">WINK</div>
-  <a href="/">← Back to home</a>
-</div>
-<div class="page">
-  <div class="card">
-    <div class="card-hdr">
-      <img src="/static/WINK.jpeg" alt="WINK"/>
-      <h1>Welcome Back! 👋</h1>
-      <p>Sign in to your WINK account</p>
+  <div class="auth-wrap">
+
+    <!-- Brand panel -->
+    <div class="auth-brand">
+      <div class="brand-logo">WINK</div>
+      <div class="brand-tagline">(What I Need to Know)</div>
+      <img src="/static/WINK.jpeg" alt="WINK character" class="brand-character">
+      <div class="brand-caption">Your AI-Powered Academic Success Coach</div>
+      <a href="/" class="back-link">← Back to home</a>
     </div>
-    {% if error %}<div class="err">⚠️ {{ error }}</div>{% endif %}
-    <form method="POST">
-      <div class="fg"><label>UTEP Email</label><input type="email" name="email" placeholder="abc123@miners.utep.edu" required autofocus/></div>
-      <div class="fg"><label>Password</label><input type="password" name="password" placeholder="Your password" required/></div>
-      <button type="submit" class="sub">🔒 Sign In to WINK</button>
-    </form>
-    <div class="foot">New to WINK? <a href="/register">Create a free account</a></div>
+
+    <!-- Form panel -->
+    <div class="auth-form-panel">
+      <div class="auth-card">
+        <div class="auth-card-header">
+          <h1>Welcome back 👋</h1>
+          <p>Sign in with your UTEP email to continue.</p>
+        </div>
+
+        {% if error %}
+          <div class="alert-danger">{{ error }}</div>
+        {% endif %}
+
+        <form method="POST" action="/login">
+          <div class="form-group">
+            <label for="email">UTEP Email</label>
+            <input type="email" id="email" name="email" placeholder="yourname@miners.utep.edu" required>
+          </div>
+          <div class="form-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" placeholder="Your password" required>
+          </div>
+          <button type="submit" class="btn-submit">Sign In →</button>
+        </form>
+
+        <div class="auth-alt">
+          Don't have an account? <a href="/register">Create one for free</a>
+        </div>
+      </div>
+    </div>
+
   </div>
-</div>
 </body>
 </html>

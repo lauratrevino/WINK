@@ -1,87 +1,231 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>WINK — {% block title %}{% endblock %}</title>
-<style>
-*{box-sizing:border-box;margin:0;padding:0;}
-:root{
-  --navy:#041e42;
-  --blue:#1d4ed8;
-  --orange:#f97316;
-  --pale-blue:#dbeafe;
-  --pale-bg:#dde8ff;
-  --surface:#ffffff;
-  --bg:#ccdaf5;
-  --bg2:#b8ccee;
-  --muted:#2d4a6b;
-  --text:#1e293b;
-  --border:#90aed4;
-  --card-bg:#eef4ff;
-}
-body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);min-height:100vh;color:var(--text);}
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}WINK — What I Need to Know{% endblock %}</title>
+  <style>
+    /* ── WINK Design System ── */
+    :root {
+      --navy:       #002855;
+      --orange:     #FF8200;
+      --dark-bg:    #0a1628;
+      --light-bg:   #f4f6fb;
+      --white:      #ffffff;
+      --gray-text:  #444455;
+      --muted:      #6b7a99;
+      --border:     #dde3f0;
+      --card-bg:    #ffffff;
+      --radius-sm:  6px;
+      --radius-md:  10px;
+      --radius-lg:  16px;
+      --shadow-sm:  0 1px 4px rgba(0,40,85,0.08);
+      --shadow-md:  0 4px 16px rgba(0,40,85,0.10);
+      --shadow-lg:  0 8px 32px rgba(0,40,85,0.14);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 16px; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+      background: var(--light-bg);
+      color: var(--gray-text);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
 
-/* ── NAV ── */
-.topnav{background:linear-gradient(135deg,var(--navy),#1a3a6b,var(--blue),var(--orange));height:56px;padding:0 24px;display:flex;align-items:center;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(4,30,66,0.3);}
-.nav-brand{display:flex;align-items:center;gap:10px;text-decoration:none;margin-right:24px;}
-.nav-brand img{width:38px;height:38px;border-radius:50%;object-fit:cover;object-position:top center;border:2px solid var(--orange);}
-.nav-brand-name{color:#fff;font-weight:900;font-size:18px;letter-spacing:0.08em;}
-.nav-brand-sub{color:rgba(255,255,255,0.65);font-size:10px;}
-.nav-links{display:flex;height:100%;}
-.nav-link{display:flex;align-items:center;gap:6px;padding:0 14px;height:100%;color:rgba(255,255,255,0.75);font-size:13px;font-weight:500;text-decoration:none;border-bottom:3px solid transparent;white-space:nowrap;transition:color .15s;}
-.nav-link:hover{color:#fff;}
-.nav-link.active{color:#fff;border-bottom-color:#fff;font-weight:700;}
-.nav-link svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
-.nav-right{margin-left:auto;display:flex;align-items:center;gap:10px;}
-.nav-user{background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:999px;padding:5px 14px;color:#fff;font-size:12px;font-weight:600;}
-.nav-logout{color:rgba(255,255,255,0.7);font-size:12px;text-decoration:none;padding:5px 10px;border:1px solid rgba(255,255,255,0.3);border-radius:999px;}
-.nav-logout:hover{color:#fff;border-color:rgba(255,255,255,0.7);}
-.nav-id{font-size:10px;color:rgba(255,255,255,0.6);background:rgba(0,0,0,0.2);border-radius:999px;padding:3px 10px;}
+    /* ── Inner Page Nav ── */
+    .app-nav {
+      background: var(--navy);
+      padding: 0 32px;
+      display: flex;
+      align-items: center;
+      height: 60px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.18);
+    }
+    .app-nav .nav-logo {
+      font-size: 22px;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: -0.5px;
+      text-decoration: none;
+      margin-right: 8px;
+    }
+    .app-nav .nav-logo span { color: var(--orange); }
+    .app-nav .nav-divider {
+      width: 1px; height: 24px;
+      background: rgba(255,255,255,0.2);
+      margin: 0 20px;
+    }
+    .app-nav .nav-links {
+      display: flex; align-items: center; gap: 4px; flex: 1;
+    }
+    .app-nav .nav-links a {
+      color: rgba(255,255,255,0.7);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      padding: 6px 14px;
+      border-radius: var(--radius-sm);
+      transition: background 0.15s, color 0.15s;
+    }
+    .app-nav .nav-links a:hover { background: rgba(255,255,255,0.1); color: #fff; }
+    .app-nav .nav-links a.active { background: var(--orange); color: #fff; }
+    .app-nav .nav-right {
+      display: flex; align-items: center; gap: 12px; margin-left: auto;
+    }
+    .app-nav .nav-user {
+      font-size: 13px; color: rgba(255,255,255,0.65);
+    }
+    .app-nav .nav-user strong { color: #fff; }
+    .app-nav .btn-logout {
+      font-size: 13px; color: rgba(255,255,255,0.65);
+      text-decoration: none;
+      padding: 5px 12px;
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: var(--radius-sm);
+      transition: all 0.15s;
+    }
+    .app-nav .btn-logout:hover { background: rgba(255,255,255,0.1); color: #fff; }
 
-/* ── SHARED COMPONENTS ── */
-.wrap{max-width:1160px;margin:0 auto;padding:24px;}
-.page-title{font-size:22px;font-weight:900;color:var(--navy);margin-bottom:4px;}
-.page-sub{font-size:13px;color:var(--muted);margin-bottom:22px;}
-.panel{background:var(--surface);border:1.5px solid var(--border);border-radius:18px;padding:22px;box-shadow:0 2px 10px rgba(4,30,66,0.08);}
-.panel-title{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:14px;display:flex;align-items:center;gap:6px;}
-.panel-title::before{content:'';width:3px;height:14px;background:var(--orange);border-radius:2px;display:block;}
-.badge{font-size:11px;padding:3px 10px;border-radius:999px;font-weight:700;}
-.badge-blue{background:var(--pale-blue);color:var(--blue);}
-.badge-orange{background:#ffedd5;color:#c2410c;}
-.badge-green{background:#dcfce7;color:#15803d;}
-.badge-purple{background:#f3e8ff;color:#7c3aed;}
-.badge-gray{background:#f1f5f9;color:#64748b;}
-{% block extra_style %}{% endblock %}
-</style>
+    /* ── Page Shell ── */
+    .page-shell {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 36px 24px 64px;
+    }
+    .page-header {
+      margin-bottom: 28px;
+    }
+    .page-header h1 {
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--navy);
+      line-height: 1.2;
+    }
+    .page-header p {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--card-bg);
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-sm);
+      padding: 24px;
+    }
+    .card-orange-top { border-top: 3px solid var(--orange); }
+    .card-navy-top   { border-top: 3px solid var(--navy); }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 7px;
+      font-size: 14px; font-weight: 600;
+      padding: 10px 22px;
+      border-radius: var(--radius-sm);
+      border: none; cursor: pointer;
+      text-decoration: none;
+      transition: all 0.18s;
+      line-height: 1;
+    }
+    .btn-primary { background: var(--orange); color: #fff; }
+    .btn-primary:hover { background: #e57200; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(255,130,0,0.3); }
+    .btn-navy   { background: var(--navy); color: #fff; }
+    .btn-navy:hover { background: #003570; }
+    .btn-ghost  { background: transparent; color: var(--navy); border: 1.5px solid var(--navy); }
+    .btn-ghost:hover { background: var(--navy); color: #fff; }
+    .btn-sm { padding: 7px 14px; font-size: 13px; }
+    .btn-danger { background: #dc2626; color: #fff; }
+    .btn-danger:hover { background: #b91c1c; }
+
+    /* ── Forms ── */
+    .form-group { margin-bottom: 18px; }
+    .form-group label {
+      display: block; font-size: 13px; font-weight: 600;
+      color: var(--navy); margin-bottom: 6px;
+    }
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-size: 14px;
+      color: var(--gray-text);
+      background: #fff;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus { border-color: var(--orange); }
+
+    /* ── Alerts ── */
+    .alert {
+      padding: 12px 16px;
+      border-radius: var(--radius-sm);
+      font-size: 14px;
+      margin-bottom: 16px;
+    }
+    .alert-danger { background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; }
+    .alert-success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+
+    /* ── Stats Row ── */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+    .stat-card {
+      background: var(--white);
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border);
+      padding: 20px 20px 18px;
+      border-top: 3px solid var(--orange);
+    }
+    .stat-card .stat-value {
+      font-size: 30px; font-weight: 800;
+      color: var(--navy); line-height: 1;
+    }
+    .stat-card .stat-label {
+      font-size: 12px; color: var(--muted);
+      margin-top: 4px; text-transform: uppercase; letter-spacing: .05em;
+    }
+
+    /* ── Table ── */
+    .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .data-table th {
+      background: var(--navy); color: #fff;
+      padding: 10px 14px; text-align: left;
+      font-size: 12px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: .04em;
+    }
+    .data-table th:first-child { border-radius: 8px 0 0 0; }
+    .data-table th:last-child  { border-radius: 0 8px 0 0; }
+    .data-table td { padding: 10px 14px; border-bottom: 1px solid var(--border); }
+    .data-table tr:hover td { background: #f8f9ff; }
+
+    /* ── Badge ── */
+    .badge {
+      display: inline-block;
+      font-size: 11px; font-weight: 600;
+      padding: 3px 10px; border-radius: 999px;
+    }
+    .badge-orange { background: #fff3e6; color: var(--orange); }
+    .badge-navy   { background: #e8edf5; color: var(--navy); }
+    .badge-green  { background: #f0fdf4; color: #166534; }
+    .badge-red    { background: #fef2f2; color: #dc2626; }
+  </style>
+  {% block head %}{% endblock %}
 </head>
 <body>
-<nav class="topnav">
-  <a href="/dashboard" class="nav-brand">
-    <img src="/static/WINK.jpeg" alt="WINK"/>
-    <div><div class="nav-brand-name">WINK</div><div class="nav-brand-sub">Personal Academic Success Coach</div></div>
-  </a>
-  <div class="nav-links">
-    {% if s.email.lower() == admin_email %}
-      <a href="/analytics-page" class="nav-link {% if active=='analytics' %}active{% endif %}">
-        <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Analytics
-      </a>
-    {% else %}
-      <a href="/dashboard"    class="nav-link {% if active=='dashboard' %}active{% endif %}"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Dashboard</a>
-      <a href="/documents"    class="nav-link {% if active=='documents' %}active{% endif %}"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>My Documents</a>
-      <a href="/chat-page"    class="nav-link {% if active=='chat' %}active{% endif %}"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Ask WINK</a>
-    {% endif %}
-  </div>
-  <div class="nav-right">
-    {% if s.email.lower() == admin_email %}
-      <div class="nav-user">🔑 Admin · {{ s.first_name }}</div>
-    {% else %}
-      <div class="nav-user">👋 {{ s.first_name }} {{ s.last_name }}</div>
-      <div class="nav-id">ID: {{ s.id }}</div>
-    {% endif %}
-    <a href="/logout" class="nav-logout">Sign out</a>
-  </div>
-</nav>
-{% block content %}{% endblock %}
+  {% block body %}{% endblock %}
 </body>
 </html>
