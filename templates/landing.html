@@ -8,94 +8,85 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100%; margin: 0; padding: 0; overflow-x: hidden; }
 
-    /* ══ FULL PAGE WRAPPER ══ */
-    .page {
-      display: flex;
-      flex-direction: column;
-      min-height: 100vh;
+    body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+      background: #f0f2f8;
     }
 
-    /* ══ HERO — background image fills the top section ══ */
+    /* ══ HERO — exact image as background ══ */
     .hero {
       position: relative;
       width: 100%;
-      /* 16:9 aspect ratio to match the Runway image */
-      aspect-ratio: 16 / 9;
-      background-image: url('/static/landing_bg.png');
+      /* Match 1365×768 aspect ratio */
+      aspect-ratio: 1365 / 768;
+      background-image: url('/static/landing_bg1.png');
       background-size: cover;
       background-position: center center;
       background-repeat: no-repeat;
-      flex-shrink: 0;
     }
 
-    /* Gradient overlay — darkens LEFT side so text is crisp,
-       keeps RIGHT side (character) fully visible */
+    /* Very light overlay on far left to ensure text is crisp on the bright bg */
     .hero-overlay {
       position: absolute;
       inset: 0;
       background: linear-gradient(
         108deg,
-        rgba(2, 12, 18, 0.68) 0%,
-        rgba(2, 12, 18, 0.52) 30%,
-        rgba(2, 12, 18, 0.18) 50%,
-        transparent 62%
+        rgba(245, 247, 252, 0.35) 0%,
+        rgba(245, 247, 252, 0.15) 28%,
+        transparent 48%
       );
+      pointer-events: none;
     }
 
-    /* ══ TEXT CONTENT — absolutely positioned over the image ══ */
+    /* ══ ALL TEXT — absolutely positioned over the left portion of the image ══ */
     .hero-text {
       position: absolute;
       top: 5%;
-      left: 4%;
-      width: 48%;
+      left: 3.5%;
+      width: 46%;
       z-index: 2;
     }
 
-    /* WINK wordmark */
+    /* WINK wordmark — navy, large serif */
     .wordmark {
-      font-size: clamp(52px, 7vw, 88px);
+      font-size: clamp(48px, 6.5vw, 84px);
       font-weight: 900;
-      color: #ffffff;
+      color: #002855;
       letter-spacing: -3px;
       line-height: 0.9;
       font-family: Georgia, 'Times New Roman', serif;
-      text-shadow: 2px 3px 20px rgba(0,0,0,0.6);
-      margin-bottom: 4px;
+      margin-bottom: 2px;
     }
 
     /* (What I Need to Know) */
     .wordmark-sub {
-      font-size: clamp(18px, 2.4vw, 32px);
+      font-size: clamp(16px, 2.2vw, 28px);
       font-weight: 700;
-      color: #ffffff;
+      color: #002855;
       letter-spacing: -0.3px;
       line-height: 1.1;
-      text-shadow: 1px 2px 12px rgba(0,0,0,0.55);
-      margin-bottom: clamp(10px, 1.5vw, 18px);
+      margin-bottom: clamp(10px, 1.4vw, 16px);
     }
 
-    /* THE INTELLIGENCE TO SUCCEED headline */
+    /* THE INTELLIGENCE TO SUCCEED */
     .hero-headline {
-      font-size: clamp(24px, 3.4vw, 46px);
+      font-size: clamp(20px, 3vw, 40px);
       font-weight: 900;
       text-transform: uppercase;
       line-height: 1.05;
       letter-spacing: -0.5px;
-      color: #ffffff;
-      margin-bottom: clamp(10px, 1.4vw, 18px);
-      text-shadow: 1px 2px 16px rgba(0,0,0,0.5);
+      color: #002855;
+      margin-bottom: clamp(8px, 1.2vw, 14px);
     }
     .hero-headline .accent { color: #FF8200; }
 
     /* Body copy */
     .hero-copy {
-      font-size: clamp(12px, 1.1vw, 15px);
-      color: rgba(255,255,255,0.85);
+      font-size: clamp(11px, 1vw, 14px);
+      color: #334466;
       line-height: 1.7;
-      max-width: 92%;
-      margin-bottom: clamp(14px, 2vw, 26px);
-      text-shadow: 0 1px 8px rgba(0,0,0,0.5);
+      max-width: 95%;
+      margin-bottom: clamp(12px, 1.8vw, 22px);
     }
 
     /* CTA buttons */
@@ -108,31 +99,31 @@
     .btn-primary {
       background: #FF8200;
       color: #fff;
-      font-size: clamp(13px, 1.1vw, 16px);
+      font-size: clamp(12px, 1.1vw, 15px);
       font-weight: 700;
-      padding: clamp(10px, 1vw, 14px) clamp(18px, 2vw, 30px);
+      padding: clamp(10px, 1vw, 13px) clamp(18px, 2vw, 28px);
       border-radius: 8px;
       border: none;
       cursor: pointer;
       text-decoration: none;
       display: inline-block;
       transition: all 0.18s;
-      box-shadow: 0 4px 20px rgba(255,130,0,0.50);
+      box-shadow: 0 4px 18px rgba(255,130,0,0.40);
       white-space: nowrap;
     }
     .btn-primary:hover {
       background: #e57200;
       transform: translateY(-2px);
-      box-shadow: 0 6px 26px rgba(255,130,0,0.60);
+      box-shadow: 0 6px 24px rgba(255,130,0,0.52);
     }
     .btn-secondary {
-      background: rgba(255,255,255,0.13);
-      color: #fff;
-      font-size: clamp(13px, 1.1vw, 16px);
+      background: rgba(255,255,255,0.70);
+      color: #002855;
+      font-size: clamp(12px, 1.1vw, 15px);
       font-weight: 700;
-      padding: clamp(9px, 1vw, 13px) clamp(16px, 1.8vw, 28px);
+      padding: clamp(9px, 1vw, 12px) clamp(16px, 1.8vw, 26px);
       border-radius: 8px;
-      border: 2px solid rgba(255,255,255,0.60);
+      border: 2px solid #002855;
       cursor: pointer;
       text-decoration: none;
       display: inline-block;
@@ -141,16 +132,14 @@
       white-space: nowrap;
     }
     .btn-secondary:hover {
-      border-color: #ffffff;
-      background: rgba(255,255,255,0.22);
+      background: #002855;
+      color: #fff;
     }
 
-    /* ══ FEATURE CARDS — sit below the hero image ══ */
+    /* ══ FEATURE CARDS — overlap the very bottom of the hero ══ */
     .feature-section {
-      background: transparent;
       padding: 0 3% 0;
-      /* Overlap slightly up into the bottom of the hero */
-      margin-top: -3.5vw;
+      margin-top: -4vw;
       position: relative;
       z-index: 3;
     }
@@ -160,17 +149,18 @@
       gap: 14px;
     }
     .feature-card {
-      background: rgba(235, 238, 248, 0.90);
+      background: rgba(255, 255, 255, 0.92);
       border-radius: 12px;
       padding: 18px 16px 16px;
-      border: 1px solid rgba(255,255,255,0.60);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(200, 210, 230, 0.80);
+      box-shadow: 0 4px 20px rgba(0, 40, 85, 0.08);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
       transition: transform 0.18s, box-shadow 0.18s;
     }
     .feature-card:hover {
       transform: translateY(-3px);
-      box-shadow: 0 10px 30px rgba(0,0,0,0.22);
+      box-shadow: 0 10px 30px rgba(0, 40, 85, 0.14);
     }
     .feature-card-icon {
       width: 52px;
@@ -180,13 +170,13 @@
     .feature-card-title {
       font-size: 14px;
       font-weight: 800;
-      color: #111;
+      color: #002855;
       line-height: 1.25;
       margin-bottom: 7px;
     }
     .feature-card-body {
       font-size: 12.5px;
-      color: #444;
+      color: #445566;
       line-height: 1.55;
     }
 
@@ -196,31 +186,31 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      background: rgba(5, 15, 20, 0.85);
+      background: #f0f2f8;
       margin-top: 16px;
     }
     .footer-links { display: flex; gap: 22px; }
     .footer-links a {
       font-size: 13px;
-      color: rgba(255,255,255,0.50);
+      color: #667799;
       text-decoration: none;
       transition: color 0.15s;
     }
-    .footer-links a:hover { color: rgba(255,255,255,0.85); }
+    .footer-links a:hover { color: #002855; }
     .footer-brand-badge {
       display: flex; align-items: center; gap: 7px;
-      background: rgba(255,255,255,0.08);
-      border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(0, 40, 85, 0.07);
+      border: 1px solid rgba(0, 40, 85, 0.18);
       border-radius: 8px;
       padding: 5px 12px;
       font-size: 11px; font-weight: 700;
-      color: rgba(255,255,255,0.50);
+      color: #667799;
       letter-spacing: .05em;
     }
 
     /* ══ RESPONSIVE ══ */
     @media (max-width: 768px) {
-      .hero { aspect-ratio: auto; min-height: 60vw; }
+      .hero { aspect-ratio: auto; min-height: 55vw; }
       .hero-text { width: 85%; }
       .feature-grid { grid-template-columns: repeat(2, 1fr); }
       .feature-section { margin-top: 0; padding-top: 16px; }
@@ -228,9 +218,8 @@
   </style>
 </head>
 <body>
-<div class="page">
 
-  <!-- ══ HERO with background image ══ -->
+  <!-- ══ HERO ══ -->
   <div class="hero">
     <div class="hero-overlay"></div>
 
@@ -325,8 +314,8 @@
             <rect x="36" y="23" width="9" height="12" rx="4" fill="#FF8200"/>
             <path d="M40 34 C40 39.5 33.5 43 26 43" stroke="#002855" stroke-width="2.2" fill="none" stroke-linecap="round"/>
             <circle cx="26" cy="43" r="3" fill="#FF8200"/>
-            <circle cx="16" cy="26" r="2" fill="rgba(255,255,255,0.65)"/>
-            <circle cx="36" cy="26" r="2" fill="rgba(255,255,255,0.65)"/>
+            <circle cx="16" cy="26" r="2" fill="#667799"/>
+            <circle cx="36" cy="26" r="2" fill="#667799"/>
           </svg>
         </div>
         <div class="feature-card-title">Navigate University Resources</div>
@@ -346,13 +335,12 @@
     </nav>
     <div class="footer-brand-badge">
       <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-        <circle cx="6.5" cy="6.5" r="5.5" stroke="rgba(255,255,255,0.5)" stroke-width="1"/>
-        <path d="M3.5 6.8 L5.8 9 L9.5 4.5" stroke="rgba(255,255,255,0.65)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        <circle cx="6.5" cy="6.5" r="5.5" stroke="#667799" stroke-width="1"/>
+        <path d="M3.5 6.8 L5.8 9 L9.5 4.5" stroke="#667799" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
       </svg>
       ACADEMIC AI
     </div>
   </footer>
 
-</div>
 </body>
 </html>
