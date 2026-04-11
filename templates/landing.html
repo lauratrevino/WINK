@@ -22,42 +22,81 @@
 
     .hero-overlay {
       position: absolute; inset: 0;
-      background: linear-gradient(108deg, rgba(245,247,252,0.32) 0%, rgba(245,247,252,0.14) 26%, transparent 46%);
+      background: linear-gradient(
+        108deg,
+        rgba(240,244,252,0.70) 0%,
+        rgba(240,244,252,0.52) 30%,
+        rgba(240,244,252,0.15) 52%,
+        transparent 64%
+      );
       pointer-events: none;
     }
 
     .hero-text {
       position: absolute;
-      top: 5%; left: 3.5%; width: 45%;
+      top: 4%;
+      left: 3.5%;
+      width: 47%;
       z-index: 2;
+      display: flex;
+      flex-direction: column;
     }
 
+    /* READY WHEN YOU ARE */
+    .hero-headline-1 {
+      font-size: clamp(18px, 2.5vw, 34px);
+      font-weight: 900;
+      text-transform: uppercase;
+      line-height: 1.05;
+      color: #002855;
+      letter-spacing: -0.5px;
+      margin-bottom: 0;
+    }
+
+    /* CONQUER YOUR COURSEWORK */
+    .hero-headline-2 {
+      font-size: clamp(18px, 2.5vw, 34px);
+      font-weight: 900;
+      text-transform: uppercase;
+      line-height: 1.05;
+      color: #FF8200;
+      letter-spacing: -0.5px;
+      margin-bottom: clamp(16px, 2vw, 28px);
+    }
+
+    /* WINK — 36px */
     .wordmark {
-      font-size: clamp(48px, 6.2vw, 82px);
-      font-weight: 900; color: #002855;
-      letter-spacing: -3px; line-height: 0.9;
+      font-size: 36px;
+      font-weight: 900;
+      color: #002855;
+      letter-spacing: -1px;
+      line-height: 1;
       font-family: Georgia, "Times New Roman", serif;
-      margin-bottom: 3px;
-    }
-    .wordmark-sub {
-      font-size: clamp(16px, 2.1vw, 28px);
-      font-weight: 700; color: #002855;
-      margin-bottom: clamp(10px, 1.3vw, 16px); line-height: 1.1;
-    }
-    .hero-headline {
-      font-size: clamp(20px, 2.8vw, 38px);
-      font-weight: 900; text-transform: uppercase;
-      line-height: 1.05; color: #002855;
-      margin-bottom: clamp(8px, 1.1vw, 14px);
-    }
-    .accent { color: #FF8200; }
-    .hero-copy {
-      font-size: clamp(11px, 0.95vw, 13.5px);
-      color: #2a3a55; line-height: 1.7;
-      max-width: 95%; margin-bottom: clamp(12px, 1.6vw, 22px);
+      margin-bottom: 2px;
     }
 
-    .cta-row { display: flex; gap: clamp(8px,1vw,14px); align-items: center; flex-wrap: wrap; }
+    /* (What I Need to Know) */
+    .wordmark-sub {
+      font-size: clamp(13px, 1.5vw, 20px);
+      font-weight: 700;
+      color: #002855;
+      line-height: 1.1;
+      margin-bottom: clamp(16px, 2vw, 28px);
+    }
+
+    /* Body copy — bold, larger, no box, text-shadow for legibility */
+    .hero-copy {
+      font-size: clamp(13px, 1.15vw, 16px);
+      font-weight: 700;
+      color: #001833;
+      line-height: 1.7;
+      max-width: 97%;
+      text-shadow: 0 1px 3px rgba(255,255,255,0.9), 0 0 12px rgba(255,255,255,0.8);
+      margin-bottom: clamp(12px, 1.5vw, 20px);
+    }
+
+    /* CTA buttons */
+    .cta-row { display: flex; gap: clamp(8px,1vw,14px); align-items: center; flex-wrap: wrap; margin-bottom: clamp(10px, 1.2vw, 16px); }
     .btn-primary {
       background: #FF8200; color: #fff;
       font-size: clamp(12px, 1vw, 15px); font-weight: 700;
@@ -69,7 +108,7 @@
     }
     .btn-primary:hover { background: #e57200; transform: translateY(-2px); }
     .btn-secondary {
-      background: rgba(255,255,255,0.75); color: #002855;
+      background: rgba(255,255,255,0.80); color: #002855;
       font-size: clamp(12px, 1vw, 15px); font-weight: 700;
       padding: clamp(9px,0.95vw,12px) clamp(16px,1.6vw,26px);
       border-radius: 8px; border: 2px solid #002855;
@@ -78,26 +117,37 @@
     }
     .btn-secondary:hover { background: #002855; color: #fff; }
 
-    .feature-section {
-      padding: 0 3%; margin-top: -3.5vw; position: relative; z-index: 3;
+    /* Feature cards — 2x2 grid under buttons */
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: clamp(6px, 0.7vw, 10px);
+      width: 100%;
     }
-    .feature-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
     .feature-card {
-      background: rgba(255,255,255,0.93); border-radius: 12px;
-      padding: 18px 16px 16px;
-      border: 1px solid rgba(200,210,230,0.85);
-      box-shadow: 0 4px 18px rgba(0,40,85,0.09);
-      transition: transform 0.18s, box-shadow 0.18s;
+      background: rgba(255,255,255,0.88);
+      border-radius: 10px;
+      padding: clamp(10px,0.9vw,13px);
+      border: 1px solid rgba(200,210,230,0.80);
+      box-shadow: 0 3px 14px rgba(0,40,85,0.09);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      transition: transform 0.18s;
+      display: flex;
+      gap: 9px;
+      align-items: flex-start;
     }
-    .feature-card:hover { transform: translateY(-3px); box-shadow: 0 10px 28px rgba(0,40,85,0.14); }
-    .feature-card-icon { width: 52px; height: 52px; margin-bottom: 12px; }
-    .feature-card-title { font-size: 14px; font-weight: 800; color: #002855; line-height: 1.25; margin-bottom: 7px; }
-    .feature-card-body { font-size: 12.5px; color: #445566; line-height: 1.55; }
+    .feature-card:hover { transform: translateY(-2px); }
+    .feature-card-icon { font-size: clamp(17px,1.5vw,21px); flex-shrink: 0; margin-top: 1px; }
+    .feature-card-text { flex: 1; }
+    .feature-card-title { font-size: clamp(10px, 0.82vw, 12px); font-weight: 800; color: #002855; line-height: 1.2; margin-bottom: 3px; }
+    .feature-card-body  { font-size: clamp(9px, 0.70vw, 10.5px); color: #445566; line-height: 1.45; }
 
+    /* Footer */
     .landing-footer {
-      padding: 13px 3% 15px;
+      padding: 13px 3.5% 15px;
       display: flex; align-items: center; justify-content: space-between;
-      background: #f0f2f8; margin-top: 16px;
+      background: #f0f2f8;
     }
     .footer-links { display: flex; gap: 22px; }
     .footer-links a { font-size: 13px; color: #667799; text-decoration: none; transition: color 0.15s; }
@@ -108,112 +158,71 @@
       border-radius: 8px; padding: 5px 12px;
       font-size: 11px; font-weight: 700; color: #667799; letter-spacing: .05em;
     }
-
-    @media (max-width: 768px) {
-      .hero { aspect-ratio: auto; min-height: 60vw; }
-      .hero-text { width: 80%; }
-      .feature-grid { grid-template-columns: repeat(2, 1fr); }
-      .feature-section { margin-top: 0; padding-top: 16px; }
-    }
   </style>
 </head>
 <body>
 
   <div class="hero">
     <div class="hero-overlay"></div>
+
     <div class="hero-text">
+
+      <!-- 1. READY WHEN YOU ARE -->
+      <div class="hero-headline-1">Ready When You Are.</div>
+
+      <!-- 2. CONQUER YOUR COURSEWORK (orange) + double space below -->
+      <div class="hero-headline-2">Conquer Your Coursework.</div>
+
+      <!-- 3. WINK at 36px -->
       <div class="wordmark">WINK</div>
+
+      <!-- 4. (What I Need to Know) + double space below -->
       <div class="wordmark-sub">(What I Need to Know)</div>
-      <h1 class="hero-headline">
-        The Intelligence to<br>
-        Succeed. <span class="accent">Precisely<br>
-        When You Need It.</span>
-      </h1>
+
+      <!-- 5. Body copy — no box, bold, text-shadow for legibility -->
       <p class="hero-copy">
-        WINK: Your Personalized AI Academic Success Coach. Streamline
-        your courses, dominate assignments, and reach your goals with
-        instant, accurate guidance based on your own study materials.
+        WINK is your AI-powered academic coach that knows your courses inside and out.
+        Upload your syllabi, course calendars, and assignments — then ask about deadlines,
+        break down tough concepts, build personalized study plans, and navigate campus
+        resources. Your materials. Your coach. Available 24/7!
       </p>
+
+      <!-- CTA buttons -->
       <div class="cta-row">
         <a href="/register" class="btn-primary">Create My Account</a>
         <a href="/login" class="btn-secondary">Sign In</a>
       </div>
-    </div>
-  </div>
 
-  <div class="feature-section">
-    <div class="feature-grid">
-
-      <div class="feature-card">
-        <div class="feature-card-icon">
-          <svg width="52" height="52" viewBox="0 0 52 52" fill="none">
-            <rect x="7" y="5" width="26" height="36" rx="4" fill="#edf0f8" stroke="#aab4cc" stroke-width="1.2"/>
-            <rect x="12" y="9" width="26" height="36" rx="4" fill="#f4f6fb" stroke="#aab4cc" stroke-width="1.2"/>
-            <line x1="17" y1="20" x2="33" y2="20" stroke="#FF8200" stroke-width="2" stroke-linecap="round"/>
-            <line x1="17" y1="26" x2="33" y2="26" stroke="#c8cedf" stroke-width="1.5" stroke-linecap="round"/>
-            <line x1="17" y1="32" x2="26" y2="32" stroke="#c8cedf" stroke-width="1.5" stroke-linecap="round"/>
-            <circle cx="38" cy="41" r="9" fill="#FF8200"/>
-            <line x1="35.5" y1="41" x2="40.5" y2="41" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>
-            <line x1="38" y1="38.5" x2="38" y2="43.5" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>
-          </svg>
+      <!-- Feature cards directly under buttons -->
+      <div class="feature-grid">
+        <div class="feature-card">
+          <div class="feature-card-icon">📚</div>
+          <div class="feature-card-text">
+            <div class="feature-card-title">Centralize Your Study Library</div>
+            <div class="feature-card-body">Sync syllabi, lecture notes, and research into one searchable hub.</div>
+          </div>
         </div>
-        <div class="feature-card-title">Centralize Your Study Library</div>
-        <div class="feature-card-body">Sync all course materials — syllabi, lecture notes, and research — into one searchable hub.</div>
-      </div>
-
-      <div class="feature-card">
-        <div class="feature-card-icon">
-          <svg width="52" height="52" viewBox="0 0 52 52" fill="none">
-            <circle cx="26" cy="26" r="13" fill="#fff3e6" stroke="#FF8200" stroke-width="1.5"/>
-            <circle cx="26" cy="26" r="4.5" fill="#FF8200" opacity="0.2"/>
-            <circle cx="26" cy="26" r="2.2" fill="#FF8200"/>
-            <line x1="26" y1="10" x2="26" y2="18" stroke="#FF8200" stroke-width="1.8" stroke-linecap="round"/>
-            <line x1="26" y1="34" x2="26" y2="42" stroke="#FF8200" stroke-width="1.8" stroke-linecap="round"/>
-            <line x1="10" y1="26" x2="18" y2="26" stroke="#FF8200" stroke-width="1.8" stroke-linecap="round"/>
-            <line x1="34" y1="26" x2="42" y2="26" stroke="#FF8200" stroke-width="1.8" stroke-linecap="round"/>
-            <line x1="15.3" y1="15.3" x2="20.9" y2="20.9" stroke="#FF8200" stroke-width="1.5" stroke-linecap="round"/>
-            <line x1="31.1" y1="31.1" x2="36.7" y2="36.7" stroke="#FF8200" stroke-width="1.5" stroke-linecap="round"/>
-            <line x1="36.7" y1="15.3" x2="31.1" y2="20.9" stroke="#FF8200" stroke-width="1.5" stroke-linecap="round"/>
-            <line x1="20.9" y1="31.1" x2="15.3" y2="36.7" stroke="#FF8200" stroke-width="1.5" stroke-linecap="round"/>
-          </svg>
+        <div class="feature-card">
+          <div class="feature-card-icon">🤖</div>
+          <div class="feature-card-text">
+            <div class="feature-card-title">Instant, In-Depth Answers</div>
+            <div class="feature-card-body">Precise answers derived directly from your uploaded files.</div>
+          </div>
         </div>
-        <div class="feature-card-title">Instant, In-Depth Answers</div>
-        <div class="feature-card-body">Get precise answers derived directly from your uploaded files, from core concepts to specific assignment details.</div>
-      </div>
-
-      <div class="feature-card">
-        <div class="feature-card-icon">
-          <svg width="52" height="52" viewBox="0 0 52 52" fill="none">
-            <rect x="7" y="13" width="38" height="32" rx="5" fill="#edf0f8" stroke="#aab4cc" stroke-width="1.2"/>
-            <rect x="7" y="13" width="38" height="12" rx="5" fill="#002855"/>
-            <rect x="7" y="19" width="38" height="6" fill="#002855"/>
-            <line x1="17" y1="8" x2="17" y2="17" stroke="#002855" stroke-width="2.5" stroke-linecap="round"/>
-            <line x1="35" y1="8" x2="35" y2="17" stroke="#002855" stroke-width="2.5" stroke-linecap="round"/>
-            <rect x="12" y="29" width="8" height="6" rx="2" fill="#FF8200"/>
-            <rect x="22" y="29" width="8" height="6" rx="2" fill="#FF8200" opacity="0.45"/>
-            <rect x="32" y="29" width="8" height="6" rx="2" fill="#dde3f0"/>
-            <rect x="12" y="37" width="8" height="5" rx="2" fill="#dde3f0"/>
-            <rect x="22" y="37" width="8" height="5" rx="2" fill="#dde3f0"/>
-          </svg>
+        <div class="feature-card">
+          <div class="feature-card-icon">📅</div>
+          <div class="feature-card-text">
+            <div class="feature-card-title">Intelligent Academic Calendar</div>
+            <div class="feature-card-body">Never miss a deadline. AI builds your personalized schedule.</div>
+          </div>
         </div>
-        <div class="feature-card-title">Intelligent Academic Calendar</div>
-        <div class="feature-card-body">Never miss a deadline. Our AI generates personalized schedules and reminders based on your unique course load and goals.</div>
-      </div>
-
-      <div class="feature-card">
-        <div class="feature-card-icon">
-          <svg width="52" height="52" viewBox="0 0 52 52" fill="none">
-            <path d="M12 26 C12 17.2 18.3 10 26 10 C33.7 10 40 17.2 40 26" stroke="#002855" stroke-width="2.2" fill="none" stroke-linecap="round"/>
-            <rect x="7" y="23" width="9" height="12" rx="4" fill="#002855"/>
-            <rect x="36" y="23" width="9" height="12" rx="4" fill="#FF8200"/>
-            <path d="M40 34 C40 39.5 33.5 43 26 43" stroke="#002855" stroke-width="2.2" fill="none" stroke-linecap="round"/>
-            <circle cx="26" cy="43" r="3" fill="#FF8200"/>
-            <circle cx="16" cy="26" r="2" fill="#667799"/>
-            <circle cx="36" cy="26" r="2" fill="#667799"/>
-          </svg>
+        <div class="feature-card">
+          <div class="feature-card-icon">🎓</div>
+          <div class="feature-card-text">
+            <div class="feature-card-title">Navigate University Resources</div>
+            <div class="feature-card-body">Advising, mental health support, and career center at a click.</div>
+          </div>
         </div>
-        <div class="feature-card-title">Navigate University Resources</div>
-        <div class="feature-card-body">Access critical campus services like advising, mental health support, and career center connections with a single click.</div>
       </div>
 
     </div>
