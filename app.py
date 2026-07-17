@@ -433,7 +433,7 @@ def chat():
             + doc_ctx
         )
         import httpx, anthropic as ac
-        client = ac.Anthropic(api_key=ANTHROPIC_API_KEY, http_client=httpx.Client())
+        client = ac.Anthropic(api_key=ANTHROPIC_API_KEY, http_client=httpx.Client(timeout=httpx.Timeout(110.0, connect=10.0)))
 
         def generate():
             full_reply = []
@@ -454,7 +454,10 @@ def chat():
             reply = "".join(full_reply) or "I had trouble finding an answer — please try again."
             log_event(s["id"], "answer_given", {"len": len(reply), "full_answer": reply})
 
-        return app.response_class(generate(), mimetype="text/plain")
+        resp = app.response_class(generate(), mimetype="text/plain")
+        resp.headers["X-Accel-Buffering"] = "no"
+        resp.headers["Cache-Control"] = "no-cache"
+        return resp
     except Exception as e:
         print(f"chat error: {e}"); traceback.print_exc()
         return jsonify({"error": str(e)}), 500
