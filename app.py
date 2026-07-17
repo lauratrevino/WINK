@@ -435,7 +435,7 @@ def chat():
         import httpx, anthropic as ac
         client = ac.Anthropic(api_key=ANTHROPIC_API_KEY, http_client=httpx.Client())
         resp   = client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-4-6",
             max_tokens=1500,
             system=system,
             messages=messages,
