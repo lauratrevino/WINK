@@ -434,25 +434,31 @@ def chat():
         )
         import httpx, anthropic as ac
         client = ac.Anthropic(api_key=ANTHROPIC_API_KEY, http_client=httpx.Client())
-        resp   = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=1500,
-            system=system,
-            messages=messages,
-            tools=[{"type": "web_search_20250305", "name": "web_search"}]
-        )
-        # Extract text from all content blocks (text + tool results)
-        reply_parts = []
-        for block in resp.content:
-            if hasattr(block, "type"):
-                if block.type == "text" and block.text.strip():
-                    reply_parts.append(block.text.strip())
-        reply = "\n\n".join(reply_parts) if reply_parts else "I had trouble finding an answer — please try again."
-        log_event(s["id"], "answer_given", {"len": len(reply), "full_answer": reply})
-        return jsonify({"reply": reply})
+
+        def generate():
+            full_reply = []
+            try:
+                with client.messages.stream(
+                    model="claude-sonnet-4-6",
+                    max_tokens=1024,
+                    system=system,
+                    messages=messages,
+                    tools=[{"type": "web_search_20250305", "name": "web_search"}]
+                ) as stream:
+                    for text in stream.text_stream:
+                        full_reply.append(text)
+                        yield text
+            except Exception as e:
+                print(f"stream error: {e}"); traceback.print_exc()
+                yield f"\n\n[Error: {e}]"
+            reply = "".join(full_reply) or "I had trouble finding an answer — please try again."
+            log_event(s["id"], "answer_given", {"len": len(reply), "full_answer": reply})
+
+        return app.response_class(generate(), mimetype="text/plain")
     except Exception as e:
         print(f"chat error: {e}"); traceback.print_exc()
         return jsonify({"error": str(e)}), 500
+
 
 @app.route("/debug-docs")
 def debug_docs():
