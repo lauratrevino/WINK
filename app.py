@@ -716,6 +716,39 @@ def dashboard():
         print(f"dashboard error: {e}"); traceback.print_exc()
         return "<h2>Something went wrong</h2><p>Please try again, or <a href='/logout'>log out</a> and back in.</p>", 500
 
+@app.route("/update-profile", methods=["POST"])
+def update_profile():
+    """Lets a student edit their own name, classification, and major from the
+    dashboard. Email is intentionally not editable here — it's tied to login
+    and to the ADMIN_EMAIL check elsewhere, so changing it needs more care
+    than a quick profile edit."""
+    try:
+        s = current_student()
+        if not s: return jsonify({"error": "Not logged in"}), 401
+        data = request.get_json() or {}
+        first_name     = (data.get("first_name") or "").strip()
+        last_name      = (data.get("last_name") or "").strip()
+        classification = (data.get("classification") or "").strip()
+        major          = (data.get("major") or "").strip()
+        if not all([first_name, last_name, classification, major]):
+            return jsonify({"error": "All fields are required."}), 400
+        if not DB_URL:
+            return jsonify({"error": "No database configured."}), 500
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("""UPDATE students SET first_name=%s, last_name=%s,
+                       classification=%s, major=%s WHERE id=%s""",
+                    (first_name, last_name, classification, major, s["id"]))
+        conn.commit(); cur.close(); db_release(conn)
+        log_event(s["id"], "profile_updated", {"classification": classification, "major": major})
+        return jsonify({
+            "success": True,
+            "profile": {"first_name": first_name, "last_name": last_name,
+                        "classification": classification, "major": major}
+        })
+    except Exception as e:
+        print(f"update_profile error: {e}"); traceback.print_exc()
+        return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
+
 @app.route("/documents")
 def documents():
     try:
