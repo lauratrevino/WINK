@@ -70,6 +70,31 @@
     .badge-navy   { background: #e8edf5; color: #002855; }
     .badge-green  { background: #f0fdf4; color: #166534; }
 
+    /* General Docs tab */
+    .gd-form-row label { display: block; font-size: 12px; font-weight: 700; color: #002855; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+    .gd-form-row input[type="text"] {
+      width: 100%; max-width: 420px; padding: 10px 12px; border: 1.5px solid #dde3f0;
+      border-radius: 8px; font-size: 14px; font-family: inherit;
+    }
+    .gd-form-row input[type="text"]:focus { outline: none; border-color: #FF8200; }
+    .gd-drop-zone {
+      max-width: 520px; border: 2px dashed #dde3f0; border-radius: 10px; padding: 20px;
+      text-align: center; cursor: pointer; transition: all 0.15s; margin-top: 12px;
+    }
+    .gd-drop-zone:hover, .gd-drop-zone.drag-over { border-color: #FF8200; background: #fff3e6; }
+    .gd-drop-zone input { display: none; }
+    .btn-upload {
+      padding: 10px 22px; background: #FF8200; color: #fff; border: none; border-radius: 8px;
+      font-size: 14px; font-weight: 700; cursor: pointer; transition: all 0.15s; margin-top: 12px;
+    }
+    .btn-upload:hover { background: #e57200; }
+    .btn-upload:disabled { background: #dde3f0; cursor: not-allowed; }
+    .btn-delete-gd {
+      background: none; border: none; color: #9ca3af; cursor: pointer;
+      font-size: 14px; padding: 4px 8px; border-radius: 6px;
+    }
+    .btn-delete-gd:hover { color: #dc2626; background: #fef2f2; }
+
     /* Event feed */
     .event-feed { display: flex; flex-direction: column; gap: 8px; max-height: 400px; overflow-y: auto; }
     .event-item { display: flex; align-items: flex-start; gap: 12px; padding: 10px 14px; border-radius: 8px; background: #f8f9ff; border: 1px solid #eef0f6; }
@@ -152,6 +177,7 @@
       <button class="tab-btn" onclick="switchTab('conversations')">💬 Conversations</button>
       <button class="tab-btn" onclick="switchTab('deadlines')">📅 Deadlines</button>
       <button class="tab-btn" onclick="switchTab('distributions')">📊 Distributions</button>
+      <button class="tab-btn" onclick="switchTab('general-docs')">📁 General Docs</button>
     </div>
 
     <!-- Students Tab -->
@@ -212,6 +238,44 @@
       </div>
     </div>
 
+    <!-- General Docs Tab -->
+    <div class="tab-panel" id="tab-general-docs">
+      <div class="card">
+        <div class="card-header">
+          <h2>General Reference Documents</h2>
+          <span id="gd-count-text" style="font-size:13px;color:#6b7a99;">0 files</span>
+        </div>
+        <div class="card-body">
+          <p style="font-size:13px;color:#6b7a99;margin-bottom:16px;max-width:640px;">
+            Files uploaded here are automatically included as background knowledge in <strong>every</strong>
+            student's chat with WINK — but they never appear in any student's own document list,
+            never count against anyone's upload limit, and WINK never mentions them as a separate upload.
+          </p>
+          <div class="gd-form-row">
+            <label for="gd-label-input">Label (internal only — students never see it)</label>
+            <input type="text" id="gd-label-input" placeholder="e.g., UTEP Academic Calendar, Financial Aid FAQ, Honor Code">
+          </div>
+          <div class="gd-drop-zone" id="gd-drop-zone" onclick="document.getElementById('gd-file-input').click()">
+            <input type="file" id="gd-file-input" onchange="handleGdFileSelect(this.files[0])">
+            <div style="font-size:13px;color:#6b7a99;" id="gd-drop-zone-text">Click to choose a file, or drag one here</div>
+            <div style="font-size:13px;font-weight:700;color:#002855;margin-top:6px;" id="gd-drop-zone-filename"></div>
+          </div>
+          <div id="gd-form-msg" style="font-size:13px;font-weight:600;padding:8px 0;"></div>
+          <button type="button" class="btn-upload" id="gd-upload-btn" onclick="uploadGdDoc()" disabled>Upload</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h2>Currently Uploaded</h2></div>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr><th>Label</th><th>File</th><th>Size</th><th>Uploaded</th><th></th></tr></thead>
+            <tbody id="gd-tbody"><tr><td colspan="5" style="text-align:center;padding:24px;color:#6b7a99;">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <script>
@@ -219,7 +283,7 @@
 
     function switchTab(name) {
       document.querySelectorAll('.tab-btn').forEach((b, i) => {
-        const tabs = ['students','activity','conversations','deadlines','distributions'];
+        const tabs = ['students','activity','conversations','deadlines','distributions','general-docs'];
         b.classList.toggle('active', tabs[i] === name);
       });
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
@@ -348,6 +412,101 @@
       body.classList.toggle('open');
     }
 
+    // ── General reference documents ─────────────────────────────
+    function escapeHtml(text) {
+      return String(text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    let gdSelectedFile = null;
+    const gdDropZone = document.getElementById('gd-drop-zone');
+
+    function handleGdFileSelect(file) {
+      gdSelectedFile = file || null;
+      document.getElementById('gd-drop-zone-filename').textContent = gdSelectedFile ? gdSelectedFile.name : '';
+      document.getElementById('gd-upload-btn').disabled = !gdSelectedFile;
+    }
+
+    if (gdDropZone) {
+      gdDropZone.addEventListener('dragover', e => { e.preventDefault(); gdDropZone.classList.add('drag-over'); });
+      gdDropZone.addEventListener('dragleave', () => gdDropZone.classList.remove('drag-over'));
+      gdDropZone.addEventListener('drop', e => {
+        e.preventDefault(); gdDropZone.classList.remove('drag-over');
+        if (e.dataTransfer.files[0]) handleGdFileSelect(e.dataTransfer.files[0]);
+      });
+    }
+
+    async function uploadGdDoc() {
+      if (!gdSelectedFile) return;
+      const label = document.getElementById('gd-label-input').value.trim() || 'General';
+      const btn = document.getElementById('gd-upload-btn');
+      const msgEl = document.getElementById('gd-form-msg');
+      btn.disabled = true; btn.textContent = 'Uploading…';
+      msgEl.innerHTML = '';
+
+      try {
+        const formData = new FormData();
+        formData.append('file', gdSelectedFile);
+        formData.append('label', label);
+        const res = await fetch('/upload-global', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.success) {
+          msgEl.innerHTML = `<span style="color:#166534;">Uploaded "${escapeHtml(gdSelectedFile.name)}" (${data.chars_extracted} characters extracted).</span>`;
+          document.getElementById('gd-label-input').value = '';
+          document.getElementById('gd-file-input').value = '';
+          handleGdFileSelect(null);
+          loadGdDocs();
+        } else {
+          msgEl.innerHTML = `<span style="color:#b91c1c;">${escapeHtml(data.error || 'Upload failed.')}</span>`;
+        }
+      } catch (e) {
+        msgEl.innerHTML = '<span style="color:#b91c1c;">Upload failed — please try again.</span>';
+      }
+      btn.textContent = 'Upload'; btn.disabled = !gdSelectedFile;
+    }
+
+    async function deleteGdDoc(id) {
+      if (!confirm('Remove this general document? It will no longer be available to any student.')) return;
+      try {
+        const res = await fetch('/delete-global-document', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ doc_id: id })
+        });
+        const data = await res.json();
+        if (data.success) loadGdDocs();
+        else alert(data.error || 'Could not delete.');
+      } catch (e) {
+        alert('Could not delete — please try again.');
+      }
+    }
+
+    async function loadGdDocs() {
+      const tbody = document.getElementById('gd-tbody');
+      if (!tbody) return;
+      try {
+        const res = await fetch('/global-documents');
+        const data = await res.json();
+        const docs = data.docs || [];
+        document.getElementById('gd-count-text').textContent = `${docs.length} file${docs.length !== 1 ? 's' : ''}`;
+        if (docs.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:#6b7a99;">No general documents uploaded yet.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = docs.map(d => `
+          <tr>
+            <td>${escapeHtml(d.course || 'General')}</td>
+            <td style="font-weight:600;color:#002855;">${escapeHtml(d.orig_name)}</td>
+            <td>${(d.size_bytes / 1024).toFixed(1)} KB</td>
+            <td>${d.uploaded_at ? new Date(d.uploaded_at).toLocaleDateString() : ''}</td>
+            <td><button class="btn-delete-gd" onclick="deleteGdDoc(${d.id})">🗑</button></td>
+          </tr>
+        `).join('');
+      } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:#6b7a99;">Could not load documents.</td></tr>';
+      }
+    }
+
+    loadGdDocs();
     loadData();
   </script>
 </body>
