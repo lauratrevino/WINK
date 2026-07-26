@@ -77,7 +77,7 @@
 
     .hero-image {
       position: relative; z-index: 1; flex-shrink: 0;
-      width: clamp(150px, 20vw, 230px); aspect-ratio: 1 / 1;
+      width: clamp(90px, 11vw, 140px); aspect-ratio: 1 / 1;
       border-radius: 14px; overflow: hidden;
       border: 3px solid rgba(255,255,255,0.16);
       box-shadow: 0 10px 30px rgba(0,0,0,0.35);
@@ -200,7 +200,7 @@
 
     @media (max-width: 720px) {
       .hero-card { flex-direction: column; align-items: flex-start; }
-      .hero-image { width: 180px; aspect-ratio: 1 / 1; align-self: center; }
+      .hero-image { width: 130px; aspect-ratio: 1 / 1; align-self: center; }
       table { font-size: 13px; }
     }
   </style>
@@ -214,6 +214,7 @@
       <a href="/dashboard" class="{{ 'active' if active == 'dashboard' else '' }}">Dashboard</a>
       <a href="/documents" class="{{ 'active' if active == 'documents' else '' }}">My Documents</a>
       <a href="/chat-page" class="{{ 'active' if active == 'chat' else '' }}">Ask WINK</a>
+      <a href="/calendar-page" class="{{ 'active' if active == 'calendar' else '' }}">Calendar</a>
       {% if s.email == admin_email %}
       <a href="/analytics-page" class="{{ 'active' if active == 'analytics' else '' }}">Analytics</a>
       {% endif %}
@@ -232,7 +233,7 @@
         <div class="hero-line-1">Build</div>
         <div class="hero-line-2">WINK's Brain</div>
         <p>
-          Upload your syllabi, calendar's, assignment instructions, handouts, or class information for each of your courses.  Upload PDF, Word (.docx/.doc), PowerPoint (.pptx), Excel (.xlsx), plain text, or image (PNG/JPG) files — up to 16 MB each.
+          Upload PDF, Word (.docx/.doc), PowerPoint (.pptx), Excel (.xlsx), plain text, or image (PNG/JPG) files — up to 16 MB each.
           <span class="limit-line{{ ' full' if docs|length >= max_docs else '' }}" id="limit-note-text">
             You can have up to {{ max_docs }} documents total. You're currently using <strong id="info-count">{{ docs|length }}</strong> of {{ max_docs }}.
           </span>
@@ -259,7 +260,7 @@
         </div>
         <div class="form-group">
           <label class="field-label" for="course-input">Course Name</label>
-          <input type="text" id="course-input" placeholder="e.g., MIS 4310" list="course-list" required>
+          <input type="text" id="course-input" placeholder="e.g., MIS 4310, BIOL 1305…" list="course-list" required>
           <datalist id="course-list">
             {% for c in known_courses %}<option value="{{ c }}">{% endfor %}
           </datalist>
