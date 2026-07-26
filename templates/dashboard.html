@@ -182,6 +182,13 @@
     .profile-row:last-child { border-bottom: none; padding-bottom: 0; }
     .profile-label { font-size: 12px; color: #6b7a99; text-transform: uppercase; letter-spacing: .04em; flex: 0 0 110px; }
     .profile-value { font-size: 14px; font-weight: 600; color: #002855; }
+    .profile-input {
+      font-size: 13px; font-weight: 600; color: #002855;
+      border: 1.5px solid #dde3f0; border-radius: 6px;
+      padding: 6px 10px; width: 100%; max-width: 160px;
+      font-family: inherit;
+    }
+    .profile-input:focus { outline: none; border-color: #FF8200; }
     .badge {
       display: inline-block; font-size: 11px; font-weight: 600;
       padding: 3px 10px; border-radius: 999px;
@@ -217,39 +224,7 @@
 
   <div class="page-shell">
 
-    <!-- Welcome Banner -->
-    <div class="welcome-banner">
-      <div class="welcome-text">
-        <h1>Good to see you, <span>{{ s.first_name }}</span>! 👋</h1>
-        <p>{{ s.classification }} · {{ s.major }} · Ready to get things done?</p>
-      </div>
-      <div class="welcome-actions">
-        <a href="/chat-page" class="btn-cta btn-orange">🤖 Ask WINK</a>
-        <a href="/documents" class="btn-cta btn-outline-white">📁 My Documents</a>
-      </div>
-    </div>
-
-    <!-- Stats Row -->
-    <div class="stats-row">
-      <div class="stat-card{{ ' stat-warn' if docs|length >= max_docs else '' }}">
-        <div class="stat-value">{{ docs|length }}/{{ max_docs }}</div>
-        <div class="stat-label">Documents Uploaded</div>
-      </div>
-      <div class="stat-card navy-top">
-        <div class="stat-value">{{ docs|map(attribute='course')|unique|list|length }}</div>
-        <div class="stat-label">Courses Covered</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value">{{ questions_this_month }}</div>
-        <div class="stat-label">Questions This Month</div>
-      </div>
-      <div class="stat-card navy-top">
-        <div class="stat-value">{{ upcoming_deadlines|length }}</div>
-        <div class="stat-label">Due In 7 Days</div>
-      </div>
-    </div>
-
-    <!-- Two-column grid -->
+    <!-- Two-column grid: Quick Actions (left) + What's Due This Week (right) -->
     <div class="dash-grid">
 
       <!-- Quick Actions -->
@@ -314,10 +289,42 @@
 
     </div>
 
-    <!-- Recent Documents -->
+    <!-- Welcome Banner -->
+    <div class="welcome-banner">
+      <div class="welcome-text">
+        <h1>Good to see you, <span>{{ s.first_name }}</span>!</h1>
+        <p>{{ s.classification }} · {{ s.major }} · Ready to get things done?</p>
+      </div>
+      <div class="welcome-actions">
+        <a href="/chat-page" class="btn-cta btn-orange">🤖 Ask WINK</a>
+        <a href="/documents" class="btn-cta btn-outline-white">📁 My Documents</a>
+      </div>
+    </div>
+
+    <!-- Stats Row -->
+    <div class="stats-row">
+      <div class="stat-card{{ ' stat-warn' if docs|length >= max_docs else '' }}">
+        <div class="stat-value">{{ docs|length }}/{{ max_docs }}</div>
+        <div class="stat-label">Documents Uploaded</div>
+      </div>
+      <div class="stat-card navy-top">
+        <div class="stat-value">{{ docs|map(attribute='course')|unique|list|length }}</div>
+        <div class="stat-label">Courses Covered</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">{{ questions_this_month }}</div>
+        <div class="stat-label">Questions This Month</div>
+      </div>
+      <div class="stat-card navy-top">
+        <div class="stat-value">{{ upcoming_deadlines|length }}</div>
+        <div class="stat-label">Due In 7 Days</div>
+      </div>
+    </div>
+
+    <!-- Uploaded Documents -->
     <div class="card" style="margin-bottom:24px;">
       <div class="card-header">
-        <div class="card-title">📄 Recent Documents</div>
+        <div class="card-title">📄 Uploaded Documents</div>
         <a href="/documents" style="font-size:13px;color:#FF8200;text-decoration:none;font-weight:600;">View all →</a>
       </div>
       <div class="card-body">
@@ -351,13 +358,18 @@
     <div class="card">
       <div class="card-header">
         <div class="card-title">👤 Your Profile</div>
+        <button id="profile-edit-btn" onclick="toggleProfileEdit(true)" style="font-size:12px;font-weight:600;color:#FF8200;background:none;border:none;cursor:pointer;">✏️ Edit</button>
       </div>
       <div class="card-body">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;">
           <div>
             <div class="profile-row">
               <div class="profile-label">Name</div>
-              <div class="profile-value">{{ s.first_name }} {{ s.last_name }}</div>
+              <div class="profile-value" id="profile-view-name">{{ s.first_name }} {{ s.last_name }}</div>
+              <div class="profile-edit" style="display:none;gap:8px;">
+                <input type="text" id="profile-input-first" class="profile-input" value="{{ s.first_name }}" placeholder="First name">
+                <input type="text" id="profile-input-last" class="profile-input" value="{{ s.last_name }}" placeholder="Last name">
+              </div>
             </div>
             <div class="profile-row">
               <div class="profile-label">Email</div>
@@ -367,13 +379,23 @@
           <div>
             <div class="profile-row">
               <div class="profile-label">Classification</div>
-              <div class="profile-value"><span class="badge">{{ s.classification }}</span></div>
+              <div class="profile-value" id="profile-view-classification"><span class="badge">{{ s.classification }}</span></div>
+              <div class="profile-edit" style="display:none;">
+                <input type="text" id="profile-input-classification" class="profile-input" value="{{ s.classification }}" placeholder="e.g., Junior">
+              </div>
             </div>
             <div class="profile-row">
               <div class="profile-label">Major</div>
-              <div class="profile-value">{{ s.major }}</div>
+              <div class="profile-value" id="profile-view-major">{{ s.major }}</div>
+              <div class="profile-edit" style="display:none;">
+                <input type="text" id="profile-input-major" class="profile-input" value="{{ s.major }}" placeholder="e.g., Computer Science">
+              </div>
             </div>
           </div>
+        </div>
+        <div id="profile-edit-actions" style="display:none;margin-top:14px;gap:10px;">
+          <button onclick="saveProfileEdit()" class="btn-cta btn-orange" style="padding:8px 18px;font-size:13px;">Save</button>
+          <button onclick="toggleProfileEdit(false)" style="padding:8px 18px;font-size:13px;font-weight:600;color:#6b7a99;background:none;border:1px solid #dde3f0;border-radius:7px;cursor:pointer;">Cancel</button>
         </div>
       </div>
     </div>
@@ -381,6 +403,45 @@
   </div>
 
   <script>
+    function toggleProfileEdit(editing) {
+      document.querySelectorAll('.profile-edit').forEach(el => el.style.display = editing ? 'flex' : 'none');
+      document.getElementById('profile-view-name').style.display = editing ? 'none' : 'block';
+      document.getElementById('profile-view-classification').style.display = editing ? 'none' : 'block';
+      document.getElementById('profile-view-major').style.display = editing ? 'none' : 'block';
+      document.getElementById('profile-edit-actions').style.display = editing ? 'flex' : 'none';
+      document.getElementById('profile-edit-btn').style.display = editing ? 'none' : 'inline-block';
+      if (!editing) {
+        // Reset inputs back to the last-saved values shown in the view mode
+        document.getElementById('profile-input-first').value = document.getElementById('profile-view-name').textContent.split(' ')[0] || '';
+        document.getElementById('profile-input-last').value = document.getElementById('profile-view-name').textContent.split(' ').slice(1).join(' ') || '';
+      }
+    }
+
+    async function saveProfileEdit() {
+      const first_name = document.getElementById('profile-input-first').value.trim();
+      const last_name = document.getElementById('profile-input-last').value.trim();
+      const classification = document.getElementById('profile-input-classification').value.trim();
+      const major = document.getElementById('profile-input-major').value.trim();
+      if (!first_name || !last_name || !classification || !major) {
+        alert('Please fill in every field.');
+        return;
+      }
+      try {
+        const res = await fetch('/update-profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ first_name, last_name, classification, major })
+        });
+        const data = await res.json();
+        if (!data.success) { alert(data.error || 'Something went wrong.'); return; }
+        document.getElementById('profile-view-name').textContent = `${data.profile.first_name} ${data.profile.last_name}`;
+        document.getElementById('profile-view-classification').innerHTML = `<span class="badge">${data.profile.classification}</span>`;
+        document.getElementById('profile-view-major').textContent = data.profile.major;
+        toggleProfileEdit(false);
+      } catch (e) {
+        alert('Something went wrong — please try again.');
+      }
+    }
     async function rebuildDeadlines(btn) {
       const original = btn.textContent;
       btn.textContent = 'Rebuilding…'; btn.disabled = true;
