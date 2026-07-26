@@ -1,4 +1,5 @@
-import os, json, uuid, traceback
+import os, json, uuid, secrets, traceback
+from datetime import datetime, timedelta
 from flask import (Flask, render_template, request, jsonify,
                    session, redirect, url_for)
 from werkzeug.utils import secure_filename
@@ -153,6 +154,13 @@ def init_db():
             event_type TEXT NOT NULL,
             payload TEXT DEFAULT '{}',
             created_at TIMESTAMP DEFAULT NOW())""")
+        cur.execute("""CREATE TABLE IF NOT EXISTS password_resets (
+            id SERIAL PRIMARY KEY,
+            student_id INTEGER REFERENCES students(id) ON DELETE CASCADE,
+            token TEXT UNIQUE NOT NULL,
+            expires_at TIMESTAMP NOT NULL,
+            used BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT NOW())""")
         conn.commit(); cur.close(); conn.close()
         print("DB initialized OK.")
     except Exception as e:
@@ -285,6 +293,82 @@ def login():
 @app.route("/logout")
 def logout():
     session.clear(); return redirect(url_for("landing"))
+
+@app.route("/forgot-password", methods=["POST"])
+def forgot_password():
+    email = request.form.get("email", "").strip().lower()
+    try:
+        if not email:
+            return render_template("login.html", forgot=True, error="Please enter your email.")
+        if not DB_URL:
+            return render_template("login.html", forgot=True, error="Database not configured.")
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("SELECT id FROM students WHERE email=%s", (email,))
+        s = cur.fetchone()
+        if not s:
+            cur.close(); conn.close()
+            # Don't reveal whether the account exists — show the same confirmation either way.
+            return render_template("login.html", forgot=True, reset_sent=True)
+
+        token = secrets.token_urlsafe(32)
+        expires_at = datetime.utcnow() + timedelta(hours=1)
+        cur.execute(
+            "INSERT INTO password_resets(student_id, token, expires_at) VALUES(%s,%s,%s)",
+            (s["id"], token, expires_at)
+        )
+        conn.commit(); cur.close(); conn.close()
+        log_event(s["id"], "password_reset_requested", {"email": email})
+
+        reset_link = url_for("reset_password", token=token, _external=True)
+        # NOTE: No email service (SMTP/SendGrid/etc.) is configured yet, so the reset
+        # link is surfaced directly on the page below instead of being emailed.
+        # Once an email provider is wired up, send `reset_link` to the student's
+        # email and drop the reset_link value from this render_template call.
+        return render_template("login.html", forgot=True, reset_sent=True, reset_link=reset_link)
+    except Exception as e:
+        print(f"forgot_password error: {e}"); traceback.print_exc()
+        return render_template("login.html", forgot=True, error="Something went wrong. Please try again.")
+
+@app.route("/reset-password/<token>", methods=["GET", "POST"])
+def reset_password(token):
+    try:
+        if not DB_URL:
+            return render_template("login.html", error="Database not configured.")
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("""
+            SELECT pr.id AS reset_id, pr.student_id, pr.expires_at, pr.used, s.email
+            FROM password_resets pr JOIN students s ON s.id = pr.student_id
+            WHERE pr.token=%s
+        """, (token,))
+        row = cur.fetchone()
+
+        if not row or row["used"] or row["expires_at"] < datetime.utcnow():
+            cur.close(); conn.close()
+            return render_template("reset_password.html", invalid=True)
+
+        if request.method == "POST":
+            pw = request.form.get("password", "").strip()
+            confirm = request.form.get("confirm_password", "").strip()
+            if len(pw) < 6:
+                cur.close(); conn.close()
+                return render_template("reset_password.html", token=token,
+                                       error="Password must be at least 6 characters.")
+            if pw != confirm:
+                cur.close(); conn.close()
+                return render_template("reset_password.html", token=token,
+                                       error="Passwords do not match.")
+            cur.execute("UPDATE students SET password_hash=%s WHERE id=%s",
+                        (generate_password_hash(pw), row["student_id"]))
+            cur.execute("UPDATE password_resets SET used=TRUE WHERE id=%s", (row["reset_id"],))
+            conn.commit(); cur.close(); conn.close()
+            log_event(row["student_id"], "password_reset_completed", {"email": row["email"]})
+            return render_template("login.html", success="Your password has been updated — please sign in.")
+
+        cur.close(); conn.close()
+        return render_template("reset_password.html", token=token)
+    except Exception as e:
+        print(f"reset_password error: {e}"); traceback.print_exc()
+        return render_template("reset_password.html", token=token, error=f"Something went wrong: {e}")
 
 # ── Pages ─────────────────────────────────────────────────
 @app.route("/dashboard")
