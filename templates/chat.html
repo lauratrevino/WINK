@@ -43,58 +43,64 @@
 
     /* ── Sidebar ── */
     .chat-sidebar {
-      background: #fff;
-      border-right: 1px solid #dde3f0;
+      background: #002855;
+      border-right: 1px solid #001c3d;
       display: flex; flex-direction: column;
       overflow-y: auto;
     }
-    .sidebar-section { padding: 20px 18px; border-bottom: 1px solid #eef0f6; }
-    .sidebar-section h3 { font-size: 12px; font-weight: 700; color: #002855; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 12px; }
-    .wink-profile { text-align: center; padding: 20px 18px 16px; border-bottom: 1px solid #eef0f6; }
+    .sidebar-section { padding: 20px 18px; border-bottom: 1px solid rgba(255,255,255,0.10); }
+    .sidebar-section h3 { font-size: 12px; font-weight: 700; color: #FF8200; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 12px; }
+    .wink-profile { text-align: center; padding: 24px 18px 18px; border-bottom: 1px solid rgba(255,255,255,0.10); }
     .wink-avatar {
-      width: 64px; height: 64px; border-radius: 50%;
-      border: 3px solid #FF8200;
-      object-fit: cover; margin: 0 auto 8px;
+      width: 130px; height: 165px; border-radius: 50%;
+      border: 4px solid #FF8200;
+      object-fit: cover; margin: 0 auto 10px;
       display: block;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.35);
     }
-    .wink-name { font-size: 15px; font-weight: 800; color: #002855; }
-    .wink-role { font-size: 12px; color: #6b7a99; margin-top: 2px; }
+    .wink-name { font-size: 16px; font-weight: 800; color: #fff; }
+    .wink-role { font-size: 12px; color: rgba(255,255,255,0.65); margin-top: 2px; }
     .online-badge {
       display: inline-flex; align-items: center; gap: 5px;
-      font-size: 11px; color: #166534; font-weight: 600;
-      margin-top: 6px;
+      font-size: 11px; color: #4ade80; font-weight: 600;
+      margin-top: 8px;
     }
-    .online-dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; }
-
-    /* Doc list in sidebar */
-    .sidebar-doc { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid #f0f2f8; }
-    .sidebar-doc:last-child { border-bottom: none; }
-    .sidebar-doc-icon { font-size: 16px; flex-shrink: 0; }
-    .sidebar-doc-name { font-size: 12px; color: #444; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .online-dot { width: 6px; height: 6px; border-radius: 50%; background: #4ade80; }
 
     /* Conversation history list */
     .new-chat-btn {
       display: flex; align-items: center; justify-content: center; gap: 6px;
       width: 100%; padding: 8px 10px; margin-bottom: 12px;
-      background: #002855; color: #fff; border: none; border-radius: 6px;
+      background: #FF8200; color: #fff; border: none; border-radius: 6px;
       font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.15s;
     }
-    .new-chat-btn:hover { background: #003d7a; }
+    .new-chat-btn:hover { background: #e57200; }
     .conv-item {
       display: flex; align-items: center; gap: 8px;
       padding: 8px 8px; border-radius: 6px; cursor: pointer;
-      font-size: 12px; color: #444; margin-bottom: 3px;
+      font-size: 12px; color: rgba(255,255,255,0.85); margin-bottom: 3px;
       transition: background 0.15s;
     }
-    .conv-item:hover { background: #f8f9ff; }
-    .conv-item.active { background: #fff3e6; }
+    .conv-item:hover { background: rgba(255,255,255,0.08); }
+    .conv-item.active { background: rgba(255,130,0,0.18); }
     .conv-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .conv-delete {
-      background: none; border: none; color: #9ca3af; cursor: pointer;
+      background: none; border: none; color: rgba(255,255,255,0.45); cursor: pointer;
       font-size: 13px; padding: 2px 4px; flex-shrink: 0; border-radius: 4px;
     }
-    .conv-delete:hover { color: #dc2626; background: #fef2f2; }
-    .conv-empty { font-size: 12px; color: #9ca3af; padding: 4px 0; }
+    .conv-delete:hover { color: #ff8080; background: rgba(255,255,255,0.10); }
+    .conv-empty { font-size: 12px; color: rgba(255,255,255,0.45); padding: 4px 0; }
+
+    /* Legal / help buttons */
+    .sidebar-link-btn {
+      display: flex; align-items: center; gap: 8px; width: 100%;
+      text-align: left; padding: 9px 10px; margin-bottom: 6px;
+      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 6px; font-size: 12px; font-weight: 600; color: #fff;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .sidebar-link-btn:last-child { margin-bottom: 0; }
+    .sidebar-link-btn:hover { background: rgba(255,130,0,0.18); border-color: #FF8200; }
 
     /* Export/share toolbar above messages */
     .chat-toolbar {
@@ -225,7 +231,34 @@
     }
     .btn-send:hover { background: #e57200; }
     .btn-send:disabled { background: #dde3f0; cursor: not-allowed; }
+    .btn-icon-round {
+      width: 38px; height: 38px; border-radius: 8px;
+      background: #fff; border: 1.5px solid #dde3f0; color: #002855;
+      font-size: 17px; cursor: pointer; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.18s;
+    }
+    .btn-icon-round:hover { border-color: #FF8200; color: #FF8200; }
+    .btn-icon-round.recording { background: #dc2626; border-color: #dc2626; color: #fff; animation: pulse-rec 1.2s ease-in-out infinite; }
+    @keyframes pulse-rec { 0%,100%{opacity:1} 50%{opacity:.55} }
     .input-hint { font-size: 11px; color: #9ca3af; margin-top: 6px; text-align: center; }
+
+    /* Simple modal for Terms / User's Guide */
+    .wink-modal-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,20,50,0.5);
+      z-index: 300; align-items: center; justify-content: center; padding: 20px;
+    }
+    .wink-modal-overlay.open { display: flex; }
+    .wink-modal-card {
+      background: #fff; border-radius: 14px; max-width: 520px; width: 100%;
+      max-height: 80vh; overflow-y: auto; padding: 26px;
+    }
+    .wink-modal-card h2 { font-size: 18px; font-weight: 800; color: #002855; margin-bottom: 12px; }
+    .wink-modal-card p { font-size: 13px; color: #444; line-height: 1.7; margin-bottom: 10px; }
+    .wink-modal-close {
+      float: right; background: none; border: none; font-size: 20px;
+      color: #9ca3af; cursor: pointer;
+    }
 
     @media (max-width: 768px) {
       .chat-container { grid-template-columns: 1fr; }
@@ -266,7 +299,7 @@
 
       <div class="sidebar-section">
         <button class="new-chat-btn" onclick="startNewChat()">+ New Chat</button>
-        <h3>Recent Chats</h3>
+        <h3>Recent Chats (Last 3)</h3>
         <div id="conv-list">
           <div class="conv-empty">Loading…</div>
         </div>
@@ -281,26 +314,9 @@
         <button class="prompt-btn" onclick="setPrompt('Help me create a study schedule for this week.')">🗓 Build a study plan</button>
       </div>
 
-      <div class="sidebar-section">
-        <h3>Your Documents ({{ docs|length }})</h3>
-        {% if docs %}
-          {% for doc in docs[:8] %}
-          <div class="sidebar-doc">
-            <span class="sidebar-doc-icon">
-              {% if doc.orig_name.endswith('.pdf') %}📕
-              {% elif doc.orig_name.endswith('.docx') %}📘
-              {% elif doc.orig_name.endswith('.pptx') %}📙
-              {% else %}📄{% endif %}
-            </span>
-            <span class="sidebar-doc-name" title="{{ doc.orig_name }}">{{ doc.orig_name }}</span>
-          </div>
-          {% endfor %}
-          {% if docs|length > 8 %}<div style="font-size:12px;color:#6b7a99;padding-top:6px;">+{{ docs|length - 8 }} more</div>{% endif %}
-        {% else %}
-          <div style="font-size:13px;color:#6b7a99;">
-            No documents yet. <a href="/documents" style="color:#FF8200;font-weight:600;">Upload some →</a>
-          </div>
-        {% endif %}
+      <div class="sidebar-section" style="margin-top: auto; border-bottom: none;">
+        <button class="sidebar-link-btn" onclick="openWinkModal('terms')">📄 Terms of Agreement</button>
+        <button class="sidebar-link-btn" onclick="openWinkModal('guide')">📖 User's Guide</button>
       </div>
     </aside>
 
@@ -313,7 +329,7 @@
       <div class="messages-wrap" id="messages">
 
         <div class="welcome-msg" id="welcome">
-          <div style="font-size:40px;margin-bottom:12px;">🤖</div>
+          <img src="/static/WINK.jpeg" alt="WINK" style="width:64px;height:78px;border-radius:50%;object-fit:cover;margin:0 auto 12px;display:block;border:3px solid #FF8200;">
           <h2>Hi {{ s.first_name }}, I'm WINK!</h2>
           <p>Ask me anything about your courses, deadlines, assignments, or UTEP campus resources. I'll answer from your uploaded materials first.</p>
         </div>
@@ -332,10 +348,21 @@
 
       <div class="chat-input-bar">
         <div class="chat-input-row">
+          <button class="btn-icon-round" id="upload-btn" onclick="document.getElementById('chat-file-input').click()" title="Upload a document">＋</button>
+          <input type="file" id="chat-file-input" style="display:none" onchange="handleChatFileUpload(event)">
           <textarea id="chat-input" placeholder="Ask WINK anything about your courses…" rows="1" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+          <button class="btn-icon-round" id="mic-btn" onclick="toggleVoiceInput()" title="Speak your question">🎤</button>
           <button class="btn-send" id="send-btn" onclick="sendMessage()">➤</button>
         </div>
         <div class="input-hint">Press Enter to send · Shift+Enter for new line · Answers come from your uploaded documents</div>
+      </div>
+    </div>
+
+    <!-- Terms / User's Guide modal -->
+    <div class="wink-modal-overlay" id="wink-modal" onclick="if(event.target===this) closeWinkModal()">
+      <div class="wink-modal-card">
+        <button class="wink-modal-close" onclick="closeWinkModal()">✕</button>
+        <div id="wink-modal-body"></div>
       </div>
     </div>
 
@@ -347,7 +374,7 @@
     let photoMarkerId = 0;
 
     const WELCOME_HTML = `<div class="welcome-msg" id="welcome">
-      <div style="font-size:40px;margin-bottom:12px;">🤖</div>
+      <img src="/static/WINK.jpeg" alt="WINK" style="width:64px;height:78px;border-radius:50%;object-fit:cover;margin:0 auto 12px;display:block;border:3px solid #FF8200;">
       <h2>Hi {{ s.first_name }}, I'm WINK!</h2>
       <p>Ask me anything about your courses, deadlines, assignments, or UTEP campus resources. I'll answer from your uploaded materials first.</p>
     </div>`;
@@ -503,7 +530,7 @@
         const res = await fetch('/conversations');
         const data = await res.json();
         const list = document.getElementById('conv-list');
-        const convs = data.conversations || [];
+        const convs = (data.conversations || []).slice(0, 3);
         if (convs.length === 0) {
           list.innerHTML = '<div class="conv-empty">No past chats yet</div>';
           return;
@@ -646,6 +673,113 @@
       }
       document.getElementById('send-btn').disabled = false;
       document.getElementById('chat-input').focus();
+    }
+
+    // ── Terms / User's Guide modal ──────────────────────────────
+    const WINK_MODAL_CONTENT = {
+      terms: `<h2>Terms of Agreement</h2>
+        <p>By using WINK, you agree to use this tool responsibly as a study aid alongside your own
+        coursework — not as a replacement for attending class, completing your own assignments, or
+        following your instructors' academic integrity policies.</p>
+        <p>WINK answers using your uploaded course documents and, when needed, a web search — always
+        double-check anything important (deadlines, grading policies, requirements) against your
+        official syllabus or instructor.</p>
+        <p>Full terms will be provided here by your institution.</p>`,
+      guide: `<h2>User's Guide</h2>
+        <p><strong>Ask anything</strong> about your courses, deadlines, or campus resources in the box
+        below.</p>
+        <p><strong>＋</strong> uploads a course document (syllabus, assignment sheet, etc.) directly
+        from the chat.</p>
+        <p><strong>🎤</strong> lets you speak your question instead of typing it.</p>
+        <p><strong>Recent Chats</strong> in the sidebar lets you reopen your last few conversations;
+        use <strong>+ New Chat</strong> to start fresh.</p>
+        <p>Once you're in a conversation, use <strong>Export</strong> or <strong>Share</strong> above
+        the messages to save or send it.</p>`
+    };
+    function openWinkModal(key) {
+      document.getElementById('wink-modal-body').innerHTML = WINK_MODAL_CONTENT[key] || '';
+      document.getElementById('wink-modal').classList.add('open');
+    }
+    function closeWinkModal() {
+      document.getElementById('wink-modal').classList.remove('open');
+    }
+
+    // ── Upload a document directly from chat ────────────────────
+    async function handleChatFileUpload(event) {
+      const file = event.target.files[0];
+      event.target.value = '';
+      if (!file) return;
+
+      const course = prompt("What course is this document for? (e.g., MIS 4310)");
+      if (!course) return;
+      const crn = prompt("What's the CRN# for that course?");
+      if (!crn) return;
+
+      const uploadBtn = document.getElementById('upload-btn');
+      uploadBtn.textContent = '…';
+      uploadBtn.disabled = true;
+
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('course', course);
+        formData.append('crn', crn);
+        const res = await fetch('/upload', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.success) {
+          addMessage('wink', `📎 Got it — **${file.name}** is uploaded for **${course} (CRN ${crn})** and ready to reference.`);
+        } else {
+          addMessage('wink', '❌ Upload failed: ' + (data.error || 'please try again.'));
+        }
+      } catch (e) {
+        addMessage('wink', '❌ Upload failed — please try again.');
+      }
+      uploadBtn.textContent = '＋';
+      uploadBtn.disabled = false;
+    }
+
+    // ── Voice input via the browser's built-in speech recognition ──
+    let winkRecognition = null;
+    let winkListening = false;
+    function toggleVoiceInput() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        alert("Voice input isn't supported in this browser — try Chrome or Edge.");
+        return;
+      }
+      const micBtn = document.getElementById('mic-btn');
+      if (winkListening) {
+        winkRecognition && winkRecognition.stop();
+        return;
+      }
+      winkRecognition = new SpeechRecognition();
+      winkRecognition.lang = 'en-US';
+      winkRecognition.interimResults = false;
+      winkRecognition.maxAlternatives = 1;
+
+      winkRecognition.onstart = () => {
+        winkListening = true;
+        micBtn.classList.add('recording');
+        micBtn.title = 'Listening… click to stop';
+      };
+      winkRecognition.onresult = (e) => {
+        const transcript = e.results[0][0].transcript;
+        const input = document.getElementById('chat-input');
+        input.value = (input.value ? input.value + ' ' : '') + transcript;
+        autoResize(input);
+        input.focus();
+      };
+      winkRecognition.onerror = () => {
+        micBtn.classList.remove('recording');
+        micBtn.title = 'Speak your question';
+        winkListening = false;
+      };
+      winkRecognition.onend = () => {
+        micBtn.classList.remove('recording');
+        micBtn.title = 'Speak your question';
+        winkListening = false;
+      };
+      winkRecognition.start();
     }
 
     loadConversationList();
