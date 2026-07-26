@@ -90,6 +90,13 @@ CHAT_MAX_TOKENS = 1024
 # is the single biggest cost lever: every uploaded page otherwise gets resent
 # on every single question, with no caching, for the life of the conversation.
 MAX_DOC_CONTEXT_CHARS = 24000
+# Deadline extraction runs ONCE per upload, not on every question — it should
+# NOT share the tight per-message chat budget above. Match extract_text()'s
+# own 60,000-char storage cap instead, so extraction sees everything that was
+# actually kept from the document (was previously truncated to the same
+# ~24K used for live chat, which could cut off a syllabus's schedule section
+# entirely on longer documents — the actual bug behind incomplete deadlines).
+DEADLINE_EXTRACTION_MAX_CHARS = 60000
 # How many prior chat messages (user+assistant turns) to actually send with
 # each request. Conversation history otherwise grows unbounded and gets
 # re-billed as input tokens on every new question.
@@ -244,7 +251,7 @@ def extract_deadlines(content, today=None):
                 "Skip anything without a specific date you can resolve. "
                 "If there are no clear deadlines, respond with []."
             ),
-            messages=[{"role": "user", "content": content[:MAX_DOC_CONTEXT_CHARS]}],
+            messages=[{"role": "user", "content": content[:DEADLINE_EXTRACTION_MAX_CHARS]}],
         )
         raw = "".join(b.text for b in resp.content if getattr(b, "type", None) == "text").strip()
         if raw.startswith("```"):
@@ -844,12 +851,81 @@ def get_upcoming_deadlines(sid, days_ahead=14):
     except Exception as e:
         print(f"get_upcoming_deadlines error: {e}"); return []
 
+def build_deadlines_context(sid):
+    """Every deadline extracted from every one of the student's uploaded
+    documents, across every course, with no date-range cap and no truncation.
+    This is deliberately separate from build_doc_context()'s truncated raw
+    document text — a "build me a master calendar" question shouldn't depend
+    on how much raw document text fit under the per-message cost cap, since
+    the structured deadline data is already small and already complete."""
+    if not DB_URL:
+        return "\n\nNo deadline data available (no database configured)."
+    try:
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("""SELECT course, title, due_date FROM deadlines
+                       WHERE student_id=%s ORDER BY due_date ASC""", (sid,))
+        rows = [dict(r) for r in cur.fetchall()]
+        cur.close(); db_release(conn)
+    except Exception as e:
+        print(f"build_deadlines_context error: {e}")
+        return "\n\nNo deadline data available (lookup failed)."
+    if not rows:
+        return ("\n\nNo deadlines have been extracted yet. This can mean the student's "
+                "documents don't contain a schedule of specific dates, or nothing has "
+                "been uploaded yet — don't invent dates that aren't in this list.")
+    lines = [f"\n\n{'='*60}\nEXTRACTED DEADLINES — every date-specific item found across "
+             f"ALL of the student's uploaded documents ({len(rows)} total). This list is "
+             "COMPLETE and NOT truncated, unlike the raw document text below — always use "
+             "this list (not the raw text) when asked for a calendar, schedule, or 'what's "
+             f"due' summary.\n{'='*60}"]
+    for r in rows:
+        due = r["due_date"].strftime("%Y-%m-%d (%a)") if r["due_date"] else "date unknown"
+        lines.append(f"- [{r['course']}] {r['title']} — due {due}")
+    lines.append(f"{'='*60}\n")
+    return "\n".join(lines)
+
 @app.route("/deadlines")
 def deadlines():
     s = current_student()
     if not s: return jsonify({"error":"Not logged in"}), 401
     days = min(int(request.args.get("days", 14)), 90)
     return jsonify({"deadlines": get_upcoming_deadlines(s["id"], days)})
+
+@app.route("/reprocess-deadlines", methods=["POST"])
+def reprocess_deadlines():
+    """Re-run deadline extraction against documents that are already stored
+    (using their already-extracted, already-stored text — no re-upload
+    needed). Useful for documents uploaded before DEADLINE_EXTRACTION_MAX_CHARS
+    was fixed, or if a document's schedule wasn't picked up the first time."""
+    s = current_student()
+    if not s: return jsonify({"error":"Not logged in"}), 401
+    if not DB_URL: return jsonify({"error":"No database"}), 500
+    if rate_limited(f"reprocess:{s['id']}", max_calls=3, window_seconds=300):
+        return jsonify({"error": "Please wait a few minutes before doing this again."}), 429
+    try:
+        docs = get_docs(s["id"])
+        total_found = 0
+        docs_processed = 0
+        for d in docs:
+            content = (d.get("content") or "").strip()
+            if not content:
+                continue
+            found = extract_deadlines(content)
+            conn = get_db(); cur = conn.cursor()
+            # Replace this document's deadlines rather than duplicating them
+            cur.execute("DELETE FROM deadlines WHERE document_id=%s", (d["id"],))
+            for item in found:
+                cur.execute("""INSERT INTO deadlines(student_id,document_id,course,title,due_date)
+                               VALUES(%s,%s,%s,%s,%s)""",
+                            (s["id"], d["id"], d["course"], item["title"], item["due_date"]))
+            conn.commit(); cur.close(); db_release(conn)
+            docs_processed += 1
+            total_found += len(found)
+        log_event(s["id"], "deadlines_reprocessed", {"docs": docs_processed, "found": total_found})
+        return jsonify({"success": True, "documents_processed": docs_processed, "deadlines_found": total_found})
+    except Exception as e:
+        print(f"reprocess_deadlines error: {e}"); traceback.print_exc()
+        return jsonify({"error": "Something went wrong on our end."}), 500
 
 @app.route("/send-deadline-reminders", methods=["POST"])
 def send_deadline_reminders():
@@ -939,8 +1015,9 @@ def chat():
         while messages and messages[0].get("role") != "user":
             messages.pop(0)
 
-        docs    = get_docs(s["id"])
-        doc_ctx = build_doc_context(docs)
+        docs         = get_docs(s["id"])
+        doc_ctx      = build_doc_context(docs)
+        deadline_ctx = build_deadlines_context(s["id"])
         import datetime
         now   = datetime.datetime.now()
         today = now.strftime("%A, %B %d, %Y")
@@ -951,15 +1028,21 @@ def chat():
             f"You are helping {s['first_name']} {s['last_name']}, "
             f"a {s['classification']} majoring in {s['major']}. "
             f"ANSWERING STRATEGY — follow this order: "
-            f"1. FIRST check the student's uploaded documents below for the answer. "
-            f"If found, quote directly from their documents with specific details. "
-            f"2. If the answer is NOT in their documents, use the web_search tool "
+            f"1. For calendars, schedules, or 'what's due' questions across any or all "
+            f"courses, use the EXTRACTED DEADLINES list below — it is complete and not "
+            f"truncated. Do not tell the student their documents were truncated when "
+            f"answering these — the deadlines list already accounts for that. "
+            f"2. For anything else, check the student's uploaded documents below for the "
+            f"answer. If found, quote directly from their documents with specific details. "
+            f"If a document looks too large to have been included in full, say so plainly "
+            f"instead of guessing at its content. "
+            f"3. If the answer is NOT in their documents, use the web_search tool "
             f"to find current, accurate information from the internet. "
             f"This includes questions about professors, university staff, campus resources, "
             f"current events, university policies, people at the university, and anything "
             f"not covered in their uploaded files. "
-            f"3. Always tell the student whether your answer came from their documents "
-            f"or from a web search, so they know the source. "
+            f"4. Always tell the student whether your answer came from their documents, "
+            f"the extracted deadlines list, or a web search, so they know the source. "
             f"UTEP president is Heather Wilson. UTEP resources: University Writing Center, "
             f"CASS Tutoring, Advising & Student Support. "
             f"Be warm, specific, and actionable. End with an encouraging note."
@@ -968,8 +1051,12 @@ def chat():
         # cacheable. Anthropic bills cache reads at roughly 10% of the standard
         # input rate, so any second-or-later question in the same session costs
         # far less on this block instead of re-billing it at full price every time.
+        # The deadlines list gets its own cache block too — it's small and
+        # changes only when new documents are uploaded, but keeping it separate
+        # means updating one doesn't invalidate the cache on the other.
         system = [
             {"type": "text", "text": instructions},
+            {"type": "text", "text": deadline_ctx, "cache_control": {"type": "ephemeral"}},
             {"type": "text", "text": doc_ctx, "cache_control": {"type": "ephemeral"}},
         ]
         # Speed: reuse the single client created at module load (see top of
