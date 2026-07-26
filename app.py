@@ -330,7 +330,7 @@ def get_global_docs():
 
 def build_global_doc_context(docs):
     if not docs:
-        return ""
+        return "\n\nNo general reference documents have been added yet."
     ctx = f"\n\n{'='*60}\nGENERAL REFERENCE DOCUMENTS (apply to every student, not just this one)\n"
     ctx += ("These were uploaded by an administrator and are not visible to the student as their "
             "own files — don't refer to them as 'your uploaded documents' or mention that they "
