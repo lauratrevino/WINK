@@ -89,7 +89,15 @@ CHAT_MAX_TOKENS = 1024
 # question, regardless of how many documents the student has uploaded. This
 # is the single biggest cost lever: every uploaded page otherwise gets resent
 # on every single question, with no caching, for the life of the conversation.
-MAX_DOC_CONTEXT_CHARS = 24000
+# Raised from 24K: build_doc_context() now divides this budget evenly across
+# every uploaded document instead of first-come-first-served, so a slightly
+# bigger pool means each individual document still gets a workable amount of
+# its own content rather than being squeezed to almost nothing.
+MAX_DOC_CONTEXT_CHARS = 40000
+# Separate budget for admin-uploaded "general" reference documents that apply
+# to every student (see build_global_doc_context()) — kept apart from the
+# per-student budget above so the two caches don't invalidate each other.
+MAX_GLOBAL_DOC_CONTEXT_CHARS = 20000
 # Deadline extraction runs ONCE per upload, not on every question — it should
 # NOT share the tight per-message chat budget above. Match extract_text()'s
 # own 60,000-char storage cap instead, so extraction sees everything that was
@@ -281,28 +289,61 @@ def build_doc_context(docs):
         ctx += "Files: " + ", ".join(d["orig_name"] for d in docs)
         return ctx
     ctx = f"\n\n{'='*60}\nSTUDENT'S UPLOADED COURSE DOCUMENTS ({len(docs)} files)\n"
+    ctx += ("Every document the student has uploaded is listed below in full or in part — none "
+            "have been skipped. Never tell the student to re-upload something that appears here; "
+            "if you only see part of a long one, say you have it but only part of its content, "
+            "and offer to look at a specific section if they ask.\n")
     ctx += "Answer questions using the actual content of these documents.\n"
     ctx += "Quote specific text, deadlines, requirements directly from the documents.\n"
     ctx += f"{'='*60}\n\n"
-    remaining = MAX_DOC_CONTEXT_CHARS
-    omitted = []
+    # Give every document a fair, even share of the total budget up front — a
+    # first-come-first-served allocation could let one or two large, recently
+    # uploaded files consume the whole budget and push older documents out
+    # entirely, which is exactly the "it won't read documents I already
+    # uploaded" bug. Every document is now guaranteed at least some content.
+    per_doc_budget = max(MAX_DOC_CONTEXT_CHARS // max(len(docs), 1), 2000)
     for i, d in enumerate(docs):
         content = (d.get("content") or "").strip()
         header = f"[DOCUMENT {i+1}] {d['orig_name']}\n"
         header += f"Course: {d['course']} | Size: {round(d.get('size_bytes',0)/1024,1)} KB\n"
         header += f"Content ({len(content)} chars):\n"
-        if remaining <= 0:
-            omitted.append(d["orig_name"])
-            continue
-        if len(content) > remaining:
-            content = content[:remaining] + "\n[Truncated to control cost — ask about this document specifically for more.]"
+        if len(content) > per_doc_budget:
+            content = content[:per_doc_budget] + "\n[Shortened here to fit — ask about this document specifically for more of it.]"
         ctx += header
-        ctx += content if content else "[No text could be extracted]"
+        ctx += content if content else "[No text could be extracted from this file]"
         ctx += f"\n\n{'-'*40}\n\n"
-        remaining -= len(content)
-    if omitted:
-        ctx += (f"[{len(omitted)} additional document(s) not shown to control cost: "
-                f"{', '.join(omitted)}. Ask about one of these by name if needed.]\n\n")
+    ctx += f"{'='*60}\n"
+    return ctx
+
+def get_global_docs():
+    """Institution-wide reference documents visible to every student's chat
+    context but never shown in any student's own document list or counted
+    against their upload cap — stored as documents with student_id NULL."""
+    if not DB_URL: return []
+    try:
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("SELECT * FROM documents WHERE student_id IS NULL ORDER BY uploaded_at DESC")
+        docs = [dict(r) for r in cur.fetchall()]; cur.close(); db_release(conn)
+        return docs
+    except Exception as e:
+        print(f"get_global_docs error: {e}"); return []
+
+def build_global_doc_context(docs):
+    if not docs:
+        return ""
+    ctx = f"\n\n{'='*60}\nGENERAL REFERENCE DOCUMENTS (apply to every student, not just this one)\n"
+    ctx += ("These were uploaded by an administrator and are not visible to the student as their "
+            "own files — don't refer to them as 'your uploaded documents' or mention that they "
+            "were uploaded separately; just use them as background knowledge when relevant.\n")
+    ctx += f"{'='*60}\n\n"
+    per_doc_budget = max(MAX_GLOBAL_DOC_CONTEXT_CHARS // max(len(docs), 1), 2000)
+    for i, d in enumerate(docs):
+        content = (d.get("content") or "").strip()
+        if not content:
+            continue
+        if len(content) > per_doc_budget:
+            content = content[:per_doc_budget] + "\n[Shortened here to fit.]"
+        ctx += f"[REFERENCE {i+1}] {d['orig_name']} ({d.get('course') or 'General'})\n{content}\n\n{'-'*40}\n\n"
     ctx += f"{'='*60}\n"
     return ctx
 
@@ -835,6 +876,76 @@ def delete_file():
         print(f"delete error: {e}"); traceback.print_exc()
         return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
 
+# ── General reference documents (admin-only) ────────────────
+# These apply to every student's chat automatically (see build_global_doc_context
+# and its use in /chat) but are stored with student_id=NULL, so they never show
+# up in any student's own "My Documents" list or count against their 20-doc cap.
+@app.route("/global-documents")
+def list_global_documents():
+    s = current_student()
+    if not s or s["email"] != ADMIN_EMAIL: return jsonify({"error":"Not authorized"}), 403
+    return jsonify({"docs": get_global_docs()})
+
+@app.route("/upload-global", methods=["POST"])
+def upload_global_document():
+    try:
+        s = current_student()
+        if not s or s["email"] != ADMIN_EMAIL:
+            return jsonify({"error":"Not authorized"}), 403
+        if "file" not in request.files:
+            return jsonify({"error":"No file"}), 400
+        file  = request.files["file"]
+        label = request.form.get("label","").strip() or "General"
+        if not file or not file.filename:
+            return jsonify({"error":"No file selected"}), 400
+        ext = file.filename.rsplit(".",1)[-1].lower() if "." in file.filename else ""
+        if ext not in ALLOWED_EXT:
+            return jsonify({"error":f"File type .{ext} not allowed"}), 400
+
+        folder = os.path.join(UPLOAD_FOLDER, "global")
+        os.makedirs(folder, exist_ok=True)
+        orig  = file.filename
+        saved = f"{uuid.uuid4().hex[:8]}_{secure_filename(orig)}"
+        path  = os.path.join(folder, saved)
+        file.save(path)
+        size    = os.path.getsize(path)
+        content = extract_text(path, orig)
+        print(f"GLOBAL UPLOAD: {orig} → {len(content)} chars extracted")
+        if DB_URL:
+            conn = get_db(); cur = conn.cursor()
+            cur.execute("""INSERT INTO documents
+                           (student_id,filename,orig_name,course,crn,size_bytes,content)
+                           VALUES(NULL,%s,%s,%s,'',%s,%s)""",
+                        (saved, orig, label, size, content))
+            conn.commit(); cur.close(); db_release(conn)
+        log_event(s["id"], "global_file_uploaded", {"name": orig, "label": label, "chars": len(content)})
+        return jsonify({"success": True, "docs": get_global_docs(), "chars_extracted": len(content)})
+    except Exception as e:
+        print(f"global upload error: {e}"); traceback.print_exc()
+        return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
+
+@app.route("/delete-global-document", methods=["POST"])
+def delete_global_document():
+    try:
+        s = current_student()
+        if not s or s["email"] != ADMIN_EMAIL: return jsonify({"error":"Not authorized"}), 403
+        doc_id = (request.get_json() or {}).get("doc_id")
+        if DB_URL and doc_id:
+            conn = get_db(); cur = conn.cursor()
+            cur.execute("SELECT filename FROM documents WHERE id=%s AND student_id IS NULL", (doc_id,))
+            doc = cur.fetchone()
+            if doc:
+                fp = os.path.join(UPLOAD_FOLDER, "global", doc["filename"])
+                if os.path.exists(fp): os.remove(fp)
+                cur.execute("DELETE FROM documents WHERE id=%s", (doc_id,))
+                conn.commit()
+                log_event(s["id"], "global_file_deleted", {"doc_id": doc_id})
+            cur.close(); db_release(conn)
+        return jsonify({"success": True, "docs": get_global_docs()})
+    except Exception as e:
+        print(f"delete global error: {e}"); traceback.print_exc()
+        return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
+
 def get_upcoming_deadlines(sid, days_ahead=14):
     if not DB_URL: return []
     try:
@@ -1040,6 +1151,7 @@ def chat():
         docs         = get_docs(s["id"])
         doc_ctx      = build_doc_context(docs)
         deadline_ctx = build_deadlines_context(s["id"])
+        global_ctx   = build_global_doc_context(get_global_docs())
         import datetime
         now   = datetime.datetime.now()
         today = now.strftime("%A, %B %d, %Y")
@@ -1055,16 +1167,20 @@ def chat():
             f"truncated. Do not tell the student their documents were truncated when "
             f"answering these — the deadlines list already accounts for that. "
             f"2. For anything else, check the student's uploaded documents below for the "
-            f"answer. If found, quote directly from their documents with specific details. "
-            f"If a document looks too large to have been included in full, say so plainly "
-            f"instead of guessing at its content. "
-            f"3. If the answer is NOT in their documents, use the web_search tool "
+            f"answer — every uploaded document appears there, so never tell the student to "
+            f"re-upload something that's already listed. If found, quote directly from their "
+            f"documents with specific details. "
+            f"3. Also check the GENERAL REFERENCE DOCUMENTS block below, which applies to every "
+            f"student — use it the same way, but don't call it 'your document' since the "
+            f"student didn't upload it themselves. "
+            f"4. If the answer is NOT in either of those, use the web_search tool "
             f"to find current, accurate information from the internet. "
             f"This includes questions about professors, university staff, campus resources, "
             f"current events, university policies, people at the university, and anything "
             f"not covered in their uploaded files. "
-            f"4. Always tell the student whether your answer came from their documents, "
-            f"the extracted deadlines list, or a web search, so they know the source. "
+            f"5. Always tell the student whether your answer came from their documents, "
+            f"the extracted deadlines list, or a web search, so they know the source — but "
+            f"never mention the GENERAL REFERENCE DOCUMENTS as a separate source out loud. "
             f"RICH CONTENT — the chat interface CAN render maps and images, so use them "
             f"whenever they'd genuinely help: "
             f"- For a campus building, address, or any physical location, include "
@@ -1093,12 +1209,12 @@ def chat():
         # cacheable. Anthropic bills cache reads at roughly 10% of the standard
         # input rate, so any second-or-later question in the same session costs
         # far less on this block instead of re-billing it at full price every time.
-        # The deadlines list gets its own cache block too — it's small and
-        # changes only when new documents are uploaded, but keeping it separate
-        # means updating one doesn't invalidate the cache on the other.
+        # Each context block gets its own cache breakpoint — updating one (e.g.
+        # a new upload) doesn't invalidate the cache on the others.
         system = [
             {"type": "text", "text": instructions},
             {"type": "text", "text": deadline_ctx, "cache_control": {"type": "ephemeral"}},
+            {"type": "text", "text": global_ctx, "cache_control": {"type": "ephemeral"}},
             {"type": "text", "text": doc_ctx, "cache_control": {"type": "ephemeral"}},
         ]
         # Speed: reuse the single client created at module load (see top of
