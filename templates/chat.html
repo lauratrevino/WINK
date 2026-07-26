@@ -161,6 +161,11 @@
     .msg.user .msg-bubble { background: #002855; color: #fff; border-radius: 12px 2px 12px 12px; }
     .msg-bubble a { color: #FF8200; }
     .msg-bubble p { margin-bottom: 8px; }
+    .wink-embed { margin: 8px 0; border-radius: 10px; overflow: hidden; }
+    .wink-map { width: 100%; max-width: 420px; height: 230px; border: 1px solid #dde3f0; }
+    .wink-map iframe { width: 100%; height: 100%; border: 0; display: block; }
+    .wink-image { max-width: 340px; }
+    .wink-image img { width: 100%; height: auto; display: block; border: 1px solid #dde3f0; border-radius: 10px; }
     .msg-bubble p:last-child { margin-bottom: 0; }
     .msg-bubble ul, .msg-bubble ol { padding-left: 20px; margin: 6px 0; }
     .msg-bubble li { margin-bottom: 4px; }
@@ -363,6 +368,26 @@
     function formatMessage(text) {
       // Convert markdown-ish formatting to HTML
       let html = escapeHtml(text);
+
+      // Anything we render as real markup (maps, images) gets stashed behind a
+      // placeholder token first, so later passes (URL linkifier, paragraph
+      // wrapping) can't reach inside their src="..." attributes and corrupt them.
+      const embeds = [];
+      const stash = (snippet) => {
+        embeds.push(snippet);
+        return `\u0000EMBED${embeds.length - 1}\u0000`;
+      };
+
+      // Embedded maps: [[map: some place or address]] -> live Google Maps embed
+      html = html.replace(/\[\[\s*map:\s*([^\]]+)\]\]/gi, (m, query) => {
+        const q = encodeURIComponent(query.trim());
+        return stash(`<div class="wink-embed wink-map"><iframe src="https://www.google.com/maps?q=${q}&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe></div>`);
+      });
+      // Images: standard markdown ![alt](url) -> an actual rendered image
+      html = html.replace(/!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g, (m, alt, url) => {
+        return stash(`<div class="wink-embed wink-image"><img src="${url}" alt="${alt.replace(/"/g,'&quot;')}" loading="lazy" onerror="this.parentElement.style.display='none'"></div>`);
+      });
+
       // Bold
       html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
       // Bullet lists
@@ -375,8 +400,11 @@
       html = html.replace(/\n/g, '<br>');
       html = '<p>' + html + '</p>';
       html = html.replace(/<p><\/p>/g, '');
-      // URLs
+      // URLs (anything left over that wasn't part of a stashed embed)
       html = html.replace(/(https?:\/\/[^\s<>"]+)/g, '<a href="$1" target="_blank">$1</a>');
+
+      // Swap the real markup back in for its placeholder tokens
+      html = html.replace(/\u0000EMBED(\d+)\u0000/g, (m, i) => embeds[parseInt(i, 10)]);
       return html;
     }
 
