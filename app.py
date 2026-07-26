@@ -17,6 +17,7 @@ app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
 DB_URL            = os.environ.get("DATABASE_URL", "")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 ADMIN_EMAIL = "lhall@utep.edu"  # Administrator email
+MAX_DOCS_PER_STUDENT = 20
 
 CLASSIFICATIONS = ["Freshman","Sophomore","Junior","Senior","Graduate","Faculty"]
 MAJORS = [
@@ -148,6 +149,7 @@ def init_db():
             content TEXT DEFAULT '',
             uploaded_at TIMESTAMP DEFAULT NOW())""")
         cur.execute("ALTER TABLE documents ADD COLUMN IF NOT EXISTS content TEXT DEFAULT ''")
+        cur.execute("ALTER TABLE documents ADD COLUMN IF NOT EXISTS crn TEXT DEFAULT ''")
         # Use TEXT for payload — simple and reliable across all Postgres versions
         cur.execute("""CREATE TABLE IF NOT EXISTS events (
             id SERIAL PRIMARY KEY, student_id INTEGER,
@@ -205,6 +207,21 @@ def get_docs(sid):
         return docs
     except Exception as e:
         print(f"get_docs error: {e}"); return []
+
+def group_docs_by_course(docs):
+    """Group documents by course (and CRN, when present)."""
+    groups = {}
+    order = []
+    for d in docs:
+        course = (d.get("course") or "").strip() or "General"
+        crn = (d.get("crn") or "").strip()
+        label = f"{course} (CRN {crn})" if crn else course
+        if label not in groups:
+            groups[label] = []
+            order.append(label)
+        groups[label].append(d)
+    order.sort()
+    return [(label, groups[label]) for label in order]
 
 def safe_payload(raw):
     """Safely parse a payload value regardless of whether it's str, dict, or None."""
@@ -389,8 +406,13 @@ def documents():
         s = current_student()
         if not s: return redirect(url_for("login"))
         docs = get_docs(s["id"])
+        grouped_docs = group_docs_by_course(docs)
+        known_courses = sorted({(d.get("course") or "").strip() for d in docs
+                                 if (d.get("course") or "").strip()})
         log_event(s["id"], "page_view", {"page":"documents"})
-        return render_template("documents.html", s=s, admin_email=ADMIN_EMAIL, docs=docs, active="documents")
+        return render_template("documents.html", s=s, admin_email=ADMIN_EMAIL, docs=docs,
+                               grouped_docs=grouped_docs, known_courses=known_courses,
+                               active="documents", max_docs=MAX_DOCS_PER_STUDENT)
     except Exception as e:
         print(f"documents error: {e}"); traceback.print_exc()
         return f"<h2>Error</h2><pre>{e}</pre><a href='/logout'>Logout</a>", 500
@@ -429,9 +451,20 @@ def upload_file():
         if "file" not in request.files:
             return jsonify({"error":"No file"}), 400
         file   = request.files["file"]
-        course = request.form.get("course","General")
+        course = request.form.get("course","").strip()
+        crn    = request.form.get("crn","").strip()
+        if not course:
+            return jsonify({"error":"Please enter a course name."}), 400
+        if not crn:
+            return jsonify({"error":"Please enter a CRN#."}), 400
         if not file or not file.filename:
             return jsonify({"error":"No file selected"}), 400
+        existing_docs = get_docs(s["id"])
+        if len(existing_docs) >= MAX_DOCS_PER_STUDENT:
+            return jsonify({
+                "error": f"You've reached the {MAX_DOCS_PER_STUDENT}-document limit. "
+                         f"Delete a document before uploading a new one."
+            }), 400
         ext = file.filename.rsplit(".",1)[-1].lower() if "." in file.filename else ""
         if ext not in ALLOWED_EXT:
             return jsonify({"error":f"File type .{ext} not allowed"}), 400
@@ -447,11 +480,11 @@ def upload_file():
         if DB_URL:
             conn = get_db(); cur = conn.cursor()
             cur.execute("""INSERT INTO documents
-                           (student_id,filename,orig_name,course,size_bytes,content)
-                           VALUES(%s,%s,%s,%s,%s,%s)""",
-                        (s["id"], saved, orig, course, size, content))
+                           (student_id,filename,orig_name,course,crn,size_bytes,content)
+                           VALUES(%s,%s,%s,%s,%s,%s,%s)""",
+                        (s["id"], saved, orig, course, crn, size, content))
             conn.commit(); cur.close(); conn.close()
-        log_event(s["id"], "file_uploaded", {"name":orig,"course":course,"chars":len(content)})
+        log_event(s["id"], "file_uploaded", {"name":orig,"course":course,"crn":crn,"chars":len(content)})
         return jsonify({"success":True, "docs":get_docs(s["id"]), "chars_extracted":len(content)})
     except Exception as e:
         print(f"upload error: {e}"); traceback.print_exc()
