@@ -1343,12 +1343,28 @@ def analytics_data_full():
             ORDER BY DATE(created_at) ASC""")
         daily = [dict(r) for r in cur.fetchall()]
 
+        # Upcoming deadlines across every student (admin-only visibility into
+        # what WINK has extracted from uploaded syllabi/assignment sheets)
+        cur.execute("""
+            SELECT d.title, d.course, d.due_date, s.first_name, s.last_name
+            FROM deadlines d JOIN students s ON s.id = d.student_id
+            WHERE d.due_date >= CURRENT_DATE
+            ORDER BY d.due_date ASC LIMIT 100""")
+        upcoming_deadlines = []
+        for r in cur.fetchall():
+            row = dict(r)
+            row["due_date"] = row["due_date"].isoformat() if row["due_date"] else None
+            upcoming_deadlines.append(row)
+        cur.execute("SELECT COUNT(*) as n FROM deadlines WHERE due_date >= CURRENT_DATE")
+        total_deadlines = cur.fetchone()["n"]
+
         cur.close(); db_release(conn)
         return jsonify({
             "total_students":  total_s,
             "total_sessions":  total_sess,
             "total_questions": total_q,
             "total_uploads":   total_up,
+            "total_deadlines": total_deadlines,
             "students":        students,
             "questions":       questions,
             "conversations":   conversations,
@@ -1356,7 +1372,8 @@ def analytics_data_full():
             "by_major":        by_major,
             "by_class":        by_class,
             "by_course":       by_course,
-            "daily":           daily
+            "daily":           daily,
+            "upcoming_deadlines": upcoming_deadlines
         })
     except Exception as e:
         print(f"analytics_data_full error: {e}"); traceback.print_exc()
