@@ -100,6 +100,7 @@
     .stat-value { font-size: 32px; font-weight: 800; color: #002855; }
     .stat-label { font-size: 12px; color: #6b7a99; margin-top: 3px; text-transform: uppercase; letter-spacing: .05em; }
     .stat-card.navy-top { border-top-color: #002855; }
+    .stat-card.stat-warn .stat-value { color: #b45309; }
 
     /* ── Two-col Grid ── */
     .dash-grid {
@@ -157,6 +158,22 @@
     .doc-meta { font-size: 11px; color: #6b7a99; margin-top: 1px; }
     .doc-empty { font-size: 14px; color: #6b7a99; text-align: center; padding: 20px 0; }
 
+    /* Deadlines list */
+    .deadline-list { display: flex; flex-direction: column; gap: 8px; }
+    .deadline-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 12px; border-radius: 8px;
+      background: #fff3e6; border: 1px solid #ffe0b8;
+    }
+    .deadline-date {
+      flex-shrink: 0; width: 46px; text-align: center;
+      background: #FF8200; color: #fff; border-radius: 6px;
+      padding: 5px 0; font-size: 11px; font-weight: 700; line-height: 1.2;
+    }
+    .deadline-name { font-size: 13px; font-weight: 600; color: #002855; }
+    .deadline-meta { font-size: 11px; color: #6b7a99; margin-top: 1px; }
+    .deadline-empty { font-size: 14px; color: #6b7a99; text-align: center; padding: 20px 0; }
+
     /* Profile summary */
     .profile-row {
       display: flex; align-items: center; gap: 14px;
@@ -213,8 +230,8 @@
 
     <!-- Stats Row -->
     <div class="stats-row">
-      <div class="stat-card">
-        <div class="stat-value">{{ docs|length }}</div>
+      <div class="stat-card{{ ' stat-warn' if docs|length >= max_docs else '' }}">
+        <div class="stat-value">{{ docs|length }}/{{ max_docs }}</div>
         <div class="stat-label">Documents Uploaded</div>
       </div>
       <div class="stat-card navy-top">
@@ -222,12 +239,12 @@
         <div class="stat-label">Courses Covered</div>
       </div>
       <div class="stat-card">
-        <div class="stat-value">∞</div>
-        <div class="stat-label">Questions Available</div>
+        <div class="stat-value">{{ questions_this_month }}</div>
+        <div class="stat-label">Questions This Month</div>
       </div>
       <div class="stat-card navy-top">
-        <div class="stat-value">24/7</div>
-        <div class="stat-label">AI Support</div>
+        <div class="stat-value">{{ upcoming_deadlines|length }}</div>
+        <div class="stat-label">Due In 7 Days</div>
       </div>
     </div>
 
@@ -266,39 +283,66 @@
         </div>
       </div>
 
-      <!-- Recent Documents -->
+      <!-- What's Due This Week -->
       <div class="card">
         <div class="card-header">
-          <div class="card-title">📄 Recent Documents</div>
-          <a href="/documents" style="font-size:13px;color:#FF8200;text-decoration:none;font-weight:600;">View all →</a>
+          <div class="card-title">📅 What's Due This Week</div>
         </div>
         <div class="card-body">
-          {% if docs %}
-            <div class="doc-list">
-              {% for doc in docs[:4] %}
-              <div class="doc-item">
-                <div class="doc-icon">
-                  {% if doc.orig_name.endswith('.pdf') %}📕
-                  {% elif doc.orig_name.endswith('.docx') or doc.orig_name.endswith('.doc') %}📘
-                  {% elif doc.orig_name.endswith('.pptx') %}📙
-                  {% else %}📄{% endif %}
-                </div>
+          {% if upcoming_deadlines %}
+            <div class="deadline-list">
+              {% for d in upcoming_deadlines %}
+              <div class="deadline-item">
+                <div class="deadline-date">{{ d.due_date[5:10] }}</div>
                 <div>
-                  <div class="doc-name">{{ doc.orig_name[:40] }}{% if doc.orig_name|length > 40 %}…{% endif %}</div>
-                  <div class="doc-meta">{{ doc.course }} · {{ (doc.size_bytes / 1024)|round(1) }} KB</div>
+                  <div class="deadline-name">{{ d.title }}</div>
+                  <div class="deadline-meta">{{ d.course }}</div>
                 </div>
               </div>
               {% endfor %}
             </div>
           {% else %}
-            <div class="doc-empty">
-              <div style="font-size:32px;margin-bottom:8px;">📭</div>
-              No documents yet — <a href="/documents" style="color:#FF8200;font-weight:600;">upload your first one!</a>
+            <div class="deadline-empty">
+              <div style="font-size:32px;margin-bottom:8px;">✅</div>
+              Nothing due in the next week — upload a syllabus and WINK will track dates automatically.
             </div>
           {% endif %}
         </div>
       </div>
 
+    </div>
+
+    <!-- Recent Documents -->
+    <div class="card" style="margin-bottom:24px;">
+      <div class="card-header">
+        <div class="card-title">📄 Recent Documents</div>
+        <a href="/documents" style="font-size:13px;color:#FF8200;text-decoration:none;font-weight:600;">View all →</a>
+      </div>
+      <div class="card-body">
+        {% if docs %}
+          <div class="doc-list">
+            {% for doc in docs[:4] %}
+            <div class="doc-item">
+              <div class="doc-icon">
+                {% if doc.orig_name.endswith('.pdf') %}📕
+                {% elif doc.orig_name.endswith('.docx') or doc.orig_name.endswith('.doc') %}📘
+                {% elif doc.orig_name.endswith('.pptx') %}📙
+                {% else %}📄{% endif %}
+              </div>
+              <div>
+                <div class="doc-name">{{ doc.orig_name[:40] }}{% if doc.orig_name|length > 40 %}…{% endif %}</div>
+                <div class="doc-meta">{{ doc.course }} · {{ (doc.size_bytes / 1024)|round(1) }} KB</div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="doc-empty">
+            <div style="font-size:32px;margin-bottom:8px;">📭</div>
+            No documents yet — <a href="/documents" style="color:#FF8200;font-weight:600;">upload your first one!</a>
+          </div>
+        {% endif %}
+      </div>
     </div>
 
     <!-- Profile Summary -->
