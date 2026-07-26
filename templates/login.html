@@ -79,25 +79,6 @@
       font-size: 13px; color: #6b7a99; margin-bottom: 22px;
     }
 
-    /* Tab switcher: Sign In / Change Password */
-    .tab-row {
-      display: flex; gap: 0;
-      border: 1.5px solid #dde3f0;
-      border-radius: 8px; overflow: hidden;
-      margin-bottom: 22px;
-    }
-    .tab-btn {
-      flex: 1; padding: 9px 0;
-      font-size: 13px; font-weight: 700;
-      background: transparent; color: #6b7a99;
-      border: none; cursor: pointer;
-      transition: all 0.15s;
-    }
-    .tab-btn.active {
-      background: #002855; color: #fff;
-    }
-    .tab-btn:not(.active):hover { background: #f0f4ff; color: #002855; }
-
     /* Panels */
     .panel { display: none; }
     .panel.active { display: block; }
@@ -170,20 +151,17 @@
 
     <div class="form-card">
       <h1>Welcome back</h1>
-      <div class="subtitle">Sign in or update your password below.</div>
+      <div class="subtitle">Sign in to your account below.</div>
 
       {% if error %}
         <div class="alert-danger">{{ error }}</div>
       {% endif %}
-
-      <!-- Tab switcher -->
-      <div class="tab-row">
-        <button class="tab-btn active" onclick="switchTab('signin', this)">Sign In</button>
-        <button class="tab-btn" onclick="switchTab('changepw', this)">Change Password</button>
-      </div>
+      {% if success %}
+        <div class="alert-success">{{ success }}</div>
+      {% endif %}
 
       <!-- SIGN IN PANEL -->
-      <div class="panel active" id="panel-signin">
+      <div class="panel{{ '' if forgot else ' active' }}" id="panel-signin">
         <form method="POST" action="/login">
           <div class="form-group">
             <label for="email">Email</label>
@@ -198,39 +176,42 @@
           <button type="submit" class="btn-primary">Sign In &rarr;</button>
         </form>
         <div class="form-alt">
+          <a href="#" onclick="toggleForgotPassword(event)">Forgot password?</a>
+        </div>
+        <div class="form-alt" style="margin-top:8px;">
           Don't have an account? <a href="/register">Create one for free</a>
         </div>
       </div>
 
-      <!-- CHANGE PASSWORD PANEL -->
-      <div class="panel" id="panel-changepw">
-        <form method="POST" action="/change-password">
-          <div class="form-group">
-            <label for="cp-email">Email</label>
-            <input type="email" id="cp-email" name="email"
-                   placeholder="yourname@miners.utep.edu" required>
+      <!-- FORGOT PASSWORD PANEL -->
+      <div class="panel{{ ' active' if forgot else '' }}" id="panel-forgotpw">
+        {% if reset_sent %}
+          <div class="alert-success">
+            If an account exists for that email, a reset link has been sent.
           </div>
-          <div class="form-group">
-            <label for="cp-current">Current Password</label>
-            <input type="password" id="cp-current" name="current_password"
-                   placeholder="Your current password" required>
+          {% if reset_link %}
+            <div class="pw-hint" style="margin-bottom:16px;">
+              No email service is configured yet — here's the link directly:<br>
+              <a href="{{ reset_link }}">{{ reset_link }}</a>
+            </div>
+          {% endif %}
+          <div class="form-alt">
+            <a href="#" onclick="toggleForgotPassword(event)">Back to sign in</a>
           </div>
-          <div class="form-group">
-            <label for="cp-new">New Password</label>
-            <input type="password" id="cp-new" name="new_password"
-                   placeholder="At least 6 characters" required minlength="6">
-            <div class="pw-hint">Minimum 6 characters</div>
+        {% else %}
+          <form method="POST" action="/forgot-password">
+            <div class="form-group">
+              <label for="fp-email">Email</label>
+              <input type="email" id="fp-email" name="email"
+                     placeholder="yourname@miners.utep.edu" required>
+              <div class="pw-hint">We'll send a password reset link to this address.</div>
+            </div>
+            <button type="submit" class="btn-primary">Send Reset Link &rarr;</button>
+          </form>
+          <div class="form-alt">
+            Remember it? <a href="#" onclick="toggleForgotPassword(event)">Sign in instead</a>
           </div>
-          <div class="form-group">
-            <label for="cp-confirm">Confirm New Password</label>
-            <input type="password" id="cp-confirm" name="confirm_password"
-                   placeholder="Repeat new password" required minlength="6">
-          </div>
-          <button type="submit" class="btn-primary">Update Password &rarr;</button>
-        </form>
-        <div class="form-alt">
-          Remember it? <a href="#" onclick="switchTabByName('signin')">Sign in instead</a>
-        </div>
+        {% endif %}
       </div>
 
       <a href="/" class="back-link">&larr; Back to home</a>
@@ -239,15 +220,10 @@
   </div>
 
   <script>
-    function switchTab(name, btn) {
-      document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
-      document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
-      btn.classList.add("active");
-      document.getElementById("panel-" + name).classList.add("active");
-    }
-    function switchTabByName(name) {
-      const btn = document.querySelector('.tab-btn[onclick*="' + name + '"]');
-      if (btn) switchTab(name, btn);
+    function toggleForgotPassword(e) {
+      if (e) e.preventDefault();
+      document.getElementById("panel-signin").classList.toggle("active");
+      document.getElementById("panel-forgotpw").classList.toggle("active");
     }
   </script>
 
