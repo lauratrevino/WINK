@@ -141,6 +141,7 @@
       <div class="stat-card navy-top"><div class="stat-loading"></div><div class="stat-label">Total Sessions</div></div>
       <div class="stat-card"><div class="stat-loading"></div><div class="stat-label">Questions Asked</div></div>
       <div class="stat-card green-top"><div class="stat-loading"></div><div class="stat-label">Files Uploaded</div></div>
+      <div class="stat-card navy-top"><div class="stat-loading"></div><div class="stat-label">Upcoming Deadlines</div></div>
     </div>
 
     <!-- Tabs -->
@@ -148,6 +149,7 @@
       <button class="tab-btn active" onclick="switchTab('students')">👥 Students</button>
       <button class="tab-btn" onclick="switchTab('activity')">⚡ Activity Feed</button>
       <button class="tab-btn" onclick="switchTab('conversations')">💬 Conversations</button>
+      <button class="tab-btn" onclick="switchTab('deadlines')">📅 Deadlines</button>
       <button class="tab-btn" onclick="switchTab('distributions')">📊 Distributions</button>
     </div>
 
@@ -182,6 +184,19 @@
       </div>
     </div>
 
+    <!-- Deadlines Tab -->
+    <div class="tab-panel" id="tab-deadlines">
+      <div class="card">
+        <div class="card-header"><h2>Upcoming Deadlines (All Students)</h2><span style="font-size:13px;color:#6b7a99;">Extracted automatically from uploaded documents</span></div>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr><th>Due</th><th>Title</th><th>Course</th><th>Student</th></tr></thead>
+            <tbody id="deadlines-tbody"><tr><td colspan="4" style="text-align:center;padding:32px;color:#6b7a99;">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <!-- Distributions Tab -->
     <div class="tab-panel" id="tab-distributions">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
@@ -203,7 +218,7 @@
 
     function switchTab(name) {
       document.querySelectorAll('.tab-btn').forEach((b, i) => {
-        const tabs = ['students','activity','conversations','distributions'];
+        const tabs = ['students','activity','conversations','deadlines','distributions'];
         b.classList.toggle('active', tabs[i] === name);
       });
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
@@ -225,15 +240,15 @@
 
         // Stats
         const cards = document.querySelectorAll('.stat-card');
-        const vals = [d.total_students, d.total_sessions, d.total_questions, d.total_uploads];
+        const vals = [d.total_students, d.total_sessions, d.total_questions, d.total_uploads, d.total_deadlines];
         cards.forEach((c, i) => {
           c.querySelector('.stat-loading') && (c.innerHTML = `<div class="stat-value">${vals[i]}</div><div class="stat-label">${c.querySelector('.stat-label').textContent}</div>`);
           c.querySelector('.stat-value') && (c.querySelector('.stat-value').textContent = vals[i]);
         });
         // Re-render stat row cleanly
         const sr = document.getElementById('stats-row');
-        const labels = ['Total Students','Total Sessions','Questions Asked','Files Uploaded'];
-        const tops = ['','navy-top','','green-top'];
+        const labels = ['Total Students','Total Sessions','Questions Asked','Files Uploaded','Upcoming Deadlines'];
+        const tops = ['','navy-top','','green-top','navy-top'];
         sr.innerHTML = vals.map((v,i) => `<div class="stat-card ${tops[i]}"><div class="stat-value">${v}</div><div class="stat-label">${labels[i]}</div></div>`).join('');
 
         // Students table
@@ -292,6 +307,20 @@
                 <div class="convo-answer">${c.answer || 'No answer recorded.'}</div>
               </div>
             </div>`).join('');
+        }
+
+        // Deadlines
+        const dtbody = document.getElementById('deadlines-tbody');
+        if (!d.upcoming_deadlines || d.upcoming_deadlines.length === 0) {
+          dtbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:32px;color:#6b7a99;">No upcoming deadlines found yet.</td></tr>';
+        } else {
+          dtbody.innerHTML = d.upcoming_deadlines.map(dl => `
+            <tr>
+              <td><span class="badge badge-orange">${dl.due_date}</span></td>
+              <td><strong>${dl.title}</strong></td>
+              <td>${dl.course}</td>
+              <td style="color:#6b7a99;">${dl.first_name} ${dl.last_name}</td>
+            </tr>`).join('');
         }
 
         // Bar charts
