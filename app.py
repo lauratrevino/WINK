@@ -851,6 +851,23 @@ def get_upcoming_deadlines(sid, days_ahead=14):
     except Exception as e:
         print(f"get_upcoming_deadlines error: {e}"); return []
 
+def get_all_deadlines(sid):
+    """Every deadline row for a student, no date-range cap — the single
+    source of truth used by both the chat context (as text) and the visual
+    calendar page (as JSON)."""
+    if not DB_URL: return []
+    try:
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("""SELECT id, course, title, due_date FROM deadlines
+                       WHERE student_id=%s ORDER BY due_date ASC""", (sid,))
+        rows = [dict(r) for r in cur.fetchall()]
+        cur.close(); db_release(conn)
+        for r in rows:
+            r["due_date"] = r["due_date"].isoformat() if r["due_date"] else None
+        return rows
+    except Exception as e:
+        print(f"get_all_deadlines error: {e}"); return []
+
 def build_deadlines_context(sid):
     """Every deadline extracted from every one of the student's uploaded
     documents, across every course, with no date-range cap and no truncation.
@@ -860,15 +877,7 @@ def build_deadlines_context(sid):
     the structured deadline data is already small and already complete."""
     if not DB_URL:
         return "\n\nNo deadline data available (no database configured)."
-    try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("""SELECT course, title, due_date FROM deadlines
-                       WHERE student_id=%s ORDER BY due_date ASC""", (sid,))
-        rows = [dict(r) for r in cur.fetchall()]
-        cur.close(); db_release(conn)
-    except Exception as e:
-        print(f"build_deadlines_context error: {e}")
-        return "\n\nNo deadline data available (lookup failed)."
+    rows = get_all_deadlines(sid)
     if not rows:
         return ("\n\nNo deadlines have been extracted yet. This can mean the student's "
                 "documents don't contain a schedule of specific dates, or nothing has "
@@ -879,7 +888,7 @@ def build_deadlines_context(sid):
              "this list (not the raw text) when asked for a calendar, schedule, or 'what's "
              f"due' summary.\n{'='*60}"]
     for r in rows:
-        due = r["due_date"].strftime("%Y-%m-%d (%a)") if r["due_date"] else "date unknown"
+        due = r["due_date"] or "date unknown"
         lines.append(f"- [{r['course']}] {r['title']} — due {due}")
     lines.append(f"{'='*60}\n")
     return "\n".join(lines)
@@ -890,6 +899,19 @@ def deadlines():
     if not s: return jsonify({"error":"Not logged in"}), 401
     days = min(int(request.args.get("days", 14)), 90)
     return jsonify({"deadlines": get_upcoming_deadlines(s["id"], days)})
+
+@app.route("/calendar-page")
+def calendar_page():
+    s = current_student()
+    if not s: return redirect(url_for("login"))
+    log_event(s["id"], "page_view", {"page":"calendar"})
+    return render_template("calendar.html", s=s, admin_email=ADMIN_EMAIL, active="calendar")
+
+@app.route("/calendar-data")
+def calendar_data():
+    s = current_student()
+    if not s: return jsonify({"error":"Not logged in"}), 401
+    return jsonify({"deadlines": get_all_deadlines(s["id"])})
 
 @app.route("/reprocess-deadlines", methods=["POST"])
 def reprocess_deadlines():
