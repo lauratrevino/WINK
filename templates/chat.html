@@ -323,7 +323,7 @@
     <!-- Chat Main -->
     <div class="chat-main">
       <div class="chat-toolbar">
-        <button class="toolbar-btn" id="export-btn" onclick="exportConversation()" disabled>⬇ Export</button>
+        <button class="toolbar-btn" id="export-btn" onclick="exportConversation()" disabled>⬇ Download</button>
         <button class="toolbar-btn" id="share-btn" onclick="shareConversation()" disabled>🔗 Share</button>
       </div>
       <div class="messages-wrap" id="messages">
@@ -652,6 +652,9 @@
         div.appendChild(avatar);
         div.appendChild(bubble);
         wrap.insertBefore(div, typing);
+        // Scroll so the student starts reading from the top of the new
+        // answer, rather than getting dragged to the bottom as it streams in.
+        div.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
@@ -662,7 +665,6 @@
           if (done) break;
           fullText += decoder.decode(value, { stream: true });
           bubble.innerHTML = formatMessage(fullText);
-          wrap.scrollTop = wrap.scrollHeight;
         }
 
         messages.push({ role: 'assistant', content: fullText });
@@ -696,7 +698,7 @@
         <p><strong>🎤</strong> lets you speak your question instead of typing it.</p>
         <p><strong>Recent Chats</strong> in the sidebar lets you reopen your last few conversations;
         use <strong>+ New Chat</strong> to start fresh.</p>
-        <p>Once you're in a conversation, use <strong>Export</strong> or <strong>Share</strong> above
+        <p>Once you're in a conversation, use <strong>Download</strong> or <strong>Share</strong> above
         the messages to save or send it.</p>`
     };
     function openWinkModal(key) {
