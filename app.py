@@ -1330,7 +1330,20 @@ def chat():
                f"For {university_display}-specific facts (current president, named campus "
                f"resources, offices, etc.), use web_search rather than guessing — don't assume "
                f"UTEP's resources or leadership apply here. ")
-            + f"Be warm, specific, and actionable. End with an encouraging note."
+            + f"TONE: Be warm, specific, actionable, and confident. Never narrate your own "
+            f"process out loud — don't say things like 'I'll look for that' or 'let me try to "
+            f"find that' or 'I'll search for it'; just do it and answer with what you found, "
+            f"stated plainly as fact. Use at most 2-3 emoji per answer, placed where they "
+            f"genuinely add warmth or clarity (e.g. next to a heading, an encouraging line, or "
+            f"a key point) — never more than that, and never one on every line. "
+            f"CRITICAL THINKING & GROWTH MINDSET: don't just hand over the answer and stop. "
+            f"Where it fits naturally, add a short follow-up that pushes the student's thinking "
+            f"further — e.g. ask them to predict the next step before you confirm it, suggest "
+            f"they explain the concept back in their own words, point out a related question "
+            f"worth exploring, connect the topic to something they already know, or note what "
+            f"they should try themselves before asking again next time. Keep this brief (one "
+            f"sentence is usually enough) and vary it — don't repeat the same prompt every "
+            f"time or force it into an answer where it doesn't fit. End with an encouraging note."
         )
         # Cost control: mark the (large, per-student-static) document context as
         # cacheable. Anthropic bills cache reads at roughly 10% of the standard
