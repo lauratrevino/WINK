@@ -321,23 +321,30 @@ def build_doc_context(docs):
     ctx += f"{'='*60}\n"
     return ctx
 
-def get_global_docs():
+def get_global_docs(university=None):
     """Institution-wide reference documents visible to every student's chat
-    context but never shown in any student's own document list or counted
-    against their upload cap — stored as documents with student_id NULL."""
+    context (for their own university only) but never shown in any student's
+    own document list or counted against their upload cap — stored as
+    documents with student_id NULL, tagged with the target university."""
     if not DB_URL: return []
     try:
         conn = get_db(); cur = conn.cursor()
-        cur.execute("SELECT * FROM documents WHERE student_id IS NULL ORDER BY uploaded_at DESC")
+        if university:
+            cur.execute("""SELECT * FROM documents WHERE student_id IS NULL
+                           AND lower(university)=lower(%s) ORDER BY uploaded_at DESC""",
+                        (university,))
+        else:
+            cur.execute("SELECT * FROM documents WHERE student_id IS NULL ORDER BY uploaded_at DESC")
         docs = [dict(r) for r in cur.fetchall()]; cur.close(); db_release(conn)
         return docs
     except Exception as e:
         print(f"get_global_docs error: {e}"); return []
 
-def build_global_doc_context(docs):
+def build_global_doc_context(docs, university=None):
     if not docs:
         return "\n\nNo general reference documents have been added yet."
-    ctx = f"\n\n{'='*60}\nGENERAL REFERENCE DOCUMENTS (apply to every student, not just this one)\n"
+    label = f" for {university}" if university else ""
+    ctx = f"\n\n{'='*60}\nGENERAL REFERENCE DOCUMENTS (apply to every student{label}, not just this one)\n"
     ctx += ("These were uploaded by an administrator and are not visible to the student as their "
             "own files — don't refer to them as 'your uploaded documents' or mention that they "
             "were uploaded separately; just use them as background knowledge when relevant.\n")
@@ -400,7 +407,9 @@ def init_db():
             id SERIAL PRIMARY KEY, email TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL, first_name TEXT NOT NULL,
             last_name TEXT NOT NULL, classification TEXT NOT NULL,
-            major TEXT NOT NULL, created_at TIMESTAMP DEFAULT NOW())""")
+            major TEXT NOT NULL, university TEXT DEFAULT '',
+            created_at TIMESTAMP DEFAULT NOW())""")
+        cur.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS university TEXT DEFAULT ''")
         cur.execute("""CREATE TABLE IF NOT EXISTS documents (
             id SERIAL PRIMARY KEY,
             student_id INTEGER REFERENCES students(id) ON DELETE CASCADE,
@@ -410,6 +419,11 @@ def init_db():
             uploaded_at TIMESTAMP DEFAULT NOW())""")
         cur.execute("ALTER TABLE documents ADD COLUMN IF NOT EXISTS content TEXT DEFAULT ''")
         cur.execute("ALTER TABLE documents ADD COLUMN IF NOT EXISTS crn TEXT DEFAULT ''")
+        # Only meaningful on global/admin-uploaded rows (student_id IS NULL) —
+        # scopes each general-reference document to one school's knowledge
+        # base, now that WINK serves more than just UTEP.
+        cur.execute("ALTER TABLE documents ADD COLUMN IF NOT EXISTS university TEXT DEFAULT ''")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_documents_global_university ON documents(university) WHERE student_id IS NULL")
         # Use TEXT for payload — simple and reliable across all Postgres versions
         cur.execute("""CREATE TABLE IF NOT EXISTS events (
             id SERIAL PRIMARY KEY, student_id INTEGER,
@@ -540,16 +554,23 @@ def register():
                                classifications=CLASSIFICATIONS, majors=MAJORS)
     try:
         if request.method == "POST":
-            email = request.form.get("email","").strip().lower()
-            pw    = request.form.get("password","").strip()
-            fn    = request.form.get("first_name","").strip()
-            ln    = request.form.get("last_name","").strip()
-            cl    = request.form.get("classification","").strip()
-            major = request.form.get("major","").strip()
-            if not all([email,pw,fn,ln,cl,major]):
-                return err("All fields are required.")
-            if not (email.endswith("@miners.utep.edu") or email.endswith("@utep.edu")):
-                return err("Please use your UTEP email (@miners.utep.edu or @utep.edu).")
+            email      = request.form.get("email","").strip().lower()
+            pw         = request.form.get("password","").strip()
+            fn         = request.form.get("first_name","").strip()
+            ln         = request.form.get("last_name","").strip()
+            cl         = request.form.get("classification","").strip()
+            major      = request.form.get("major","").strip()
+            university = request.form.get("university","").strip()
+            if not all([email,pw,fn,ln,cl,major,university]):
+                return err("All fields are required, including your university.")
+            # WINK now serves students at any school, not just UTEP — the old
+            # hardcoded @utep.edu/@miners.utep.edu check would lock every other
+            # university's students out. A plain .edu check is a reasonable,
+            # low-friction sanity check in its place; swap in a stricter
+            # per-university domain check here later if you want to verify the
+            # email actually matches the chosen school.
+            if not email.endswith(".edu"):
+                return err("Please use your school (.edu) email address.")
             if len(pw) < 6:
                 return err("Password must be at least 6 characters.")
             if not DB_URL:
@@ -559,13 +580,13 @@ def register():
             if cur.fetchone():
                 cur.close(); db_release(conn)
                 return err("Account already exists — please log in.")
-            cur.execute("""INSERT INTO students(email,password_hash,first_name,last_name,classification,major)
-                           VALUES(%s,%s,%s,%s,%s,%s) RETURNING id""",
-                        (email, generate_password_hash(pw), fn, ln, cl, major))
+            cur.execute("""INSERT INTO students(email,password_hash,first_name,last_name,classification,major,university)
+                           VALUES(%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                        (email, generate_password_hash(pw), fn, ln, cl, major, university))
             new_id = cur.fetchone()["id"]
             conn.commit(); cur.close(); db_release(conn)
             session["sid"] = new_id
-            log_event(new_id, "account_created", {"email":email,"classification":cl,"major":major})
+            log_event(new_id, "account_created", {"email":email,"classification":cl,"major":major,"university":university})
             return redirect(url_for("documents"))
         return render_template("register.html", error=None,
                                classifications=CLASSIFICATIONS, majors=MAJORS)
@@ -736,20 +757,22 @@ def update_profile():
         last_name      = (data.get("last_name") or "").strip()
         classification = (data.get("classification") or "").strip()
         major          = (data.get("major") or "").strip()
-        if not all([first_name, last_name, classification, major]):
+        university     = (data.get("university") or "").strip()
+        if not all([first_name, last_name, classification, major, university]):
             return jsonify({"error": "All fields are required."}), 400
         if not DB_URL:
             return jsonify({"error": "No database configured."}), 500
         conn = get_db(); cur = conn.cursor()
         cur.execute("""UPDATE students SET first_name=%s, last_name=%s,
-                       classification=%s, major=%s WHERE id=%s""",
-                    (first_name, last_name, classification, major, s["id"]))
+                       classification=%s, major=%s, university=%s WHERE id=%s""",
+                    (first_name, last_name, classification, major, university, s["id"]))
         conn.commit(); cur.close(); db_release(conn)
-        log_event(s["id"], "profile_updated", {"classification": classification, "major": major})
+        log_event(s["id"], "profile_updated", {"classification": classification, "major": major, "university": university})
         return jsonify({
             "success": True,
             "profile": {"first_name": first_name, "last_name": last_name,
-                        "classification": classification, "major": major}
+                        "classification": classification, "major": major,
+                        "university": university}
         })
     except Exception as e:
         print(f"update_profile error: {e}"); traceback.print_exc()
@@ -949,7 +972,8 @@ def delete_file():
 def list_global_documents():
     s = current_student()
     if not s or s["email"] != ADMIN_EMAIL: return jsonify({"error":"Not authorized"}), 403
-    return jsonify({"docs": get_global_docs()})
+    university = request.args.get("university","").strip()
+    return jsonify({"docs": get_global_docs(university or None)})
 
 @app.route("/upload-global", methods=["POST"])
 def upload_global_document():
@@ -959,8 +983,11 @@ def upload_global_document():
             return jsonify({"error":"Not authorized"}), 403
         if "file" not in request.files:
             return jsonify({"error":"No file"}), 400
-        file  = request.files["file"]
-        label = request.form.get("label","").strip() or "General"
+        file       = request.files["file"]
+        label      = request.form.get("label","").strip() or "General"
+        university = request.form.get("university","").strip()
+        if not university:
+            return jsonify({"error":"Please choose which university this document applies to."}), 400
         if not file or not file.filename:
             return jsonify({"error":"No file selected"}), 400
         ext = file.filename.rsplit(".",1)[-1].lower() if "." in file.filename else ""
@@ -975,16 +1002,16 @@ def upload_global_document():
         file.save(path)
         size    = os.path.getsize(path)
         content = extract_text(path, orig)
-        print(f"GLOBAL UPLOAD: {orig} → {len(content)} chars extracted")
+        print(f"GLOBAL UPLOAD: {orig} ({university}) → {len(content)} chars extracted")
         if DB_URL:
             conn = get_db(); cur = conn.cursor()
             cur.execute("""INSERT INTO documents
-                           (student_id,filename,orig_name,course,crn,size_bytes,content)
-                           VALUES(NULL,%s,%s,%s,'',%s,%s)""",
-                        (saved, orig, label, size, content))
+                           (student_id,filename,orig_name,course,crn,size_bytes,content,university)
+                           VALUES(NULL,%s,%s,%s,'',%s,%s,%s)""",
+                        (saved, orig, label, size, content, university))
             conn.commit(); cur.close(); db_release(conn)
-        log_event(s["id"], "global_file_uploaded", {"name": orig, "label": label, "chars": len(content)})
-        return jsonify({"success": True, "docs": get_global_docs(), "chars_extracted": len(content)})
+        log_event(s["id"], "global_file_uploaded", {"name": orig, "label": label, "university": university, "chars": len(content)})
+        return jsonify({"success": True, "docs": get_global_docs(university), "chars_extracted": len(content)})
     except Exception as e:
         print(f"global upload error: {e}"); traceback.print_exc()
         return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
@@ -994,10 +1021,12 @@ def delete_global_document():
     try:
         s = current_student()
         if not s or s["email"] != ADMIN_EMAIL: return jsonify({"error":"Not authorized"}), 403
-        doc_id = (request.get_json() or {}).get("doc_id")
+        data       = request.get_json() or {}
+        doc_id     = data.get("doc_id")
+        university = (data.get("university") or "").strip()
         if DB_URL and doc_id:
             conn = get_db(); cur = conn.cursor()
-            cur.execute("SELECT filename FROM documents WHERE id=%s AND student_id IS NULL", (doc_id,))
+            cur.execute("SELECT filename, university FROM documents WHERE id=%s AND student_id IS NULL", (doc_id,))
             doc = cur.fetchone()
             if doc:
                 fp = os.path.join(UPLOAD_FOLDER, "global", doc["filename"])
@@ -1006,7 +1035,7 @@ def delete_global_document():
                 conn.commit()
                 log_event(s["id"], "global_file_deleted", {"doc_id": doc_id})
             cur.close(); db_release(conn)
-        return jsonify({"success": True, "docs": get_global_docs()})
+        return jsonify({"success": True, "docs": get_global_docs(university or None)})
     except Exception as e:
         print(f"delete global error: {e}"); traceback.print_exc()
         return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
@@ -1216,7 +1245,8 @@ def chat():
         docs         = get_docs(s["id"])
         doc_ctx      = build_doc_context(docs)
         deadline_ctx = build_deadlines_context(s["id"])
-        global_ctx   = build_global_doc_context(get_global_docs())
+        student_university = (s.get("university") or "").strip()
+        global_ctx   = build_global_doc_context(get_global_docs(student_university or None), student_university)
 
         # Temporary, this-conversation-only file (see /upload's `temporary`
         # flag). The client resends the extracted content with every message
@@ -1237,12 +1267,14 @@ def chat():
         import datetime
         now   = datetime.datetime.now()
         today = now.strftime("%A, %B %d, %Y")
+        university_display = student_university or "their university"
+        is_utep = "utep" in student_university.lower() or "el paso" in student_university.lower()
         instructions = (
             f"You are WINK, a warm encouraging AI-powered Academic Support System for college students. "
             f"Today's date is {today}. Always use this when answering questions about "
             f"deadlines, schedules, or anything time-related. "
             f"You are helping {s['first_name']} {s['last_name']}, "
-            f"a {s['classification']} majoring in {s['major']}. "
+            f"a {s['classification']} majoring in {s['major']} at {university_display}. "
             f"ANSWERING STRATEGY — follow this order: "
             f"1. For calendars, schedules, or 'what's due' questions across any or all "
             f"courses, use the EXTRACTED DEADLINES list below — it is complete and not "
@@ -1262,7 +1294,10 @@ def chat():
             f"student — use it the same way, but don't call it 'your document' since the "
             f"student didn't upload it themselves. "
             f"4. If the answer is NOT in either of those, use the web_search tool "
-            f"to find current, accurate information from the internet. "
+            f"to find current, accurate information from the internet — always search "
+            f"specifically for {university_display} when the question is campus-specific "
+            f"(e.g. \"{university_display} writing center hours\", not just \"writing center "
+            f"hours\"). "
             f"This includes questions about professors, university staff, campus resources, "
             f"current events, university policies, people at the university, and anything "
             f"not covered in their uploaded files. "
@@ -1273,9 +1308,9 @@ def chat():
             f"whenever they'd genuinely help: "
             f"- For a campus building, address, or any physical location, include "
             f"[[map: specific place name or address]] on its own — e.g. [[map: Union "
-            f"Building, UTEP, El Paso TX]]. Always add \"UTEP\" or \"El Paso TX\" to the "
-            f"query so the map centers on the right place. Do not say you can't show a map — "
-            f"you can, using this syntax. "
+            f"Building, {university_display}]]. Always add the university name (and its "
+            f"city/state if you know it) to the query so the map centers on the right place. "
+            f"Do not say you can't show a map — you can, using this syntax. "
             f"- For a photo of a real, notable person, place, or subject that likely has a "
             f"Wikipedia page (e.g. a university president, a historical figure, a well-known "
             f"landmark), include [[image: subject name]] on its own — e.g. [[image: Heather "
@@ -1289,9 +1324,13 @@ def chat():
             f"with a real URL you found via web_search, never a URL you're guessing at or "
             f"making up. If you don't have a real image URL from search results, don't "
             f"fabricate one — just answer with text instead. "
-            f"UTEP president is Heather Wilson. UTEP resources: University Writing Center, "
-            f"CASS Tutoring, Advising & Student Support. "
-            f"Be warm, specific, and actionable. End with an encouraging note."
+            + ("UTEP president is Heather Wilson. UTEP resources: University Writing Center, "
+               "CASS Tutoring, Advising & Student Support. "
+               if is_utep else
+               f"For {university_display}-specific facts (current president, named campus "
+               f"resources, offices, etc.), use web_search rather than guessing — don't assume "
+               f"UTEP's resources or leadership apply here. ")
+            + f"Be warm, specific, and actionable. End with an encouraging note."
         )
         # Cost control: mark the (large, per-student-static) document context as
         # cacheable. Anthropic bills cache reads at roughly 10% of the standard
