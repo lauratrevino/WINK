@@ -105,6 +105,12 @@ MAX_GLOBAL_DOC_CONTEXT_CHARS = 20000
 # ~24K used for live chat, which could cut off a syllabus's schedule section
 # entirely on longer documents — the actual bug behind incomplete deadlines).
 DEADLINE_EXTRACTION_MAX_CHARS = 60000
+# Cap for a "temporary, this-conversation-only" upload (see /upload's
+# `temporary` flag). These are never written to the documents table or
+# counted against MAX_DOCS_PER_STUDENT — the extracted text is handed back
+# to the client, which resends it with each /chat call in that conversation
+# only. Kept modest since it's on top of the student's regular doc context.
+MAX_TEMP_DOC_CHARS = 20000
 # How many prior chat messages (user+assistant turns) to actually send with
 # each request. Conversation history otherwise grows unbounded and gets
 # re-billed as input tokens on every new question.
@@ -799,18 +805,44 @@ def upload_file():
         if not s: return jsonify({"error":"Not logged in"}), 401
         if "file" not in request.files:
             return jsonify({"error":"No file"}), 400
-        file   = request.files["file"]
+        file      = request.files["file"]
+        temporary = request.form.get("temporary","").strip().lower() == "true"
+        if not file or not file.filename:
+            return jsonify({"error":"No file selected"}), 400
+        ext = file.filename.rsplit(".",1)[-1].lower() if "." in file.filename else ""
+        if ext not in ALLOWED_EXT:
+            return jsonify({"error":f"File type .{ext} not allowed"}), 400
+
+        # Temporary, this-conversation-only upload: extract the text and hand
+        # it straight back to the client — never written to the documents
+        # table, so it doesn't count against MAX_DOCS_PER_STUDENT and never
+        # shows up in My Documents. The client resends this content with
+        # each /chat call for the current conversation only; nothing here
+        # persists once that conversation ends.
+        if temporary:
+            tmp_name = f"{uuid.uuid4().hex[:8]}_{secure_filename(file.filename)}"
+            tmp_path = os.path.join(UPLOAD_FOLDER, tmp_name)
+            try:
+                file.save(tmp_path)
+                content = extract_text(tmp_path, file.filename)
+            finally:
+                if os.path.exists(tmp_path):
+                    try: os.remove(tmp_path)
+                    except Exception: pass
+            content = content[:MAX_TEMP_DOC_CHARS]
+            log_event(s["id"], "temp_file_used", {"name": file.filename, "chars": len(content)})
+            return jsonify({
+                "success": True, "temporary": True,
+                "name": file.filename, "content": content,
+                "chars_extracted": len(content)
+            })
+
         course = request.form.get("course","").strip()
         crn    = request.form.get("crn","").strip()
         if not course:
             return jsonify({"error":"Please enter a course name."}), 400
         if not crn:
             return jsonify({"error":"Please enter a CRN#."}), 400
-        if not file or not file.filename:
-            return jsonify({"error":"No file selected"}), 400
-        ext = file.filename.rsplit(".",1)[-1].lower() if "." in file.filename else ""
-        if ext not in ALLOWED_EXT:
-            return jsonify({"error":f"File type .{ext} not allowed"}), 400
 
         replaced = False
         if DB_URL:
@@ -1185,6 +1217,23 @@ def chat():
         doc_ctx      = build_doc_context(docs)
         deadline_ctx = build_deadlines_context(s["id"])
         global_ctx   = build_global_doc_context(get_global_docs())
+
+        # Temporary, this-conversation-only file (see /upload's `temporary`
+        # flag). The client resends the extracted content with every message
+        # in this conversation — nothing here is read from or written to the
+        # documents table, so it's never saved and never counts toward the
+        # student's upload cap.
+        temp_doc = data.get("temp_doc")
+        if isinstance(temp_doc, dict) and temp_doc.get("content"):
+            t_name = str(temp_doc.get("name") or "attached file")[:200]
+            t_content = str(temp_doc["content"])[:MAX_TEMP_DOC_CHARS]
+            temp_doc_ctx = (
+                f"\n\nThe student has temporarily attached a file for THIS CONVERSATION "
+                f"ONLY (not saved to their account, not one of their uploaded documents): "
+                f"'{t_name}'.\n\n{t_content}"
+            )
+        else:
+            temp_doc_ctx = ""
         import datetime
         now   = datetime.datetime.now()
         today = now.strftime("%A, %B %d, %Y")
@@ -1203,7 +1252,13 @@ def chat():
             f"answer — every uploaded document appears there, so never tell the student to "
             f"re-upload something that's already listed. If found, quote directly from their "
             f"documents with specific details. "
-            f"3. Also check the GENERAL REFERENCE DOCUMENTS block below, which applies to every "
+            + (f"2b. Also check the file the student temporarily attached to THIS "
+               f"conversation below — answer questions about it the same way you would "
+               f"an uploaded document. If they ask about saving it for later, let them "
+               f"know it's only available in this conversation, and they can upload it "
+               f"permanently instead from the My Documents page if they want to keep it. "
+               if temp_doc_ctx else "")
+            + f"3. Also check the GENERAL REFERENCE DOCUMENTS block below, which applies to every "
             f"student — use it the same way, but don't call it 'your document' since the "
             f"student didn't upload it themselves. "
             f"4. If the answer is NOT in either of those, use the web_search tool "
@@ -1250,6 +1305,8 @@ def chat():
             {"type": "text", "text": global_ctx, "cache_control": {"type": "ephemeral"}},
             {"type": "text", "text": doc_ctx, "cache_control": {"type": "ephemeral"}},
         ]
+        if temp_doc_ctx:
+            system.append({"type": "text", "text": temp_doc_ctx, "cache_control": {"type": "ephemeral"}})
         # Speed: reuse the single client created at module load (see top of
         # file) instead of opening a brand-new connection for every question.
         client = anthropic_client
