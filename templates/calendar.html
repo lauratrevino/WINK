@@ -298,8 +298,15 @@
     }
 
     async function init() {
+      const params = new URLSearchParams(window.location.search);
+      const linkedDate = params.get('date'); // e.g. from the dashboard's What's Due list
       const now = new Date();
-      viewYear = now.getFullYear(); viewMonth = now.getMonth();
+      if (linkedDate && /^\d{4}-\d{2}-\d{2}$/.test(linkedDate)) {
+        const [y, m] = linkedDate.split('-').map(Number);
+        viewYear = y; viewMonth = m - 1;
+      } else {
+        viewYear = now.getFullYear(); viewMonth = now.getMonth();
+      }
 
       try {
         const res = await fetch('/calendar-data');
@@ -323,6 +330,10 @@
 
       renderLegend();
       renderCalendar();
+
+      if (linkedDate && /^\d{4}-\d{2}-\d{2}$/.test(linkedDate)) {
+        openDayPanel(linkedDate);
+      }
     }
 
     init();

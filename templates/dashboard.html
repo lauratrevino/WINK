@@ -224,6 +224,14 @@
 
   <div class="page-shell">
 
+    <!-- Welcome Banner -->
+    <div class="welcome-banner">
+      <div class="welcome-text">
+        <h1>Good to see you, <span>{{ s.first_name }}</span>!</h1>
+        <p>{{ s.classification }} · {{ s.major }} · Ready to get things done?</p>
+      </div>
+    </div>
+
     <!-- Stats Row -->
     <div class="stats-row">
       <div class="stat-card{{ ' stat-warn' if docs|length >= max_docs else '' }}">
@@ -244,18 +252,6 @@
       </div>
     </div>
 
-    <!-- Welcome Banner -->
-    <div class="welcome-banner">
-      <div class="welcome-text">
-        <h1>Good to see you, <span>{{ s.first_name }}</span>!</h1>
-        <p>{{ s.classification }} · {{ s.major }} · Ready to get things done?</p>
-      </div>
-      <div class="welcome-actions">
-        <a href="/chat-page" class="btn-cta btn-orange">🤖 Ask WINK</a>
-        <a href="/documents" class="btn-cta btn-outline-white">📁 My Documents</a>
-      </div>
-    </div>
-
     <!-- Two-column grid: What's Due This Week (left) + Quick Actions (right) -->
     <div class="dash-grid">
 
@@ -263,19 +259,22 @@
       <div class="card">
         <div class="card-header">
           <div class="card-title">📅 What's Due This Week</div>
-          <button onclick="rebuildDeadlines(this)" style="font-size:12px;font-weight:600;color:#FF8200;background:none;border:none;cursor:pointer;">🔄 Rebuild from documents</button>
+          <div style="display:flex;align-items:center;gap:14px;">
+            <button onclick="rebuildDeadlines(this)" style="font-size:12px;font-weight:600;color:#FF8200;background:none;border:none;cursor:pointer;">🔄 Rebuild from documents</button>
+            <a href="/calendar-page" style="font-size:13px;color:#FF8200;text-decoration:none;font-weight:600;white-space:nowrap;">View Calendar →</a>
+          </div>
         </div>
         <div class="card-body">
           {% if upcoming_deadlines %}
             <div class="deadline-list">
               {% for d in upcoming_deadlines %}
-              <div class="deadline-item">
+              <a href="/calendar-page?date={{ d.due_date }}" class="deadline-item" style="text-decoration:none;color:inherit;">
                 <div class="deadline-date">{{ d.due_date[5:10] }}</div>
                 <div>
                   <div class="deadline-name">{{ d.title }}</div>
                   <div class="deadline-meta">{{ d.course }}</div>
                 </div>
-              </div>
+              </a>
               {% endfor %}
             </div>
           {% else %}
