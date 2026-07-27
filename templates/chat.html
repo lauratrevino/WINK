@@ -371,6 +371,7 @@
   <script>
     let messages = [];
     let currentConversationId = null;
+    let currentTempDoc = null; // { name, content } — cleared on New Chat / switching conversations
     let photoMarkerId = 0;
 
     const WELCOME_HTML = `<div class="welcome-msg" id="welcome">
@@ -513,6 +514,7 @@
     function startNewChat() {
       messages = [];
       currentConversationId = null;
+      currentTempDoc = null;
       document.getElementById('messages').innerHTML = WELCOME_HTML + TYPING_HTML;
       setToolbarEnabled(false);
       highlightActiveConversation(null);
@@ -561,6 +563,7 @@
         const data = await res.json();
         messages = (data.messages || []).map(m => ({ role: m.role, content: m.content }));
         currentConversationId = id;
+        currentTempDoc = null;
         document.getElementById('messages').innerHTML = TYPING_HTML;
         messages.forEach(m => {
           const bubble = addMessage(m.role, m.content);
@@ -621,7 +624,7 @@
         const res = await fetch('/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ messages, conversation_id: currentConversationId })
+          body: JSON.stringify({ messages, conversation_id: currentConversationId, temp_doc: currentTempDoc })
         });
 
         if (!res.ok || !res.body) {
@@ -710,10 +713,19 @@
       event.target.value = '';
       if (!file) return;
 
-      const course = prompt("What course is this document for? (e.g., MIS 4310)");
-      if (!course) return;
-      const crn = prompt("What's the CRN# for that course?");
-      if (!crn) return;
+      const keepPermanently = confirm(
+        "Save this to your course documents permanently?\n\n" +
+        "OK = Save permanently (counts toward your 20 uploads, reusable later)\n" +
+        "Cancel = Just for this conversation (not saved, doesn't count toward your 20 uploads)"
+      );
+
+      let course = null, crn = null;
+      if (keepPermanently) {
+        course = prompt("What course is this document for? (e.g., MIS 4310)");
+        if (!course) return;
+        crn = prompt("What's the CRN# for that course?");
+        if (!crn) return;
+      }
 
       const uploadBtn = document.getElementById('upload-btn');
       uploadBtn.textContent = '…';
@@ -722,12 +734,21 @@
       try {
         const formData = new FormData();
         formData.append('file', file);
-        formData.append('course', course);
-        formData.append('crn', crn);
+        formData.append('temporary', keepPermanently ? 'false' : 'true');
+        if (keepPermanently) {
+          formData.append('course', course);
+          formData.append('crn', crn);
+        }
+        if (currentConversationId) formData.append('conversation_id', currentConversationId);
         const res = await fetch('/upload', { method: 'POST', body: formData });
         const data = await res.json();
         if (data.success) {
-          addMessage('wink', `📎 Got it — **${file.name}** is uploaded for **${course} (CRN ${crn})** and ready to reference.`);
+          if (keepPermanently) {
+            addMessage('wink', `📎 Got it — **${file.name}** is uploaded for **${course} (CRN ${crn})** and ready to reference.`);
+          } else {
+            currentTempDoc = { name: data.name || file.name, content: data.content || '' };
+            addMessage('wink', `📎 Got it — **${file.name}** is loaded for this conversation only, so ask away. It won't be saved after this chat — if you'd like to keep it for later, you can upload it permanently anytime from **My Documents**.`);
+          }
         } else {
           addMessage('wink', '❌ Upload failed: ' + (data.error || 'please try again.'));
         }
