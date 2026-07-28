@@ -538,6 +538,148 @@ def safe_payload(raw):
     except:
         return {}
 
+def compute_engagement_insights(cur):
+    """Everything beyond the basic counts already in /analytics-data-full:
+    per-university breakdown, session duration, retention, time-to-first-question,
+    peak usage heatmap, deadline-driven spikes, upload mix, stale docs, and a
+    rough 'general reference material was available' rate. All computed from
+    the existing students/events/documents/deadlines tables — no schema or
+    frontend instrumentation changes required."""
+    out = {}
+
+    # ── Per-university breakdown ──
+    cur.execute("""
+        SELECT COALESCE(NULLIF(s.university,''), 'Not set') as university,
+               COUNT(DISTINCT s.id) as students,
+               COUNT(*) FILTER (WHERE e.event_type IN ('login','account_created')) as sessions,
+               COUNT(*) FILTER (WHERE e.event_type='question_asked') as questions,
+               COUNT(*) FILTER (WHERE e.event_type='file_uploaded') as uploads
+        FROM students s LEFT JOIN events e ON e.student_id = s.id
+        GROUP BY 1 ORDER BY students DESC""")
+    out["by_university"] = [dict(r) for r in cur.fetchall()]
+
+    # ── Session duration (derived from event timestamps — a new session
+    #    starts at each login/account_created; its duration is the gap to the
+    #    last event before the next session starts) ──
+    cur.execute("""
+        SELECT e.student_id, e.event_type, e.created_at, COALESCE(NULLIF(s.university,''),'Not set') as university
+        FROM events e JOIN students s ON s.id = e.student_id
+        ORDER BY e.student_id, e.created_at ASC""")
+    rows = cur.fetchall()
+    sessions_by_student = {}
+    cur_session = None
+    for r in rows:
+        sid = r["student_id"]
+        if sid not in sessions_by_student:
+            sessions_by_student[sid] = []
+        if r["event_type"] in ("login", "account_created"):
+            cur_session = {"university": r["university"], "start": r["created_at"], "end": r["created_at"]}
+            sessions_by_student[sid].append(cur_session)
+        elif sessions_by_student[sid]:
+            sessions_by_student[sid][-1]["end"] = r["created_at"]
+
+    all_durations = []
+    durations_by_university = {}
+    for sid, sess_list in sessions_by_student.items():
+        for sess in sess_list:
+            mins = (sess["end"] - sess["start"]).total_seconds() / 60.0
+            mins = max(0.0, min(mins, 240.0))  # ignore/cap runaway gaps
+            all_durations.append(mins)
+            durations_by_university.setdefault(sess["university"], []).append(mins)
+
+    out["avg_session_minutes"] = round(sum(all_durations) / len(all_durations), 1) if all_durations else 0
+    out["avg_session_minutes_by_university"] = {
+        u: round(sum(v) / len(v), 1) for u, v in durations_by_university.items()
+    }
+
+    # ── Retention: % of students active across 2+ distinct weeks ──
+    cur.execute("""
+        SELECT student_id, COUNT(DISTINCT date_trunc('week', created_at)) as weeks
+        FROM events GROUP BY student_id""")
+    week_rows = cur.fetchall()
+    total_active = len(week_rows)
+    returning = sum(1 for r in week_rows if r["weeks"] >= 2)
+    out["retention_pct"] = round(returning / total_active * 100, 1) if total_active else 0
+
+    # ── Time-to-first-question ──
+    cur.execute("""
+        SELECT s.created_at as joined, MIN(e.created_at) as first_q
+        FROM students s JOIN events e ON e.student_id = s.id AND e.event_type = 'question_asked'
+        GROUP BY s.id, s.created_at""")
+    gaps = [(r["first_q"] - r["joined"]).total_seconds() / 60.0 for r in cur.fetchall()]
+    gaps = [g for g in gaps if g >= 0]
+    out["avg_minutes_to_first_question"] = round(sum(gaps) / len(gaps), 1) if gaps else None
+
+    # ── Peak usage heatmap (questions asked, by day-of-week x hour) ──
+    cur.execute("""
+        SELECT EXTRACT(DOW FROM created_at)::int as dow, EXTRACT(HOUR FROM created_at)::int as hour, COUNT(*) as n
+        FROM events WHERE event_type='question_asked' GROUP BY 1,2""")
+    grid = [[0]*24 for _ in range(7)]
+    for r in cur.fetchall():
+        grid[r["dow"]][r["hour"]] = r["n"]
+    out["usage_heatmap"] = grid
+
+    # ── Deadline-driven spikes: questions asked on/around days with deadlines due ──
+    cur.execute("SELECT due_date, COUNT(*) as n FROM deadlines WHERE due_date IS NOT NULL GROUP BY due_date")
+    due_by_date = {r["due_date"]: r["n"] for r in cur.fetchall()}
+    cur.execute("SELECT DATE(created_at) as d, COUNT(*) as n FROM events WHERE event_type='question_asked' GROUP BY DATE(created_at)")
+    q_by_date = {r["d"]: r["n"] for r in cur.fetchall()}
+    spikes = []
+    for due_date, n_due in due_by_date.items():
+        same_day = q_by_date.get(due_date, 0)
+        prior_3 = sum(q_by_date.get(due_date - timedelta(days=k), 0) for k in range(1, 4))
+        spikes.append({
+            "due_date": due_date.isoformat(), "deadlines_due": n_due,
+            "questions_same_day": same_day, "questions_prior_3_days": prior_3
+        })
+    spikes.sort(key=lambda x: x["due_date"])
+    out["deadline_spikes"] = spikes[-30:]  # most recent/upcoming 30 dates with deadlines
+
+    # ── Upload mix: permanent vs temporary vs admin/global ──
+    cur.execute("""
+        SELECT event_type, COUNT(*) as n FROM events
+        WHERE event_type IN ('file_uploaded','temp_file_used','global_file_uploaded')
+        GROUP BY event_type""")
+    mix = {r["event_type"]: r["n"] for r in cur.fetchall()}
+    out["upload_mix"] = {
+        "permanent": mix.get("file_uploaded", 0),
+        "temporary": mix.get("temp_file_used", 0),
+        "global":    mix.get("global_file_uploaded", 0),
+    }
+
+    # ── Stale general-reference documents (untouched 90+ days) ──
+    cur.execute("""
+        SELECT id, orig_name, university, course as label,
+               to_char(uploaded_at,'Mon DD YYYY') as uploaded_at
+        FROM documents
+        WHERE student_id IS NULL AND uploaded_at < NOW() - INTERVAL '90 days'
+        ORDER BY uploaded_at ASC LIMIT 20""")
+    out["stale_global_docs"] = [dict(r) for r in cur.fetchall()]
+
+    # ── Rough "general reference material was available" rate: for each
+    #    question, did that student's university have at least one global
+    #    doc uploaded by that point? This is availability, not confirmed
+    #    usage — we don't log whether the model's answer actually drew on it. ──
+    cur.execute("""
+        SELECT
+          COUNT(*) FILTER (
+            WHERE EXISTS (
+              SELECT 1 FROM documents gd
+              WHERE gd.student_id IS NULL
+                AND lower(gd.university) = lower(st.university)
+                AND gd.uploaded_at <= e.created_at
+            )
+          ) as with_docs,
+          COUNT(*) as total
+        FROM events e JOIN students st ON st.id = e.student_id
+        WHERE e.event_type = 'question_asked'""")
+    row = cur.fetchone()
+    out["general_doc_availability_pct"] = (
+        round(row["with_docs"] / row["total"] * 100, 1) if row and row["total"] else 0
+    )
+
+    return out
+
 # ── Auth ──────────────────────────────────────────────────
 @app.route("/")
 def landing():
@@ -1638,6 +1780,7 @@ def analytics_data_full():
         # Per-student summary
         cur.execute("""
             SELECT s.id, s.first_name, s.last_name, s.email, s.classification, s.major,
+                   COALESCE(NULLIF(s.university,''),'Not set') as university,
                    to_char(s.created_at,'Mon DD YYYY') as joined,
                    (SELECT COUNT(*) FROM events e WHERE e.student_id=s.id AND e.event_type IN ('login','account_created')) as sessions,
                    (SELECT COUNT(*) FROM events e WHERE e.student_id=s.id AND e.event_type='question_asked') as questions,
@@ -1745,6 +1888,8 @@ def analytics_data_full():
         cur.execute("SELECT COUNT(*) as n FROM deadlines WHERE due_date >= CURRENT_DATE")
         total_deadlines = cur.fetchone()["n"]
 
+        insights = compute_engagement_insights(cur)
+
         cur.close(); db_release(conn)
         return jsonify({
             "total_students":  total_s,
@@ -1760,7 +1905,8 @@ def analytics_data_full():
             "by_class":        by_class,
             "by_course":       by_course,
             "daily":           daily,
-            "upcoming_deadlines": upcoming_deadlines
+            "upcoming_deadlines": upcoming_deadlines,
+            **insights
         })
     except Exception as e:
         print(f"analytics_data_full error: {e}"); traceback.print_exc()
