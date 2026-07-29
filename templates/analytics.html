@@ -201,8 +201,8 @@
         <div class="card-header"><h2>Enrolled Students</h2><span id="student-count" style="font-size:13px;color:#6b7a99;"></span></div>
         <div style="overflow-x:auto;">
           <table>
-            <thead><tr><th>Name</th><th>Email</th><th>Classification</th><th>Major</th><th>Joined</th><th>Sessions</th><th>Questions</th><th>Uploads</th></tr></thead>
-            <tbody id="students-tbody"><tr><td colspan="8" style="text-align:center;padding:32px;color:#6b7a99;">Loading…</td></tr></tbody>
+            <thead><tr><th>Name</th><th>Email</th><th>Classification</th><th>Major</th><th>Joined</th><th>Sessions</th><th>Questions</th><th>Uploads</th><th>Status</th></tr></thead>
+            <tbody id="students-tbody"><tr><td colspan="9" style="text-align:center;padding:32px;color:#6b7a99;">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -2749,7 +2749,7 @@
         document.getElementById('student-count').textContent = d.students.length + ' students';
         const tbody = document.getElementById('students-tbody');
         if (d.students.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:#6b7a99;">No students yet.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:32px;color:#6b7a99;">No students yet.</td></tr>';
         } else {
           tbody.innerHTML = d.students.map(s => `
             <tr>
@@ -2761,6 +2761,12 @@
               <td>${s.sessions}</td>
               <td><span class="badge badge-orange">${s.questions}</span></td>
               <td>${s.uploads}</td>
+              <td>
+                ${s.is_active
+                  ? `<button class="tab-btn" style="padding:4px 10px;font-size:11px;" onclick="toggleStudentActive(${s.id})">Suspend</button>`
+                  : `<span class="badge" style="background:#fef2f2;color:#b91c1c;">Suspended</span>
+                     <button class="tab-btn" style="padding:4px 10px;font-size:11px;margin-left:6px;" onclick="toggleStudentActive(${s.id})">Reactivate</button>`}
+              </td>
             </tr>`).join('');
         }
 
@@ -2971,6 +2977,22 @@
           <td style="font-weight:600;color:#002855;">${escapeHtml(d.orig_name)}</td>
           <td style="color:#6b7a99;">${d.uploaded_at}</td>
         </tr>`).join('');
+    }
+
+    async function toggleStudentActive(studentId) {
+      if (!confirm('Change this student\'s account status?')) return;
+      try {
+        const res = await fetch('/toggle-student-active', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ student_id: studentId })
+        });
+        const data = await res.json();
+        if (!data.success) { alert(data.error || 'Could not update status.'); return; }
+        loadData();
+      } catch (e) {
+        alert('Could not update status — please try again.');
+      }
     }
 
     function toggleConvo(i) {

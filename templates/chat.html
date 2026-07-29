@@ -604,6 +604,29 @@
       }
     }
 
+    function startRateLimitCountdown(seconds) {
+      const sendBtn = document.getElementById('send-btn');
+      const input = document.getElementById('chat-input');
+      let remaining = Math.max(1, Math.ceil(seconds));
+      sendBtn.disabled = true;
+      input.disabled = true;
+      const originalPlaceholder = input.placeholder;
+      const tick = () => {
+        input.placeholder = `Please wait ${remaining}s before asking again…`;
+        if (remaining <= 0) {
+          clearInterval(timer);
+          input.placeholder = originalPlaceholder;
+          input.disabled = false;
+          sendBtn.disabled = false;
+          input.focus();
+          return;
+        }
+        remaining -= 1;
+      };
+      tick();
+      const timer = setInterval(tick, 1000);
+    }
+
     async function sendMessage() {
       const input = document.getElementById('chat-input');
       const text = input.value.trim();
@@ -630,8 +653,13 @@
         if (!res.ok || !res.body) {
           const data = await res.json().catch(() => ({}));
           typing.style.display = 'none';
-          addMessage('wink', '\u274c Error: ' + (data.error || 'Something went wrong.'));
-          document.getElementById('send-btn').disabled = false;
+          if (res.status === 429) {
+            addMessage('wink', '⏳ ' + (data.error || "You're asking questions faster than I can keep up."));
+            startRateLimitCountdown(data.retry_after || 15);
+          } else {
+            addMessage('wink', '❌ Error: ' + (data.error || 'Something went wrong.'));
+            document.getElementById('send-btn').disabled = false;
+          }
           return;
         }
 
