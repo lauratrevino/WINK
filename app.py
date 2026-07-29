@@ -2,7 +2,7 @@ import os, json, uuid, secrets, traceback, time, threading
 from collections import defaultdict, deque
 from datetime import datetime, timedelta
 from flask import (Flask, render_template, request, jsonify,
-                   session, redirect, url_for)
+                   session, redirect, url_for, g)
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -27,7 +27,7 @@ app.config.update(
 
 BASE_DIR      = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
-ALLOWED_EXT   = {"pdf","docx","doc","txt","pptx","xlsx","png","jpg","jpeg"}
+ALLOWED_EXT   = {"pdf","docx","txt","pptx","xlsx","png","jpg","jpeg"}
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
 
@@ -132,15 +132,20 @@ _rate_lock = threading.Lock()
 _rate_buckets = defaultdict(deque)
 
 def rate_limited(key, max_calls, window_seconds):
+    """Returns 0 if the call is allowed, otherwise the number of seconds
+    until the oldest call in the window ages out (so the caller can tell a
+    client exactly how long to back off, rather than just "try later").
+    Every existing call site does `if rate_limited(...):`, which still works
+    unchanged — 0 is falsy, any positive number of seconds is truthy."""
     now = time.time()
     with _rate_lock:
         bucket = _rate_buckets[key]
         while bucket and now - bucket[0] > window_seconds:
             bucket.popleft()
         if len(bucket) >= max_calls:
-            return True
+            return round(window_seconds - (now - bucket[0]), 1)
         bucket.append(now)
-        return False
+        return 0
 
 # ── Speed controls ───────────────────────────────────────────
 # Build the Anthropic client once, at import time, and reuse it for every
@@ -194,7 +199,7 @@ def extract_text(filepath, orig_name):
                 print(f"PDF extracted {len(text)} chars from {len(reader.pages)} pages")
             except Exception as e:
                 print(f"PDF extract failed: {e}"); traceback.print_exc()
-        elif ext in ("doc", "docx"):
+        elif ext == "docx":
             try:
                 from docx import Document
                 doc = Document(filepath)
@@ -227,6 +232,31 @@ def extract_text(filepath, orig_name):
                 print(f"PPTX extracted {len(text)} chars")
             except Exception as e:
                 print(f"PPTX extract failed: {e}"); traceback.print_exc()
+        elif ext == "xlsx":
+            try:
+                from openpyxl import load_workbook
+                # read_only + data_only: stream rows instead of loading the
+                # whole workbook into memory, and read formula *results*
+                # rather than the formula text itself
+                wb = load_workbook(filepath, read_only=True, data_only=True)
+                sheets = []
+                for ws in wb.worksheets:
+                    lines = []
+                    for row in ws.iter_rows(values_only=True):
+                        cells = [str(c).strip() for c in row if c is not None and str(c).strip()]
+                        if cells:
+                            lines.append(" | ".join(cells))
+                        if len(lines) >= 2000:  # guard against extreme sheets
+                            lines.append("[...sheet truncated...]")
+                            break
+                    if lines:
+                        sheets.append(f"[Sheet: {ws.title}]\n" + "\n".join(lines))
+                n_sheets = len(wb.worksheets)
+                wb.close()
+                text = "\n\n".join(sheets)
+                print(f"XLSX extracted {len(text)} chars from {n_sheets} sheet(s)")
+            except Exception as e:
+                print(f"XLSX extract failed: {e}"); traceback.print_exc()
         elif ext in ("jpg","jpeg","png"):
             text = f"[Image file: {orig_name}]"
         else:
@@ -379,23 +409,53 @@ if DB_URL:
         _db_pool = None
 
 def get_db():
+    """Returns one connection per request, cached on Flask's `g`. The first
+    call in a request checks a connection out of the pool; every subsequent
+    call in that same request (current_student(), get_docs(), log_event(),
+    the route's own queries, ...) reuses it instead of checking out another.
+    This also means release no longer depends on every call site remembering
+    to call db_release() on every code path — see teardown handler below,
+    which guarantees it runs exactly once per request even after an
+    exception. (db_release() itself is now a no-op — kept so the ~30 existing
+    call sites don't need to change.)
+    """
+    if getattr(g, "_db_conn", None) is not None:
+        return g._db_conn
     if _db_pool:
-        return _db_pool.getconn()
-    return psycopg2.connect(DB_URL, cursor_factory=RealDictCursor)
+        conn = _db_pool.getconn()
+    else:
+        conn = psycopg2.connect(DB_URL, cursor_factory=RealDictCursor)
+    g._db_conn = conn
+    return conn
 
 def db_release(conn):
-    """Use in place of conn.close() — returns the connection to the pool
-    instead of tearing it down, so the next request can reuse it."""
+    """No-op: kept for source compatibility with existing call sites.
+    Actual release happens once per request in the teardown handler below —
+    releasing here too would return the same pooled connection twice (once
+    now, once at teardown), which could hand it to two requests at once."""
+    pass
+
+@app.teardown_appcontext
+def _release_request_db_connection(exception=None):
+    """Guarantees the per-request connection (see get_db() above) always
+    goes back to the pool exactly once, whether the request succeeded,
+    returned an error response, or raised an uncaught exception. This is
+    what actually fixes connection leaks — previously, an exception between
+    `get_db()` and the function's own `db_release(conn)` call meant that
+    connection was gone from the pool for good."""
+    conn = g.pop("_db_conn", None)
+    if conn is None:
+        return
     if _db_pool:
         try:
             _db_pool.putconn(conn)
-            return
         except Exception:
             pass
-    try:
-        conn.close()
-    except Exception:
-        pass
+    else:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 def init_db():
     if not DB_URL:
@@ -410,6 +470,9 @@ def init_db():
             major TEXT NOT NULL, university TEXT DEFAULT '',
             created_at TIMESTAMP DEFAULT NOW())""")
         cur.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS university TEXT DEFAULT ''")
+        cur.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE")
+        cur.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE")
+        cur.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS verification_token TEXT")
         cur.execute("""CREATE TABLE IF NOT EXISTS documents (
             id SERIAL PRIMARY KEY,
             student_id INTEGER REFERENCES students(id) ON DELETE CASCADE,
@@ -483,6 +546,9 @@ def current_student():
         conn = get_db(); cur = conn.cursor()
         cur.execute("SELECT * FROM students WHERE id=%s", (session["sid"],))
         s = cur.fetchone(); cur.close(); db_release(conn)
+        if s and not s.get("is_active", True):
+            session.clear()
+            return None
         return dict(s) if s else None
     except Exception as e:
         print(f"current_student error: {e}"); return None
@@ -713,8 +779,8 @@ def register():
             # email actually matches the chosen school.
             if not email.endswith(".edu"):
                 return err("Please use your school (.edu) email address.")
-            if len(pw) < 6:
-                return err("Password must be at least 6 characters.")
+            if len(pw) < 8:
+                return err("Password must be at least 8 characters.")
             if not DB_URL:
                 return err("Database not configured.")
             conn = get_db(); cur = conn.cursor()
@@ -726,9 +792,16 @@ def register():
                            VALUES(%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
                         (email, generate_password_hash(pw), fn, ln, cl, major, university))
             new_id = cur.fetchone()["id"]
+            verify_token = secrets.token_urlsafe(32)
+            cur.execute("UPDATE students SET verification_token=%s WHERE id=%s", (verify_token, new_id))
             conn.commit(); cur.close(); db_release(conn)
+            session.permanent = True  # actually use the 7-day PERMANENT_SESSION_LIFETIME set above
             session["sid"] = new_id
             log_event(new_id, "account_created", {"email":email,"classification":cl,"major":major,"university":university})
+            verify_link = url_for("verify_email", token=verify_token, _external=True)
+            send_email(email, "Verify your WINK email address",
+                       f"Hi {fn},\n\nWelcome to WINK! Please confirm your email address by visiting:\n{verify_link}\n\n"
+                       f"You can use WINK right away either way — this just confirms we can reach you.\n\n— WINK")
             return redirect(url_for("documents"))
         return render_template("register.html", error=None,
                                classifications=CLASSIFICATIONS, majors=MAJORS)
@@ -750,6 +823,9 @@ def login():
             cur.execute("SELECT * FROM students WHERE email=%s", (email,))
             s = cur.fetchone(); cur.close(); db_release(conn)
             if s and check_password_hash(s["password_hash"], pw):
+                if not s.get("is_active", True):
+                    return render_template("login.html", error="This account has been suspended. Contact your administrator.")
+                session.permanent = True  # actually use the 7-day PERMANENT_SESSION_LIFETIME set above
                 session["sid"] = s["id"]
                 log_event(s["id"], "login", {"email": email})
                 # Admin goes straight to analytics
@@ -765,6 +841,53 @@ def login():
 @app.route("/logout")
 def logout():
     session.clear(); return redirect(url_for("landing"))
+
+@app.route("/verify-email/<token>")
+def verify_email(token):
+    """Confirms the email address behind a signup — doesn't gate access to
+    WINK (the account works immediately at signup either way), it just marks
+    email_verified so the admin dashboard can show which accounts have
+    confirmed a reachable address."""
+    if not DB_URL:
+        return app.response_class("Database not configured.", mimetype="text/plain"), 500
+    try:
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("SELECT id FROM students WHERE verification_token=%s", (token,))
+        row = cur.fetchone()
+        if not row:
+            cur.close(); db_release(conn)
+            return app.response_class(
+                "This verification link is invalid or has already been used.",
+                mimetype="text/plain"), 400
+        cur.execute("UPDATE students SET email_verified=TRUE, verification_token=NULL WHERE id=%s", (row["id"],))
+        conn.commit(); cur.close(); db_release(conn)
+        log_event(row["id"], "email_verified", {})
+        return app.response_class(
+            "Your email is verified! You can close this tab and keep using WINK.",
+            mimetype="text/plain")
+    except Exception as e:
+        print(f"verify_email error: {e}"); traceback.print_exc()
+        return app.response_class("Something went wrong on our end. Please try again.", mimetype="text/plain"), 500
+
+@app.route("/resend-verification", methods=["POST"])
+def resend_verification():
+    s = current_student()
+    if not s: return jsonify({"error":"Not logged in"}), 401
+    if s.get("email_verified"): return jsonify({"success": True, "already_verified": True})
+    if rate_limited(f"resend-verify:{s['id']}", max_calls=3, window_seconds=300):
+        return jsonify({"error": "Please wait a few minutes before requesting another email."}), 429
+    try:
+        token = secrets.token_urlsafe(32)
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("UPDATE students SET verification_token=%s WHERE id=%s", (token, s["id"]))
+        conn.commit(); cur.close(); db_release(conn)
+        verify_link = url_for("verify_email", token=token, _external=True)
+        send_email(s["email"], "Verify your WINK email address",
+                   f"Hi {s['first_name']},\n\nPlease confirm your email address by visiting:\n{verify_link}\n\n— WINK")
+        return jsonify({"success": True})
+    except Exception as e:
+        print(f"resend_verification error: {e}"); traceback.print_exc()
+        return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
 
 @app.route("/forgot-password", methods=["POST"])
 def forgot_password():
@@ -834,10 +957,10 @@ def reset_password(token):
         if request.method == "POST":
             pw = request.form.get("password", "").strip()
             confirm = request.form.get("confirm_password", "").strip()
-            if len(pw) < 6:
+            if len(pw) < 8:
                 cur.close(); db_release(conn)
                 return render_template("reset_password.html", token=token,
-                                       error="Password must be at least 6 characters.")
+                                       error="Password must be at least 8 characters.")
             if pw != confirm:
                 cur.close(); db_release(conn)
                 return render_template("reset_password.html", token=token,
@@ -1113,7 +1236,7 @@ def delete_file():
 @app.route("/global-documents")
 def list_global_documents():
     s = current_student()
-    if not s or s["email"] != ADMIN_EMAIL: return jsonify({"error":"Not authorized"}), 403
+    if not s or s["email"].lower() != ADMIN_EMAIL: return jsonify({"error":"Not authorized"}), 403
     university = request.args.get("university","").strip()
     return jsonify({"docs": get_global_docs(university or None)})
 
@@ -1121,7 +1244,7 @@ def list_global_documents():
 def upload_global_document():
     try:
         s = current_student()
-        if not s or s["email"] != ADMIN_EMAIL:
+        if not s or s["email"].lower() != ADMIN_EMAIL:
             return jsonify({"error":"Not authorized"}), 403
         if "file" not in request.files:
             return jsonify({"error":"No file"}), 400
@@ -1162,7 +1285,7 @@ def upload_global_document():
 def delete_global_document():
     try:
         s = current_student()
-        if not s or s["email"] != ADMIN_EMAIL: return jsonify({"error":"Not authorized"}), 403
+        if not s or s["email"].lower() != ADMIN_EMAIL: return jsonify({"error":"Not authorized"}), 403
         data       = request.get_json() or {}
         doc_id     = data.get("doc_id")
         university = (data.get("university") or "").strip()
@@ -1348,8 +1471,12 @@ def chat():
         if not s: return jsonify({"error":"Not logged in"}), 401
         if not ANTHROPIC_API_KEY:
             return jsonify({"error":"ANTHROPIC_API_KEY not set"}), 500
-        if rate_limited(f"chat:{s['id']}", max_calls=20, window_seconds=60):
-            return jsonify({"error": "You're asking questions faster than I can keep up — please wait a moment and try again."}), 429
+        wait = rate_limited(f"chat:{s['id']}", max_calls=20, window_seconds=60)
+        if wait:
+            return jsonify({
+                "error": "You're asking questions faster than I can keep up — please wait a moment and try again.",
+                "retry_after": wait
+            }), 429
         data     = request.get_json() or {}
         messages = data.get("messages", [])
         user_msg = messages[-1]["content"] if messages else ""
@@ -1782,6 +1909,8 @@ def analytics_data_full():
             SELECT s.id, s.first_name, s.last_name, s.email, s.classification, s.major,
                    COALESCE(NULLIF(s.university,''),'Not set') as university,
                    to_char(s.created_at,'Mon DD YYYY') as joined,
+                   COALESCE(s.is_active, TRUE) as is_active,
+                   COALESCE(s.email_verified, FALSE) as email_verified,
                    (SELECT COUNT(*) FROM events e WHERE e.student_id=s.id AND e.event_type IN ('login','account_created')) as sessions,
                    (SELECT COUNT(*) FROM events e WHERE e.student_id=s.id AND e.event_type='question_asked') as questions,
                    (SELECT COUNT(*) FROM events e WHERE e.student_id=s.id AND e.event_type='file_uploaded') as uploads,
@@ -1946,6 +2075,37 @@ def student_conversations(sid):
         return jsonify({"conversations": conversations})
     except Exception as e:
         print(f"student_conversations error: {e}"); traceback.print_exc()
+        return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
+
+@app.route("/toggle-student-active", methods=["POST"])
+def toggle_student_active():
+    """Admin-only: suspend or reactivate a student account without deleting
+    their data. A suspended student can't log in (checked in /login) and any
+    existing session is invalidated on their next request (current_student())."""
+    try:
+        s = current_student()
+        if not s: return jsonify({"error":"Not logged in"}), 401
+        if s["email"].lower() != ADMIN_EMAIL: return jsonify({"error":"Not authorized"}), 403
+        if not DB_URL: return jsonify({"error":"No database"}), 500
+        data = request.get_json() or {}
+        target_id = data.get("student_id")
+        if not target_id:
+            return jsonify({"error": "Missing student_id"}), 400
+        if str(target_id) == str(s["id"]):
+            return jsonify({"error": "You can't suspend your own admin account."}), 400
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("SELECT id, is_active FROM students WHERE id=%s", (target_id,))
+        target = cur.fetchone()
+        if not target:
+            cur.close(); db_release(conn)
+            return jsonify({"error": "Student not found"}), 404
+        new_active = not target["is_active"]
+        cur.execute("UPDATE students SET is_active=%s WHERE id=%s", (new_active, target_id))
+        conn.commit(); cur.close(); db_release(conn)
+        log_event(s["id"], "student_suspended" if not new_active else "student_reactivated", {"target_id": target_id})
+        return jsonify({"success": True, "is_active": new_active})
+    except Exception as e:
+        print(f"toggle_student_active error: {e}"); traceback.print_exc()
         return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
 
 
