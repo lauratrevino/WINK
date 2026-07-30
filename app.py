@@ -1092,6 +1092,9 @@ def upload_file():
     try:
         s = current_student()
         if not s: return jsonify({"error":"Not logged in"}), 401
+        wait = rate_limited(f"upload:{s['id']}", max_calls=10, window_seconds=60)
+        if wait:
+            return jsonify({"error": "Too many uploads in a row — please wait a moment.", "retry_after": wait}), 429
         if "file" not in request.files:
             return jsonify({"error":"No file"}), 400
         file      = request.files["file"]
@@ -1329,8 +1332,10 @@ def get_all_deadlines(sid):
     if not DB_URL: return []
     try:
         conn = get_db(); cur = conn.cursor()
-        cur.execute("""SELECT id, course, title, due_date FROM deadlines
-                       WHERE student_id=%s ORDER BY due_date ASC""", (sid,))
+        cur.execute("""SELECT dl.id, dl.course, dl.title, dl.due_date,
+                              dl.document_id, d.orig_name as document_name
+                       FROM deadlines dl LEFT JOIN documents d ON d.id = dl.document_id
+                       WHERE dl.student_id=%s ORDER BY dl.due_date ASC""", (sid,))
         rows = [dict(r) for r in cur.fetchall()]
         cur.close(); db_release(conn)
         for r in rows:
