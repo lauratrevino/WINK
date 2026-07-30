@@ -40,6 +40,26 @@
     .nav-user strong { color: #fff; }
     .btn-logout { font-size: 13px; color: rgba(255,255,255,0.6); text-decoration: none; padding: 5px 12px; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; transition: all 0.15s; }
     .btn-logout:hover { background: rgba(255,255,255,0.1); color: #fff; }
+    .nav-toggle {
+      display: none; background: none; border: none; color: #fff;
+      font-size: 22px; cursor: pointer; padding: 4px 10px; margin-left: auto;
+    }
+    @media (max-width: 860px) {
+      .app-nav { flex-wrap: wrap; height: auto; padding: 10px 16px; }
+      .nav-toggle { display: block; }
+      .nav-links, .nav-right { display: none; width: 100%; }
+      .app-nav.nav-open .nav-links {
+        display: flex; flex-direction: column; align-items: stretch; gap: 2px;
+        margin-top: 10px; order: 3;
+      }
+      .app-nav.nav-open .nav-links a { padding: 10px 12px; }
+      .app-nav.nav-open .nav-right {
+        display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
+        margin-top: 10px; margin-left: 0; order: 4;
+        border-top: 1px solid rgba(255,255,255,0.15); padding-top: 10px;
+      }
+      .nav-divider { display: none; }
+    }
 
     .page-shell { max-width: 1100px; margin: 0 auto; padding: 32px 24px 64px; }
 
@@ -208,13 +228,37 @@
       .hero-image { width: 130px; aspect-ratio: 1 / 1; align-self: center; }
       table { font-size: 13px; }
     }
+    /* ── Toast + confirm modal (replaces native alert/confirm) ── */
+    .wink-toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      background: #002855; color: #fff; padding: 12px 22px; border-radius: 9px;
+      font-size: 14px; font-weight: 600; box-shadow: 0 8px 28px rgba(0,0,0,0.25);
+      z-index: 9999; opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+      max-width: 90vw; text-align: center;
+    }
+    .wink-toast.show { opacity: 1; pointer-events: auto; }
+    .wink-toast.error { background: #b91c1c; }
+    .wink-modal-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,20,50,0.45);
+      z-index: 9000; align-items: center; justify-content: center; padding: 20px;
+    }
+    .wink-modal-overlay.open { display: flex; }
+    .wink-modal-card { background: #fff; border-radius: 14px; max-width: 440px; width: 100%; padding: 26px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+    .wink-modal-card h3 { font-size: 17px; color: #002855; margin-bottom: 10px; }
+    .wink-modal-card p { font-size: 14px; color: #444; margin-bottom: 18px; line-height: 1.5; }
+    .wink-modal-actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+    .wink-modal-btn { padding: 9px 18px; border-radius: 7px; font-size: 13px; font-weight: 700; cursor: pointer; border: none; }
+    .wink-modal-btn.primary { background: #FF8200; color: #fff; }
+    .wink-modal-btn.secondary { background: #eef0f6; color: #002855; }
+    .wink-modal-btn.danger { background: #b91c1c; color: #fff; }
   </style>
 </head>
 <body>
 
-  <nav class="app-nav">
+  <nav class="app-nav" id="app-nav">
     <a href="/dashboard" class="nav-logo">WINK<span>.</span></a>
     <div class="nav-divider"></div>
+    <button class="nav-toggle" onclick="toggleNav()" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="app-nav">☰</button>
     <div class="nav-links">
       <a href="/dashboard" class="{{ 'active' if active == 'dashboard' else '' }}">Dashboard</a>
       <a href="/documents" class="{{ 'active' if active == 'documents' else '' }}">My Documents</a>
@@ -352,6 +396,65 @@
   </div>
 
   <script>
+    function toggleNav() {
+      const nav = document.getElementById('app-nav');
+      const btn = document.querySelector('.nav-toggle');
+      const open = nav.classList.toggle('nav-open');
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+
+    function winkToast(msg, isError = false) {
+      let t = document.getElementById('wink-toast');
+      if (!t) {
+        t = document.createElement('div');
+        t.id = 'wink-toast';
+        t.className = 'wink-toast';
+        t.setAttribute('role', 'status');
+        t.setAttribute('aria-live', 'polite');
+        document.body.appendChild(t);
+      }
+      t.textContent = msg;
+      t.className = 'wink-toast show' + (isError ? ' error' : '');
+      clearTimeout(t._hideTimer);
+      t._hideTimer = setTimeout(() => t.classList.remove('show'), 3200);
+    }
+
+    function winkConfirm({ title, message, confirmLabel = 'Confirm', cancelLabel = 'Cancel', danger = false }) {
+      return new Promise(resolve => {
+        let overlay = document.getElementById('wink-modal-overlay');
+        if (!overlay) {
+          overlay = document.createElement('div');
+          overlay.id = 'wink-modal-overlay';
+          overlay.className = 'wink-modal-overlay';
+          overlay.innerHTML = `<div class="wink-modal-card" role="dialog" aria-modal="true" aria-labelledby="wink-modal-title">
+            <h3 id="wink-modal-title"></h3>
+            <p id="wink-modal-message"></p>
+            <div class="wink-modal-actions">
+              <button class="wink-modal-btn secondary" id="wink-modal-cancel"></button>
+              <button class="wink-modal-btn primary" id="wink-modal-confirm"></button>
+            </div>
+          </div>`;
+          document.body.appendChild(overlay);
+          overlay.addEventListener('click', e => { if (e.target === overlay) finish(false); });
+        }
+        document.getElementById('wink-modal-title').textContent = title;
+        document.getElementById('wink-modal-message').textContent = message;
+        const confirmBtn = document.getElementById('wink-modal-confirm');
+        const cancelBtn = document.getElementById('wink-modal-cancel');
+        confirmBtn.textContent = confirmLabel;
+        cancelBtn.textContent = cancelLabel;
+        confirmBtn.className = 'wink-modal-btn ' + (danger ? 'danger' : 'primary');
+        overlay.classList.add('open');
+        function finish(result) {
+          overlay.classList.remove('open');
+          confirmBtn.onclick = null; cancelBtn.onclick = null;
+          resolve(result);
+        }
+        confirmBtn.onclick = () => finish(true);
+        cancelBtn.onclick = () => finish(false);
+      });
+    }
+
     const MAX_DOCS = {{ max_docs }};
     let currentDocCount = {{ docs|length }};
 
@@ -455,13 +558,25 @@
     }
 
     async function deleteDoc(id) {
-      if (!confirm('Delete this document?')) return;
-      const res = await fetch('/delete-file', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({doc_id: id}) });
-      const data = await res.json();
-      if (data.success) {
-        currentDocCount = data.docs.length;
-        updateLimitUI();
-        refreshLibrary(data.docs);
+      const ok = await winkConfirm({
+        title: 'Delete this document?',
+        message: 'It will be removed from your uploads and WINK will no longer be able to reference it.',
+        confirmLabel: 'Delete', danger: true
+      });
+      if (!ok) return;
+      try {
+        const res = await fetch('/delete-file', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({doc_id: id}) });
+        const data = await res.json();
+        if (data.success) {
+          currentDocCount = data.docs.length;
+          updateLimitUI();
+          refreshLibrary(data.docs);
+          winkToast('Document deleted.');
+        } else {
+          winkToast(data.error || 'Could not delete — please try again.', true);
+        }
+      } catch (e) {
+        winkToast('Could not delete — please try again.', true);
       }
     }
 
@@ -520,6 +635,18 @@
     }
 
     updateLimitUI();
+
+    // If we arrived here from a calendar deadline link (#doc-row-123),
+    // scroll to that document and flash it so it's obvious which one it was.
+    (function highlightLinkedDocument() {
+      if (!location.hash) return;
+      const row = document.querySelector(location.hash);
+      if (!row) return;
+      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      row.style.transition = 'background-color 0.4s ease';
+      row.style.backgroundColor = '#fff3e6';
+      setTimeout(() => { row.style.backgroundColor = ''; }, 2200);
+    })();
   </script>
 
 </body>

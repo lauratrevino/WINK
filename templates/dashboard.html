@@ -47,6 +47,26 @@
       transition: all 0.15s;
     }
     .btn-logout:hover { background: rgba(255,255,255,0.1); color: #fff; }
+    .nav-toggle {
+      display: none; background: none; border: none; color: #fff;
+      font-size: 22px; cursor: pointer; padding: 4px 10px; margin-left: auto;
+    }
+    @media (max-width: 860px) {
+      .app-nav { flex-wrap: wrap; height: auto; padding: 10px 16px; }
+      .nav-toggle { display: block; }
+      .nav-links, .nav-right { display: none; width: 100%; }
+      .app-nav.nav-open .nav-links {
+        display: flex; flex-direction: column; align-items: stretch; gap: 2px;
+        margin-top: 10px; order: 3;
+      }
+      .app-nav.nav-open .nav-links a { padding: 10px 12px; }
+      .app-nav.nav-open .nav-right {
+        display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
+        margin-top: 10px; margin-left: 0; order: 4;
+        border-top: 1px solid rgba(255,255,255,0.15); padding-top: 10px;
+      }
+      .nav-divider { display: none; }
+    }
 
     /* ── Shell ── */
     .page-shell { max-width: 1100px; margin: 0 auto; padding: 36px 24px 64px; }
@@ -200,13 +220,37 @@
       .dash-grid { grid-template-columns: 1fr; }
       .welcome-actions { flex-direction: column; }
     }
+    /* ── Toast + confirm modal (replaces native alert/confirm) ── */
+    .wink-toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      background: #002855; color: #fff; padding: 12px 22px; border-radius: 9px;
+      font-size: 14px; font-weight: 600; box-shadow: 0 8px 28px rgba(0,0,0,0.25);
+      z-index: 9999; opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+      max-width: 90vw; text-align: center;
+    }
+    .wink-toast.show { opacity: 1; pointer-events: auto; }
+    .wink-toast.error { background: #b91c1c; }
+    .wink-modal-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,20,50,0.45);
+      z-index: 9000; align-items: center; justify-content: center; padding: 20px;
+    }
+    .wink-modal-overlay.open { display: flex; }
+    .wink-modal-card { background: #fff; border-radius: 14px; max-width: 440px; width: 100%; padding: 26px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+    .wink-modal-card h3 { font-size: 17px; color: #002855; margin-bottom: 10px; }
+    .wink-modal-card p { font-size: 14px; color: #444; margin-bottom: 18px; line-height: 1.5; }
+    .wink-modal-actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+    .wink-modal-btn { padding: 9px 18px; border-radius: 7px; font-size: 13px; font-weight: 700; cursor: pointer; border: none; }
+    .wink-modal-btn.primary { background: #FF8200; color: #fff; }
+    .wink-modal-btn.secondary { background: #eef0f6; color: #002855; }
+    .wink-modal-btn.danger { background: #b91c1c; color: #fff; }
   </style>
 </head>
 <body>
 
-  <nav class="app-nav">
+  <nav class="app-nav" id="app-nav">
     <a href="/dashboard" class="nav-logo">WINK<span>.</span></a>
     <div class="nav-divider"></div>
+    <button class="nav-toggle" onclick="toggleNav()" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="app-nav">☰</button>
     <div class="nav-links">
       <a href="/dashboard" class="{{ 'active' if active == 'dashboard' else '' }}">Dashboard</a>
       <a href="/documents" class="{{ 'active' if active == 'documents' else '' }}">My Documents</a>
@@ -373,7 +417,15 @@
             </div>
             <div class="profile-row">
               <div class="profile-label">Email</div>
-              <div class="profile-value">{{ s.email }}</div>
+              <div class="profile-value">
+                {{ s.email }}
+                {% if s.email_verified %}
+                  <span class="badge" style="background:#dcfce7;color:#166534;margin-left:8px;">✓ Verified</span>
+                {% else %}
+                  <span class="badge" style="background:#fef2f2;color:#b91c1c;margin-left:8px;">Not verified</span>
+                  <button onclick="resendVerification(this)" style="background:none;border:none;color:#FF8200;font-size:12px;font-weight:600;cursor:pointer;text-decoration:underline;margin-left:8px;padding:0;">Resend email</button>
+                {% endif %}
+              </div>
             </div>
           </div>
           <div>
@@ -395,6 +447,9 @@
               <div class="profile-label">University</div>
               <div class="profile-value" id="profile-view-university">{{ s.university or 'Not set' }}</div>
               <div class="profile-edit" style="display:none;">
+                <input type="text" placeholder="Type to search…" autocomplete="off"
+                       style="width:100%;max-width:260px;padding:8px 11px;border:1.5px solid #dde3f0;border-radius:6px;font-size:13px;margin-bottom:6px;display:block;"
+                       oninput="filterUniversityOptions(this.value, 'profile-input-university')">
                 <select id="profile-input-university" class="profile-input" style="max-width:260px;">
                   <option value="">Select a university…</option>
                   <option value="42 US">42 US</option>
@@ -2749,6 +2804,74 @@
   </div>
 
   <script>
+    function toggleNav() {
+      const nav = document.getElementById('app-nav');
+      const btn = document.querySelector('.nav-toggle');
+      const open = nav.classList.toggle('nav-open');
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+
+    function filterUniversityOptions(term, selectId) {
+      const select = document.getElementById(selectId);
+      const q = term.trim().toLowerCase();
+      Array.from(select.options).forEach(opt => {
+        if (!opt.value) return;
+        opt.hidden = !opt.text.toLowerCase().includes(q);
+      });
+    }
+
+    function winkToast(msg, isError = false) {
+      let t = document.getElementById('wink-toast');
+      if (!t) {
+        t = document.createElement('div');
+        t.id = 'wink-toast';
+        t.className = 'wink-toast';
+        t.setAttribute('role', 'status');
+        t.setAttribute('aria-live', 'polite');
+        document.body.appendChild(t);
+      }
+      t.textContent = msg;
+      t.className = 'wink-toast show' + (isError ? ' error' : '');
+      clearTimeout(t._hideTimer);
+      t._hideTimer = setTimeout(() => t.classList.remove('show'), 3200);
+    }
+
+    function winkConfirm({ title, message, confirmLabel = 'Confirm', cancelLabel = 'Cancel', danger = false }) {
+      return new Promise(resolve => {
+        let overlay = document.getElementById('wink-modal-overlay');
+        if (!overlay) {
+          overlay = document.createElement('div');
+          overlay.id = 'wink-modal-overlay';
+          overlay.className = 'wink-modal-overlay';
+          overlay.innerHTML = `<div class="wink-modal-card" role="dialog" aria-modal="true" aria-labelledby="wink-modal-title">
+            <h3 id="wink-modal-title"></h3>
+            <p id="wink-modal-message"></p>
+            <div class="wink-modal-actions">
+              <button class="wink-modal-btn secondary" id="wink-modal-cancel"></button>
+              <button class="wink-modal-btn primary" id="wink-modal-confirm"></button>
+            </div>
+          </div>`;
+          document.body.appendChild(overlay);
+          overlay.addEventListener('click', e => { if (e.target === overlay) finish(false); });
+        }
+        document.getElementById('wink-modal-title').textContent = title;
+        document.getElementById('wink-modal-message').textContent = message;
+        const confirmBtn = document.getElementById('wink-modal-confirm');
+        const cancelBtn = document.getElementById('wink-modal-cancel');
+        confirmBtn.textContent = confirmLabel;
+        cancelBtn.textContent = cancelLabel;
+        confirmBtn.className = 'wink-modal-btn ' + (danger ? 'danger' : 'primary');
+        overlay.classList.add('open');
+        function finish(result) {
+          overlay.classList.remove('open');
+          confirmBtn.onclick = null; cancelBtn.onclick = null;
+          resolve(result);
+        }
+        confirmBtn.onclick = () => finish(true);
+        cancelBtn.onclick = () => finish(false);
+      });
+    }
+
     function toggleProfileEdit(editing) {
       document.querySelectorAll('.profile-edit').forEach(el => el.style.display = editing ? 'flex' : 'none');
       document.getElementById('profile-view-name').style.display = editing ? 'none' : 'block';
@@ -2762,6 +2885,29 @@
         document.getElementById('profile-input-first').value = document.getElementById('profile-view-name').textContent.split(' ')[0] || '';
         document.getElementById('profile-input-last').value = document.getElementById('profile-view-name').textContent.split(' ').slice(1).join(' ') || '';
         document.getElementById('profile-input-university').value = document.getElementById('profile-view-university').textContent.trim();
+      } else {
+        // Clear any leftover search filter so every option is visible again
+        const univSelect = document.getElementById('profile-input-university');
+        Array.from(univSelect.options).forEach(opt => opt.hidden = false);
+      }
+    }
+
+    async function resendVerification(btn) {
+      const original = btn.textContent;
+      btn.textContent = 'Sending…'; btn.disabled = true;
+      try {
+        const res = await fetch('/resend-verification', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          winkToast(data.already_verified ? 'Your email is already verified.' : 'Verification email sent — check your inbox.');
+          btn.textContent = 'Sent ✓';
+        } else {
+          winkToast(data.error || 'Could not send — please try again.', true);
+          btn.textContent = original; btn.disabled = false;
+        }
+      } catch (e) {
+        winkToast('Could not send — please try again.', true);
+        btn.textContent = original; btn.disabled = false;
       }
     }
 
@@ -2772,7 +2918,7 @@
       const major = document.getElementById('profile-input-major').value.trim();
       const university = document.getElementById('profile-input-university').value.trim();
       if (!first_name || !last_name || !classification || !major || !university) {
-        alert('Please fill in every field.');
+        winkToast('Please fill in every field.', true);
         return;
       }
       try {
@@ -2782,14 +2928,15 @@
           body: JSON.stringify({ first_name, last_name, classification, major, university })
         });
         const data = await res.json();
-        if (!data.success) { alert(data.error || 'Something went wrong.'); return; }
+        if (!data.success) { winkToast(data.error || 'Something went wrong.', true); return; }
         document.getElementById('profile-view-name').textContent = `${data.profile.first_name} ${data.profile.last_name}`;
         document.getElementById('profile-view-classification').innerHTML = `<span class="badge">${data.profile.classification}</span>`;
         document.getElementById('profile-view-major').textContent = data.profile.major;
         document.getElementById('profile-view-university').textContent = data.profile.university;
         toggleProfileEdit(false);
+        winkToast('Profile updated.');
       } catch (e) {
-        alert('Something went wrong — please try again.');
+        winkToast('Something went wrong — please try again.', true);
       }
     }
     // Preselect the student's current university in the edit dropdown
@@ -2804,13 +2951,13 @@
       try {
         const res = await fetch('/reprocess-deadlines', { method: 'POST' });
         const data = await res.json();
-        if (data.error) { alert(data.error); }
+        if (data.error) { winkToast(data.error, true); }
         else {
-          alert(`Found ${data.deadlines_found} deadline(s) across ${data.documents_processed} document(s).`);
+          winkToast(`Found ${data.deadlines_found} deadline(s) across ${data.documents_processed} document(s).`);
           location.reload();
         }
       } catch (e) {
-        alert('Something went wrong — please try again.');
+        winkToast('Something went wrong — please try again.', true);
       }
       btn.textContent = original; btn.disabled = false;
     }

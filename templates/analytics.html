@@ -20,6 +20,26 @@
     .nav-user strong { color: #fff; }
     .btn-logout { font-size: 13px; color: rgba(255,255,255,0.6); text-decoration: none; padding: 5px 12px; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; transition: all 0.15s; }
     .btn-logout:hover { background: rgba(255,255,255,0.1); color: #fff; }
+    .nav-toggle {
+      display: none; background: none; border: none; color: #fff;
+      font-size: 22px; cursor: pointer; padding: 4px 10px; margin-left: auto;
+    }
+    @media (max-width: 860px) {
+      .app-nav { flex-wrap: wrap; height: auto; padding: 10px 16px; }
+      .nav-toggle { display: block; }
+      .nav-links, .nav-right { display: none; width: 100%; }
+      .app-nav.nav-open .nav-links {
+        display: flex; flex-direction: column; align-items: stretch; gap: 2px;
+        margin-top: 10px; order: 3;
+      }
+      .app-nav.nav-open .nav-links a { padding: 10px 12px; }
+      .app-nav.nav-open .nav-right {
+        display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
+        margin-top: 10px; margin-left: 0; order: 4;
+        border-top: 1px solid rgba(255,255,255,0.15); padding-top: 10px;
+      }
+      .nav-divider { display: none; }
+    }
 
     .page-shell { max-width: 1200px; margin: 0 auto; padding: 36px 24px 64px; }
     .page-header { margin-bottom: 28px; display: flex; align-items: center; justify-content: space-between; }
@@ -143,13 +163,37 @@
     @media (max-width: 900px) {
       .stats-row { grid-template-columns: repeat(2, 1fr); }
     }
+    /* ── Toast + confirm modal (replaces native alert/confirm) ── */
+    .wink-toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      background: #002855; color: #fff; padding: 12px 22px; border-radius: 9px;
+      font-size: 14px; font-weight: 600; box-shadow: 0 8px 28px rgba(0,0,0,0.25);
+      z-index: 9999; opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+      max-width: 90vw; text-align: center;
+    }
+    .wink-toast.show { opacity: 1; pointer-events: auto; }
+    .wink-toast.error { background: #b91c1c; }
+    .wink-modal-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,20,50,0.45);
+      z-index: 9000; align-items: center; justify-content: center; padding: 20px;
+    }
+    .wink-modal-overlay.open { display: flex; }
+    .wink-modal-card { background: #fff; border-radius: 14px; max-width: 440px; width: 100%; padding: 26px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+    .wink-modal-card h3 { font-size: 17px; color: #002855; margin-bottom: 10px; }
+    .wink-modal-card p { font-size: 14px; color: #444; margin-bottom: 18px; line-height: 1.5; }
+    .wink-modal-actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+    .wink-modal-btn { padding: 9px 18px; border-radius: 7px; font-size: 13px; font-weight: 700; cursor: pointer; border: none; }
+    .wink-modal-btn.primary { background: #FF8200; color: #fff; }
+    .wink-modal-btn.secondary { background: #eef0f6; color: #002855; }
+    .wink-modal-btn.danger { background: #b91c1c; color: #fff; }
   </style>
 </head>
 <body>
 
-  <nav class="app-nav">
+  <nav class="app-nav" id="app-nav">
     <a href="/dashboard" class="nav-logo">WINK<span>.</span></a>
     <div class="nav-divider"></div>
+    <button class="nav-toggle" onclick="toggleNav()" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="app-nav">☰</button>
     <div class="nav-links">
       <a href="/dashboard">Dashboard</a>
       <a href="/documents">Documents</a>
@@ -339,6 +383,9 @@
           </p>
           <div class="gd-form-row">
             <label for="gd-university-select">University</label>
+            <input type="text" placeholder="Type to search…" autocomplete="off"
+                   style="width:100%;padding:9px 12px;border:1.5px solid #dde3f0;border-radius:6px;font-size:14px;margin-bottom:6px;"
+                   oninput="filterUniversityOptions(this.value, 'gd-university-select')">
             <select id="gd-university-select" onchange="onGdUniversityChange()">
               <option value="">Select a university…</option>
                   <option value="42 US">42 US</option>
@@ -2708,6 +2755,74 @@
   </div>
 
   <script>
+    function toggleNav() {
+      const nav = document.getElementById('app-nav');
+      const btn = document.querySelector('.nav-toggle');
+      const open = nav.classList.toggle('nav-open');
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+
+    function filterUniversityOptions(term, selectId) {
+      const select = document.getElementById(selectId);
+      const q = term.trim().toLowerCase();
+      Array.from(select.options).forEach(opt => {
+        if (!opt.value) return;
+        opt.hidden = !opt.text.toLowerCase().includes(q);
+      });
+    }
+
+    function winkToast(msg, isError = false) {
+      let t = document.getElementById('wink-toast');
+      if (!t) {
+        t = document.createElement('div');
+        t.id = 'wink-toast';
+        t.className = 'wink-toast';
+        t.setAttribute('role', 'status');
+        t.setAttribute('aria-live', 'polite');
+        document.body.appendChild(t);
+      }
+      t.textContent = msg;
+      t.className = 'wink-toast show' + (isError ? ' error' : '');
+      clearTimeout(t._hideTimer);
+      t._hideTimer = setTimeout(() => t.classList.remove('show'), 3200);
+    }
+
+    function winkConfirm({ title, message, confirmLabel = 'Confirm', cancelLabel = 'Cancel', danger = false }) {
+      return new Promise(resolve => {
+        let overlay = document.getElementById('wink-modal-overlay');
+        if (!overlay) {
+          overlay = document.createElement('div');
+          overlay.id = 'wink-modal-overlay';
+          overlay.className = 'wink-modal-overlay';
+          overlay.innerHTML = `<div class="wink-modal-card" role="dialog" aria-modal="true" aria-labelledby="wink-modal-title">
+            <h3 id="wink-modal-title"></h3>
+            <p id="wink-modal-message"></p>
+            <div class="wink-modal-actions">
+              <button class="wink-modal-btn secondary" id="wink-modal-cancel"></button>
+              <button class="wink-modal-btn primary" id="wink-modal-confirm"></button>
+            </div>
+          </div>`;
+          document.body.appendChild(overlay);
+          overlay.addEventListener('click', e => { if (e.target === overlay) finish(false); });
+        }
+        document.getElementById('wink-modal-title').textContent = title;
+        document.getElementById('wink-modal-message').textContent = message;
+        const confirmBtn = document.getElementById('wink-modal-confirm');
+        const cancelBtn = document.getElementById('wink-modal-cancel');
+        confirmBtn.textContent = confirmLabel;
+        cancelBtn.textContent = cancelLabel;
+        confirmBtn.className = 'wink-modal-btn ' + (danger ? 'danger' : 'primary');
+        overlay.classList.add('open');
+        function finish(result) {
+          overlay.classList.remove('open');
+          confirmBtn.onclick = null; cancelBtn.onclick = null;
+          resolve(result);
+        }
+        confirmBtn.onclick = () => finish(true);
+        cancelBtn.onclick = () => finish(false);
+      });
+    }
+
     let analyticsData = null;
 
     function switchTab(name) {
@@ -2729,7 +2844,7 @@
       try {
         const res = await fetch('/analytics-data-full');
         const d = await res.json();
-        if (d.error) { alert('Error: ' + d.error); return; }
+        if (d.error) { winkToast('Error: ' + d.error, true); return; }
         analyticsData = d;
 
         // Stats
@@ -2763,9 +2878,9 @@
               <td>${s.uploads}</td>
               <td>
                 ${s.is_active
-                  ? `<button class="tab-btn" style="padding:4px 10px;font-size:11px;" onclick="toggleStudentActive(${s.id})">Suspend</button>`
+                  ? `<button class="tab-btn" style="padding:4px 10px;font-size:11px;" onclick="toggleStudentActive(${s.id}, '${escapeHtml(s.first_name)} ${escapeHtml(s.last_name)}', true)">Suspend</button>`
                   : `<span class="badge" style="background:#fef2f2;color:#b91c1c;">Suspended</span>
-                     <button class="tab-btn" style="padding:4px 10px;font-size:11px;margin-left:6px;" onclick="toggleStudentActive(${s.id})">Reactivate</button>`}
+                     <button class="tab-btn" style="padding:4px 10px;font-size:11px;margin-left:6px;" onclick="toggleStudentActive(${s.id}, '${escapeHtml(s.first_name)} ${escapeHtml(s.last_name)}', false)">Reactivate</button>`}
               </td>
             </tr>`).join('');
         }
@@ -2847,7 +2962,7 @@
 
       } catch(e) {
         console.error('Analytics load error:', e);
-        alert('Failed to load analytics data.');
+        winkToast('Failed to load analytics data.', true);
       }
     }
 
@@ -2979,8 +3094,16 @@
         </tr>`).join('');
     }
 
-    async function toggleStudentActive(studentId) {
-      if (!confirm('Change this student\'s account status?')) return;
+    async function toggleStudentActive(studentId, studentName, isSuspending) {
+      const ok = await winkConfirm({
+        title: isSuspending ? `Suspend ${studentName}?` : `Reactivate ${studentName}?`,
+        message: isSuspending
+          ? `${studentName} will be immediately logged out and won't be able to log back in until reactivated.`
+          : `${studentName} will be able to log in again immediately.`,
+        confirmLabel: isSuspending ? 'Suspend' : 'Reactivate',
+        danger: isSuspending
+      });
+      if (!ok) return;
       try {
         const res = await fetch('/toggle-student-active', {
           method: 'POST',
@@ -2988,10 +3111,11 @@
           body: JSON.stringify({ student_id: studentId })
         });
         const data = await res.json();
-        if (!data.success) { alert(data.error || 'Could not update status.'); return; }
+        if (!data.success) { winkToast(data.error || 'Could not update status.', true); return; }
+        winkToast(isSuspending ? `${studentName} has been suspended.` : `${studentName} has been reactivated.`);
         loadData();
       } catch (e) {
-        alert('Could not update status — please try again.');
+        winkToast('Could not update status — please try again.', true);
       }
     }
 
@@ -3061,7 +3185,12 @@
     }
 
     async function deleteGdDoc(id) {
-      if (!confirm('Remove this general document? It will no longer be available to any student at this university.')) return;
+      const ok = await winkConfirm({
+        title: 'Remove this general document?',
+        message: 'It will no longer be available to any student at this university.',
+        confirmLabel: 'Remove', danger: true
+      });
+      if (!ok) return;
       try {
         const res = await fetch('/delete-global-document', {
           method: 'POST',
@@ -3069,10 +3198,10 @@
           body: JSON.stringify({ doc_id: id, university: gdSelectedUniversity })
         });
         const data = await res.json();
-        if (data.success) loadGdDocs();
-        else alert(data.error || 'Could not delete.');
+        if (data.success) { loadGdDocs(); winkToast('Document removed.'); }
+        else winkToast(data.error || 'Could not delete.', true);
       } catch (e) {
-        alert('Could not delete — please try again.');
+        winkToast('Could not delete — please try again.', true);
       }
     }
 

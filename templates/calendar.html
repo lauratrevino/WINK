@@ -29,6 +29,26 @@
     .nav-user strong { color: #fff; }
     .btn-logout { font-size: 13px; color: rgba(255,255,255,0.6); text-decoration: none; padding: 5px 12px; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; transition: all 0.15s; }
     .btn-logout:hover { background: rgba(255,255,255,0.1); color: #fff; }
+    .nav-toggle {
+      display: none; background: none; border: none; color: #fff;
+      font-size: 22px; cursor: pointer; padding: 4px 10px; margin-left: auto;
+    }
+    @media (max-width: 860px) {
+      .app-nav { flex-wrap: wrap; height: auto; padding: 10px 16px; }
+      .nav-toggle { display: block; }
+      .nav-links, .nav-right { display: none; width: 100%; }
+      .app-nav.nav-open .nav-links {
+        display: flex; flex-direction: column; align-items: stretch; gap: 2px;
+        margin-top: 10px; order: 3;
+      }
+      .app-nav.nav-open .nav-links a { padding: 10px 12px; }
+      .app-nav.nav-open .nav-right {
+        display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
+        margin-top: 10px; margin-left: 0; order: 4;
+        border-top: 1px solid rgba(255,255,255,0.15); padding-top: 10px;
+      }
+      .nav-divider { display: none; }
+    }
 
     .page-shell { max-width: 1100px; margin: 0 auto; padding: 32px 24px 64px; }
 
@@ -111,6 +131,8 @@
     .day-item-dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
     .day-item-title { font-size: 14px; font-weight: 600; color: #002855; }
     .day-item-course { font-size: 12px; color: #6b7a99; margin-top: 1px; }
+    .day-item-doc-link { display: inline-block; margin-top: 4px; font-size: 12px; color: #FF8200; text-decoration: none; font-weight: 600; }
+    .day-item-doc-link:hover { text-decoration: underline; }
     .day-empty { text-align: center; color: #6b7a99; font-size: 13px; padding: 20px 0; }
 
     .empty-state { text-align: center; padding: 48px 24px; background: #fff; border-radius: 12px; border: 1px solid #dde3f0; margin-top: 16px; }
@@ -127,9 +149,10 @@
 </head>
 <body>
 
-  <nav class="app-nav">
+  <nav class="app-nav" id="app-nav">
     <a href="/dashboard" class="nav-logo">WINK<span>.</span></a>
     <div class="nav-divider"></div>
+    <button class="nav-toggle" onclick="toggleNav()" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="app-nav">☰</button>
     <div class="nav-links">
       <a href="/dashboard" class="{{ 'active' if active == 'dashboard' else '' }}">Dashboard</a>
       <a href="/documents" class="{{ 'active' if active == 'documents' else '' }}">My Documents</a>
@@ -184,6 +207,13 @@
   </div>
 
   <script>
+    function toggleNav() {
+      const nav = document.getElementById('app-nav');
+      const btn = document.querySelector('.nav-toggle');
+      const open = nav.classList.toggle('nav-open');
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+
     const COLORS = ['#002855', '#FF8200', '#166534', '#7c3aed', '#0891b2', '#be123c', '#4d7c0f', '#a16207'];
     let allDeadlines = [];
     let deadlinesByDate = {};
@@ -274,6 +304,7 @@
             <div>
               <div class="day-item-title">${escapeHtml(it.title)}</div>
               <div class="day-item-course">${escapeHtml(it.course)}</div>
+              ${it.document_id ? `<a href="/documents#doc-row-${it.document_id}" class="day-item-doc-link">📄 ${escapeHtml(it.document_name || 'View source document')}</a>` : ''}
             </div>
           </div>`).join('');
       }
