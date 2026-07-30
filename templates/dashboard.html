@@ -244,6 +244,7 @@
     .wink-modal-btn.secondary { background: #eef0f6; color: #002855; }
     .wink-modal-btn.danger { background: #b91c1c; color: #fff; }
   </style>
+  <meta name="csrf-token" content="{{ csrf_token() }}">
 </head>
 <body>
 
@@ -2804,6 +2805,24 @@
   </div>
 
   <script>
+    // Automatically attach the CSRF token to every state-changing fetch()
+    // call on this page, so none of the existing fetch() call sites below
+    // need to be touched individually.
+    (function() {
+      const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+      const originalFetch = window.fetch;
+      window.fetch = function(input, init) {
+        init = init || {};
+        const method = (init.method || 'GET').toUpperCase();
+        if (token && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+          const headers = new Headers(init.headers || {});
+          if (!headers.has('X-CSRFToken')) headers.set('X-CSRFToken', token);
+          init.headers = headers;
+        }
+        return originalFetch(input, init);
+      };
+    })();
+
     function toggleNav() {
       const nav = document.getElementById('app-nav');
       const btn = document.querySelector('.nav-toggle');
@@ -2818,6 +2837,10 @@
         if (!opt.value) return;
         opt.hidden = !opt.text.toLowerCase().includes(q);
       });
+    }
+
+    function escapeHtml(text) {
+      return String(text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
     }
 
     function winkToast(msg, isError = false) {
@@ -2930,7 +2953,7 @@
         const data = await res.json();
         if (!data.success) { winkToast(data.error || 'Something went wrong.', true); return; }
         document.getElementById('profile-view-name').textContent = `${data.profile.first_name} ${data.profile.last_name}`;
-        document.getElementById('profile-view-classification').innerHTML = `<span class="badge">${data.profile.classification}</span>`;
+        document.getElementById('profile-view-classification').innerHTML = `<span class="badge">${escapeHtml(data.profile.classification)}</span>`;
         document.getElementById('profile-view-major').textContent = data.profile.major;
         document.getElementById('profile-view-university').textContent = data.profile.university;
         toggleProfileEdit(false);

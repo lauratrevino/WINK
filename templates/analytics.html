@@ -187,6 +187,7 @@
     .wink-modal-btn.secondary { background: #eef0f6; color: #002855; }
     .wink-modal-btn.danger { background: #b91c1c; color: #fff; }
   </style>
+  <meta name="csrf-token" content="{{ csrf_token() }}">
 </head>
 <body>
 
@@ -2755,6 +2756,24 @@
   </div>
 
   <script>
+    // Automatically attach the CSRF token to every state-changing fetch()
+    // call on this page, so none of the existing fetch() call sites below
+    // need to be touched individually.
+    (function() {
+      const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+      const originalFetch = window.fetch;
+      window.fetch = function(input, init) {
+        init = init || {};
+        const method = (init.method || 'GET').toUpperCase();
+        if (token && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+          const headers = new Headers(init.headers || {});
+          if (!headers.has('X-CSRFToken')) headers.set('X-CSRFToken', token);
+          init.headers = headers;
+        }
+        return originalFetch(input, init);
+      };
+    })();
+
     function toggleNav() {
       const nav = document.getElementById('app-nav');
       const btn = document.querySelector('.nav-toggle');
@@ -2868,39 +2887,53 @@
         } else {
           tbody.innerHTML = d.students.map(s => `
             <tr>
-              <td><strong>${s.first_name} ${s.last_name}</strong></td>
-              <td style="color:#6b7a99;">${s.email}</td>
-              <td><span class="badge badge-navy">${s.classification}</span></td>
-              <td>${s.major}</td>
-              <td style="color:#6b7a99;">${s.joined}</td>
+              <td><strong>${escapeHtml(s.first_name)} ${escapeHtml(s.last_name)}</strong></td>
+              <td style="color:#6b7a99;">${escapeHtml(s.email)}</td>
+              <td><span class="badge badge-navy">${escapeHtml(s.classification)}</span></td>
+              <td>${escapeHtml(s.major)}</td>
+              <td style="color:#6b7a99;">${escapeHtml(s.joined)}</td>
               <td>${s.sessions}</td>
               <td><span class="badge badge-orange">${s.questions}</span></td>
               <td>${s.uploads}</td>
               <td>
                 ${s.is_active
-                  ? `<button class="tab-btn" style="padding:4px 10px;font-size:11px;" onclick="toggleStudentActive(${s.id}, '${escapeHtml(s.first_name)} ${escapeHtml(s.last_name)}', true)">Suspend</button>`
+                  ? `<button class="tab-btn student-toggle-btn" style="padding:4px 10px;font-size:11px;" data-id="${s.id}" data-active="true">Suspend</button>`
                   : `<span class="badge" style="background:#fef2f2;color:#b91c1c;">Suspended</span>
-                     <button class="tab-btn" style="padding:4px 10px;font-size:11px;margin-left:6px;" onclick="toggleStudentActive(${s.id}, '${escapeHtml(s.first_name)} ${escapeHtml(s.last_name)}', false)">Reactivate</button>`}
+                     <button class="tab-btn student-toggle-btn" style="padding:4px 10px;font-size:11px;margin-left:6px;" data-id="${s.id}" data-active="false">Reactivate</button>`}
               </td>
             </tr>`).join('');
+          // Names are attached via dataset + addEventListener rather than baked into an
+          // inline onclick string — untrusted text inside an inline event-handler
+          // attribute is unsafe even when HTML-escaped, since the browser HTML-decodes
+          // the attribute before handing it to the JS engine, undoing the escaping.
+          tbody.querySelectorAll('.student-toggle-btn').forEach((btn, idx) => {
+            const student = d.students[idx];
+            btn.addEventListener('click', () => {
+              toggleStudentActive(
+                parseInt(btn.dataset.id, 10),
+                `${student.first_name} ${student.last_name}`,
+                btn.dataset.active === 'true'
+              );
+            });
+          });
         }
 
         // Activity feed
         const feed = document.getElementById('event-feed');
         feed.innerHTML = d.recent.map(e => {
           const icon = eventIcons[e.event_type] || '📌';
-          const name = e.first_name ? `${e.first_name} ${e.last_name}` : 'Unknown';
-          let detail = e.event_type.replace(/_/g,' ');
-          if (e.payload && e.payload.q) detail = '"' + e.payload.q.substring(0,80) + (e.payload.q.length > 80 ? '…' : '') + '"';
-          else if (e.payload && e.payload.page) detail = 'viewed ' + e.payload.page;
-          else if (e.payload && e.payload.name) detail = e.payload.name;
+          const name = e.first_name ? `${escapeHtml(e.first_name)} ${escapeHtml(e.last_name)}` : 'Unknown';
+          let detail = escapeHtml(e.event_type.replace(/_/g,' '));
+          if (e.payload && e.payload.q) detail = '"' + escapeHtml(e.payload.q.substring(0,80)) + (e.payload.q.length > 80 ? '…' : '') + '"';
+          else if (e.payload && e.payload.page) detail = 'viewed ' + escapeHtml(e.payload.page);
+          else if (e.payload && e.payload.name) detail = escapeHtml(e.payload.name);
           return `<div class="event-item">
             <div class="event-icon">${icon}</div>
             <div class="event-body">
               <div class="event-name">${name}</div>
               <div class="event-detail">${detail}</div>
             </div>
-            <div class="event-time">${e.ts}</div>
+            <div class="event-time">${escapeHtml(e.ts)}</div>
           </div>`;
         }).join('') || '<div style="color:#6b7a99;font-size:13px;padding:12px;">No events yet.</div>';
 
@@ -2913,13 +2946,13 @@
             <div class="convo-item">
               <div class="convo-header" onclick="toggleConvo(${i})">
                 <div>
-                  <div style="font-size:11px;color:#6b7a99;margin-bottom:3px;">${c.first_name} ${c.last_name} · ${c.ts}</div>
-                  <div class="convo-q">❓ ${c.question.substring(0,120)}${c.question.length > 120 ? '…' : ''}</div>
+                  <div style="font-size:11px;color:#6b7a99;margin-bottom:3px;">${escapeHtml(c.first_name)} ${escapeHtml(c.last_name)} · ${escapeHtml(c.ts)}</div>
+                  <div class="convo-q">❓ ${escapeHtml(c.question.substring(0,120))}${c.question.length > 120 ? '…' : ''}</div>
                 </div>
                 <span style="font-size:12px;color:#6b7a99;flex-shrink:0;margin-left:12px;">▼</span>
               </div>
               <div class="convo-body" id="convo-body-${i}">
-                <div class="convo-answer">${c.answer || 'No answer recorded.'}</div>
+                <div class="convo-answer">${c.answer ? escapeHtml(c.answer).replace(/\n/g,'<br>') : 'No answer recorded.'}</div>
               </div>
             </div>`).join('');
         }
@@ -2931,10 +2964,10 @@
         } else {
           dtbody.innerHTML = d.upcoming_deadlines.map(dl => `
             <tr>
-              <td><span class="badge badge-orange">${dl.due_date}</span></td>
-              <td><strong>${dl.title}</strong></td>
-              <td>${dl.course}</td>
-              <td style="color:#6b7a99;">${dl.first_name} ${dl.last_name}</td>
+              <td><span class="badge badge-orange">${escapeHtml(dl.due_date)}</span></td>
+              <td><strong>${escapeHtml(dl.title)}</strong></td>
+              <td>${escapeHtml(dl.course)}</td>
+              <td style="color:#6b7a99;">${escapeHtml(dl.first_name)} ${escapeHtml(dl.last_name)}</td>
             </tr>`).join('');
         }
 
@@ -3126,7 +3159,7 @@
 
     // ── General reference documents ─────────────────────────────
     function escapeHtml(text) {
-      return String(text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      return String(text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
     }
 
     let gdSelectedFile = null;
@@ -3231,7 +3264,7 @@
             <td style="font-weight:600;color:#002855;">${escapeHtml(d.orig_name)}</td>
             <td>${(d.size_bytes / 1024).toFixed(1)} KB</td>
             <td>${d.uploaded_at ? new Date(d.uploaded_at).toLocaleDateString() : ''}</td>
-            <td><button class="btn-delete-gd" onclick="deleteGdDoc(${d.id})">🗑</button></td>
+            <td><button class="btn-delete-gd" onclick="deleteGdDoc(${d.id})" aria-label="Delete ${escapeHtml(d.orig_name)}">🗑</button></td>
           </tr>
         `).join('');
       } catch (e) {

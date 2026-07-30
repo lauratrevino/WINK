@@ -309,6 +309,7 @@
     .wink-modal-btn.secondary { background: #eef0f6; color: #002855; }
     .wink-modal-btn.danger { background: #b91c1c; color: #fff; }
   </style>
+  <meta name="csrf-token" content="{{ csrf_token() }}">
 </head>
 <body>
 
@@ -398,7 +399,7 @@
           <input type="file" id="chat-file-input" style="display:none" onchange="handleChatFileUpload(event)">
           <textarea id="chat-input" placeholder="Ask WINK anything about your courses…" rows="1" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
           <button class="btn-icon-round" id="mic-btn" onclick="toggleVoiceInput()" title="Speak your question" aria-label="Speak your question">🎤</button>
-          <button class="btn-send" id="send-btn" onclick="sendMessage()">➤</button>
+          <button class="btn-send" id="send-btn" onclick="sendMessage()" aria-label="Send message">➤</button>
         </div>
         <div class="input-hint">Press Enter to send · Shift+Enter for new line · Answers come from your uploaded documents</div>
       </div>
@@ -406,8 +407,8 @@
 
     <!-- Terms / User's Guide modal -->
     <div class="wink-modal-overlay" id="wink-modal" onclick="if(event.target===this) closeWinkModal()">
-      <div class="wink-modal-card">
-        <button class="wink-modal-close" onclick="closeWinkModal()">✕</button>
+      <div class="wink-modal-card" role="dialog" aria-modal="true">
+        <button class="wink-modal-close" onclick="closeWinkModal()" aria-label="Close">✕</button>
         <div id="wink-modal-body"></div>
       </div>
     </div>
@@ -415,6 +416,24 @@
   </div>
 
   <script>
+    // Automatically attach the CSRF token to every state-changing fetch()
+    // call on this page, so none of the existing fetch() call sites below
+    // need to be touched individually.
+    (function() {
+      const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+      const originalFetch = window.fetch;
+      window.fetch = function(input, init) {
+        init = init || {};
+        const method = (init.method || 'GET').toUpperCase();
+        if (token && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+          const headers = new Headers(init.headers || {});
+          if (!headers.has('X-CSRFToken')) headers.set('X-CSRFToken', token);
+          init.headers = headers;
+        }
+        return originalFetch(input, init);
+      };
+    })();
+
     function toggleNav() {
       const nav = document.getElementById('app-nav');
       const btn = document.querySelector('.nav-toggle');
@@ -474,6 +493,14 @@
       });
     }
 
+    // Using the |tojson filter (not a bare Jinja variable) is what actually makes
+    // this safe to embed in JS source — Jinja's default variable interpolation
+    // only HTML-escapes, which does not reliably protect a value placed inside a
+    // JS string/template literal (a literal backtick or ${...} in a student's
+    // name could otherwise break out of a template literal and run as real
+    // JavaScript). |tojson produces a properly quoted, JS-safe JSON string instead.
+    const STUDENT_FIRST_NAME = {{ s.first_name | tojson }};
+
     let messages = [];
     let currentConversationId = null;
     let currentTempDoc = null; // { name, content } — cleared on New Chat / switching conversations
@@ -481,7 +508,7 @@
 
     const WELCOME_HTML = `<div class="welcome-msg" id="welcome">
       <img src="/static/WINK.jpeg" alt="WINK" style="width:64px;height:78px;border-radius:50%;object-fit:cover;margin:0 auto 12px;display:block;border:3px solid #FF8200;">
-      <h2>Hi {{ s.first_name }}, I'm WINK!</h2>
+      <h2>Hi ${escapeHtml(STUDENT_FIRST_NAME)}, I'm WINK!</h2>
       <p>Ask me anything about your courses, deadlines, assignments, or UTEP campus resources. I'll answer from your uploaded materials first.</p>
     </div>`;
     const TYPING_HTML = `<div class="msg wink typing" id="typing-indicator">
@@ -506,10 +533,12 @@
     }
 
     function escapeHtml(text) {
-      return text
+      return String(text)
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
     }
 
     function formatMessage(text) {
@@ -554,7 +583,7 @@
       html = '<p>' + html + '</p>';
       html = html.replace(/<p><\/p>/g, '');
       // URLs (anything left over that wasn't part of a stashed embed)
-      html = html.replace(/(https?:\/\/[^\s<>"]+)/g, '<a href="$1" target="_blank">$1</a>');
+      html = html.replace(/(https?:\/\/[^\s<>"]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
 
       // Swap the real markup back in for its placeholder tokens
       html = html.replace(/\u0000EMBED(\d+)\u0000/g, (m, i) => embeds[parseInt(i, 10)]);
@@ -574,10 +603,10 @@
           if (!res.ok) throw new Error('not found');
           const data = await res.json();
           const src = data.thumbnail && data.thumbnail.source;
-          if (!src) throw new Error('no photo available');
+          if (!src || !/^https:\/\//.test(src)) throw new Error('no photo available');
           el.classList.remove('wink-photo-pending');
           el.classList.add('wink-photo');
-          el.innerHTML = `<img src="${src}" alt="${escapeHtml(query)}" loading="lazy">
+          el.innerHTML = `<img src="${escapeHtml(src)}" alt="${escapeHtml(query)}" loading="lazy">
             <div class="wink-photo-credit">Photo via Wikipedia</div>`;
         } catch (e) {
           el.innerHTML = `<span class="wink-photo-missing">📷 No photo found for "${escapeHtml(query)}"</span>`;
@@ -598,7 +627,7 @@
 
       const avatar = document.createElement('div');
       avatar.className = `msg-avatar ${role === 'user' ? 'user-av' : 'wink-av'}`;
-      avatar.textContent = role === 'user' ? '{{ s.first_name[0] }}' : 'W';
+      avatar.textContent = role === 'user' ? (STUDENT_FIRST_NAME[0] || 'U') : 'W';
 
       const bubble = document.createElement('div');
       bubble.className = 'msg-bubble';

@@ -118,6 +118,7 @@
       .auth-form-panel { padding: 28px 16px; }
     }
   </style>
+  <meta name="csrf-token" content="{{ csrf_token() }}">
 </head>
 <body>
   <div class="auth-wrap">
@@ -149,6 +150,7 @@
         {% endif %}
 
         <form method="POST" action="/register">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="form-row">
             <div class="form-group">
               <label for="first_name">First Name</label>

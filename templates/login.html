@@ -136,6 +136,7 @@
     }
     .back-link:hover { color: #002855; }
   </style>
+  <meta name="csrf-token" content="{{ csrf_token() }}">
 </head>
 <body>
 
@@ -163,6 +164,7 @@
       <!-- SIGN IN PANEL -->
       <div class="panel{{ '' if forgot else ' active' }}" id="panel-signin">
         <form method="POST" action="/login">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="form-group">
             <label for="email">Email</label>
             <input type="email" id="email" name="email"
@@ -200,6 +202,7 @@
           </div>
         {% else %}
           <form method="POST" action="/forgot-password">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="form-group">
               <label for="fp-email">Email</label>
               <input type="email" id="fp-email" name="email"

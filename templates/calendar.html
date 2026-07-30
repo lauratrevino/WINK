@@ -95,6 +95,7 @@
       display: flex; flex-direction: column; gap: 3px;
     }
     .cal-day:hover { background: #f8f9ff; }
+    .cal-day:focus-visible { outline: 2px solid #FF8200; outline-offset: -2px; background: #f8f9ff; }
     .cal-day.other-month { background: #fafbfd; color: #c5cbda; }
     .cal-day.today { background: #fff3e6; }
     .cal-day-num { font-size: 12px; font-weight: 700; color: #002855; }
@@ -146,6 +147,7 @@
       .cal-day-num.has-items::after { content: '•'; color: #FF8200; margin-left: 3px; }
     }
   </style>
+  <meta name="csrf-token" content="{{ csrf_token() }}">
 </head>
 <body>
 
@@ -172,9 +174,9 @@
     <div class="cal-header">
       <h1>📅 Master Calendar</h1>
       <div class="cal-nav">
-        <button class="cal-nav-btn" onclick="changeMonth(-1)">‹</button>
+        <button class="cal-nav-btn" onclick="changeMonth(-1)" aria-label="Previous month">‹</button>
         <div class="cal-month-label" id="month-label"></div>
-        <button class="cal-nav-btn" onclick="changeMonth(1)">›</button>
+        <button class="cal-nav-btn" onclick="changeMonth(1)" aria-label="Next month">›</button>
         <button class="cal-today-btn" onclick="goToday()">Today</button>
       </div>
     </div>
@@ -197,16 +199,34 @@
 
   <!-- Day detail panel -->
   <div class="day-panel" id="day-panel" onclick="if(event.target===this) closeDayPanel()">
-    <div class="day-panel-card">
+    <div class="day-panel-card" role="dialog" aria-modal="true" aria-labelledby="day-panel-title">
       <div class="day-panel-header">
         <h2 id="day-panel-title">—</h2>
-        <button class="day-panel-close" onclick="closeDayPanel()">✕</button>
+        <button class="day-panel-close" onclick="closeDayPanel()" aria-label="Close">✕</button>
       </div>
       <div id="day-panel-body"></div>
     </div>
   </div>
 
   <script>
+    // Automatically attach the CSRF token to every state-changing fetch()
+    // call on this page, so none of the existing fetch() call sites below
+    // need to be touched individually.
+    (function() {
+      const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+      const originalFetch = window.fetch;
+      window.fetch = function(input, init) {
+        init = init || {};
+        const method = (init.method || 'GET').toUpperCase();
+        if (token && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+          const headers = new Headers(init.headers || {});
+          if (!headers.has('X-CSRFToken')) headers.set('X-CSRFToken', token);
+          init.headers = headers;
+        }
+        return originalFetch(input, init);
+      };
+    })();
+
     function toggleNav() {
       const nav = document.getElementById('app-nav');
       const btn = document.querySelector('.nav-toggle');
@@ -235,7 +255,7 @@
       const courses = Object.keys(courseColors);
       if (courses.length === 0) { legend.innerHTML = ''; return; }
       legend.innerHTML = courses.map(c =>
-        `<div class="legend-item"><span class="legend-dot" style="background:${courseColors[c]}"></span>${c}</div>`
+        `<div class="legend-item"><span class="legend-dot" style="background:${courseColors[c]}"></span>${escapeHtml(c)}</div>`
       ).join('');
     }
 
@@ -277,8 +297,12 @@
         const classes = ['cal-day'];
         if (cell.otherMonth) classes.push('other-month');
         if (isToday) classes.push('today');
-        const clickAttr = cell.dateStr ? `onclick="openDayPanel('${cell.dateStr}')"` : '';
-        return `<div class="${classes.join(' ')}" ${clickAttr}>
+        let interactiveAttrs = '';
+        if (cell.dateStr) {
+          const label = `${cell.day}${isToday ? ', today' : ''}${items.length ? `, ${items.length} item${items.length !== 1 ? 's' : ''} due` : ', nothing due'}`;
+          interactiveAttrs = `onclick="openDayPanel('${cell.dateStr}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openDayPanel('${cell.dateStr}')}" tabindex="0" role="button" aria-label="${escapeHtml(label)}"`;
+        }
+        return `<div class="${classes.join(' ')}" ${interactiveAttrs}>
           <div class="cal-day-num${items.length ? ' has-items' : ''}">${cell.day}</div>
           ${chips}${more}
         </div>`;
@@ -286,8 +310,10 @@
     }
 
     function escapeHtml(text) {
-      return String(text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      return String(text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
     }
+
+    let dayPanelLastFocus = null;
 
     function openDayPanel(dateStr) {
       const items = deadlinesByDate[dateStr] || [];
@@ -308,11 +334,29 @@
             </div>
           </div>`).join('');
       }
+      dayPanelLastFocus = document.activeElement;
       document.getElementById('day-panel').classList.add('open');
+      document.addEventListener('keydown', handleDayPanelKeydown);
+      // Move focus into the dialog so keyboard/screen-reader users land inside it
+      requestAnimationFrame(() => document.querySelector('.day-panel-close').focus());
     }
 
     function closeDayPanel() {
       document.getElementById('day-panel').classList.remove('open');
+      document.removeEventListener('keydown', handleDayPanelKeydown);
+      if (dayPanelLastFocus) { dayPanelLastFocus.focus(); dayPanelLastFocus = null; }
+    }
+
+    function handleDayPanelKeydown(e) {
+      if (e.key === 'Escape') { closeDayPanel(); return; }
+      if (e.key !== 'Tab') return;
+      // Simple focus trap: keep Tab/Shift+Tab cycling within the dialog card
+      const card = document.querySelector('.day-panel-card');
+      const focusable = card.querySelectorAll('button, a[href]');
+      if (focusable.length === 0) return;
+      const first = focusable[0], last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
     }
 
     function changeMonth(delta) {

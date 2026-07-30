@@ -252,6 +252,7 @@
     .wink-modal-btn.secondary { background: #eef0f6; color: #002855; }
     .wink-modal-btn.danger { background: #b91c1c; color: #fff; }
   </style>
+  <meta name="csrf-token" content="{{ csrf_token() }}">
 </head>
 <body>
 
@@ -332,7 +333,7 @@
           <div class="dz-text">Drag & drop files here, or <label id="file-label">browse to upload</label></div>
           <div class="dz-sub">Select multiple files at once — PDF, Word, PowerPoint, Excel, TXT, images — up to 16 MB each</div>
         </div>
-        <input type="file" id="file-input" multiple accept=".pdf,.docx,.doc,.txt,.pptx,.xlsx,.png,.jpg,.jpeg">
+        <input type="file" id="file-input" multiple accept=".pdf,.docx,.txt,.pptx,.xlsx,.png,.jpg,.jpeg">
         <div class="selected-files-list" id="selected-files-list"></div>
       </div>
 
@@ -345,6 +346,11 @@
       <h2>📁 Document Library</h2>
       <span id="docs-count-text">{{ docs|length }} file{{ 's' if docs|length != 1 else '' }}</span>
     </div>
+
+    <input type="text" id="doc-search" placeholder="Search by filename or course…" autocomplete="off"
+           style="width:100%;padding:10px 14px;border:1.5px solid #dde3f0;border-radius:8px;font-size:14px;margin-bottom:16px;"
+           oninput="filterDocLibrary(this.value)" aria-label="Search documents">
+    <div id="doc-search-empty" style="display:none;text-align:center;color:#6b7a99;font-size:14px;padding:24px 0;">No documents match your search.</div>
 
     <div id="library-wrap">
       {% if grouped_docs %}
@@ -396,6 +402,24 @@
   </div>
 
   <script>
+    // Automatically attach the CSRF token to every state-changing fetch()
+    // call on this page, so none of the existing fetch() call sites below
+    // need to be touched individually.
+    (function() {
+      const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+      const originalFetch = window.fetch;
+      window.fetch = function(input, init) {
+        init = init || {};
+        const method = (init.method || 'GET').toUpperCase();
+        if (token && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+          const headers = new Headers(init.headers || {});
+          if (!headers.has('X-CSRFToken')) headers.set('X-CSRFToken', token);
+          init.headers = headers;
+        }
+        return originalFetch(input, init);
+      };
+    })();
+
     function toggleNav() {
       const nav = document.getElementById('app-nav');
       const btn = document.querySelector('.nav-toggle');
@@ -525,7 +549,7 @@
       let uploaded = 0, failed = 0, skipped = 0, lastDocs = null;
       for (const file of files) {
         if (isAtLimit()) { skipped += (files.length - uploaded - failed); break; }
-        status.innerHTML = `<span class="status-info">⏳ Uploading ${file.name} (${uploaded + failed + 1} of ${files.length})…</span>`;
+        status.innerHTML = `<span class="status-info">⏳ Uploading ${escapeHtml(file.name)} (${uploaded + failed + 1} of ${files.length})…</span>`;
         const fd = new FormData();
         fd.append('file', file); fd.append('course', course); fd.append('crn', crn);
         try {
@@ -589,6 +613,15 @@
       return '📄';
     }
 
+    function escapeHtml(text) {
+      return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
     function groupDocsByCourse(docs) {
       const groups = {};
       docs.forEach(d => {
@@ -614,7 +647,7 @@
       grouped.forEach(([course, courseDocs]) => {
         html += `<div class="course-section">
           <div class="course-section-header">
-            <h3>${course}</h3>
+            <h3>${escapeHtml(course)}</h3>
             <span class="course-count-badge">${courseDocs.length}</span>
           </div>
           <div class="card docs-card">
@@ -622,16 +655,41 @@
               <thead><tr><th>File</th><th>Size</th><th>Uploaded</th><th></th></tr></thead>
               <tbody>`;
         courseDocs.forEach(d => {
+          const uploadedDate = d.uploaded_at
+            ? new Date(d.uploaded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+            : '—';
           html += `<tr id="doc-row-${d.id}">
-            <td><div class="doc-name-cell"><span class="doc-file-icon">${fileIcon(d.orig_name)}</span><span class="doc-name-text">${d.orig_name}</span></div></td>
+            <td><div class="doc-name-cell"><span class="doc-file-icon">${fileIcon(d.orig_name)}</span><span class="doc-name-text">${escapeHtml(d.orig_name)}</span></div></td>
             <td>${(d.size_bytes/1024).toFixed(1)} KB</td>
-            <td>—</td>
-            <td><button class="btn-delete" onclick="deleteDoc(${d.id})">Delete</button></td>
+            <td>${uploadedDate}</td>
+            <td><button class="btn-delete" onclick="deleteDoc(${d.id})" aria-label="Delete ${escapeHtml(d.orig_name)}">Delete</button></td>
           </tr>`;
         });
         html += `</tbody></table></div></div>`;
       });
       wrap.innerHTML = html;
+      filterDocLibrary(document.getElementById('doc-search')?.value || '');
+    }
+
+    function filterDocLibrary(query) {
+      const q = query.trim().toLowerCase();
+      const sections = document.querySelectorAll('#library-wrap .course-section');
+      let anyVisible = false;
+      sections.forEach(section => {
+        const courseName = (section.querySelector('h3')?.textContent || '').toLowerCase();
+        const rows = section.querySelectorAll('tbody tr');
+        let sectionHasMatch = false;
+        rows.forEach(row => {
+          const filename = (row.querySelector('.doc-name-text')?.textContent || '').toLowerCase();
+          const matches = !q || courseName.includes(q) || filename.includes(q);
+          row.style.display = matches ? '' : 'none';
+          if (matches) sectionHasMatch = true;
+        });
+        section.style.display = sectionHasMatch ? '' : 'none';
+        if (sectionHasMatch) anyVisible = true;
+      });
+      const emptyMsg = document.getElementById('doc-search-empty');
+      if (emptyMsg) emptyMsg.style.display = (q && !anyVisible && sections.length > 0) ? 'block' : 'none';
     }
 
     updateLimitUI();
