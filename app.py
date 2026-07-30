@@ -31,8 +31,35 @@ app.config.update(
 # the dashboard/documents/chat/analytics pages). Both read the same token
 # from `{{ csrf_token() }}`, exposed automatically as a Jinja global once
 # CSRFProtect is initialized.
-from flask_wtf import CSRFProtect
-csrf = CSRFProtect(app)
+class _NoOpCSRF:
+    """Fallback so the app still boots (with CSRF protection OFF) if
+    flask-wtf isn't actually installed in the running environment. This is a
+    fail-safe, not a fix — if you're seeing this branch used, it means the
+    deployed image was built from a stale layer that never re-ran
+    `pip install -r requirements.txt` after flask-wtf was added there.
+    Trigger a clean rebuild (not just a restart) so the build step actually
+    reinstalls dependencies, then redeploy — don't leave CSRF disabled."""
+    def exempt(self, f):
+        return f
+
+try:
+    from flask_wtf import CSRFProtect
+    csrf = CSRFProtect(app)
+except ImportError:
+    print(
+        "WARNING: flask-wtf is not installed in this environment, even "
+        "though it's listed in requirements.txt. CSRF PROTECTION IS "
+        "DISABLED. Trigger a clean rebuild of the deploy image (not just a "
+        "restart) so pip actually reinstalls from the current "
+        "requirements.txt, then redeploy."
+    )
+    csrf = _NoOpCSRF()
+    # Every template calls {{ csrf_token() }} — without this fallback,
+    # rendering ANY page would throw a Jinja UndefinedError the moment
+    # flask-wtf fails to register the real one. The emitted token is inert
+    # here; it isn't validated by anything until flask-wtf is actually
+    # installed and this except branch stops being hit.
+    app.jinja_env.globals.setdefault("csrf_token", lambda: "")
 
 @app.after_request
 def set_security_headers(response):
