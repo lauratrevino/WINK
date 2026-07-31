@@ -213,7 +213,13 @@ def forgot_password():
             f"If you didn't request this, you can safely ignore this email.\n\n— WINK"
         )
         if not sent:
-            print(f"PASSWORD RESET LINK for {email}: {reset_link}")
+            # Never log the actual link here — it's a working, unexpired
+            # account-takeover URL for this student. If SMTP isn't
+            # configured in production, resets would otherwise end up
+            # sitting in server logs indefinitely, readable by anyone with
+            # log access. DEBUG_SHOW_RESET_LINKS (below) is the intended,
+            # explicit opt-in for local testing instead.
+            print(f"forgot_password: email not sent for student {s['id']} — SMTP not configured or delivery failed")
         if not sent and config.DEBUG_SHOW_RESET_LINKS:
             return render_template("login.html", forgot=True, reset_sent=True, reset_link=reset_link)
         return render_template("login.html", forgot=True, reset_sent=True)

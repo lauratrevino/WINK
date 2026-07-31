@@ -7,7 +7,7 @@ from .. import config
 from ..extensions import csrf, get_db
 from ..security import login_required, page_login_required, rate_limited
 from ..services.analytics import log_event
-from ..services.deadlines import detect_deadline_conflicts, extract_deadlines, get_all_deadlines, get_upcoming_deadlines
+from ..services.deadlines import build_study_plan, detect_deadline_conflicts, extract_deadlines, get_all_deadlines, get_upcoming_deadlines
 from ..services.documents import get_docs
 from ..services.email import send_email
 
@@ -52,6 +52,16 @@ def deadline_conflicts():
     (see README); it's available for one to be built against."""
     s = g.student
     return jsonify({"conflicts": detect_deadline_conflicts(s["id"])})
+
+
+@bp.route("/study-plan")
+@login_required
+def study_plan():
+    """Week-by-week plan combining upcoming deadlines with practice
+    questions due for review — see build_study_plan()'s docstring."""
+    s = g.student
+    weeks = request.args.get("weeks", 4, type=int)
+    return jsonify({"weeks": build_study_plan(s["id"], weeks_ahead=max(1, min(weeks, 12)))})
 
 
 @bp.route("/reprocess-deadlines", methods=["POST"])

@@ -31,6 +31,25 @@ def chat_page():
         return "<h2>Something went wrong</h2><p>Please try again, or <a href='/logout'>log out</a> and back in.</p>", 500
 
 
+@bp.route("/practice-page")
+@page_login_required
+def practice_page():
+    """New page — no existing template touched to add this one. Lets a
+    student generate practice questions (optionally from a temporarily
+    attached handout, see /generate-practice's temp_material) and review
+    whatever's already due (see /practice-review)."""
+    try:
+        s = g.student
+        docs = get_docs(s["id"])
+        known_courses = sorted({(d.get("course") or "").strip() for d in docs if (d.get("course") or "").strip()})
+        log_event(s["id"], "page_view", {"page": "practice"})
+        return render_template("practice.html", s=s, admin_email=config.ADMIN_EMAIL,
+                               active="practice", known_courses=known_courses)
+    except Exception as e:
+        print(f"practice_page error: {e}"); traceback.print_exc()
+        return "<h2>Something went wrong</h2><p>Please try again, or <a href='/logout'>log out</a> and back in.</p>", 500
+
+
 @bp.route("/chat", methods=["POST"])
 @login_required
 def chat():
@@ -193,8 +212,26 @@ def chat():
             f"DOCUMENTS section by that internal name out loud — refer to what's actually in it "
             f"(e.g. 'the university writing center's guidelines') instead. If an answer draws on "
             f"more than one document, cite each one you actually used, not just the first. "
-            f"RICH CONTENT — the chat interface CAN render maps and images, so use them "
-            f"whenever they'd genuinely help: "
+            f"6. GRADE MATH — if a syllabus's grading breakdown (category weights, e.g. "
+            f"'Homework 20%, Midterm 30%, Final 30%, Participation 20%') is in the student's "
+            f"documents and they ask something like 'what do I need on the final' or 'what's my "
+            f"current grade,' actually do the weighted-average arithmetic using the real weights "
+            f"from their syllabus — don't estimate or hand-wave it. If they haven't given you "
+            f"their current scores for each category, ask for exactly the ones you need before "
+            f"calculating, rather than guessing. Show the calculation briefly so they can verify "
+            f"it, not just the final number. If the syllabus doesn't state weights precisely "
+            f"enough to compute this, say so plainly rather than inventing a breakdown. "
+            f"RICH CONTENT — the chat interface CAN render maps, images, and diagrams, so use "
+            f"them whenever they'd genuinely help: "
+            f"- For anything with real structure — a process, a sequence of steps, a state "
+            f"machine, a decision tree, a system architecture, a timeline, a concept map — "
+            f"render an actual diagram instead of describing it in prose. Use a fenced code "
+            f"block with the language 'mermaid', e.g.:\\n```mermaid\\nflowchart LR\\n  A[Start] "
+            f"--> B[Step two] --> C[Done]\\n```\\nUse Mermaid's own syntax (flowchart, "
+            f"sequenceDiagram, stateDiagram-v2, classDiagram, gantt, etc. — whichever fits what "
+            f"you're explaining). Never say you can't draw or visualize something structural — "
+            f"you can, using this syntax. Only do this for genuinely structural/sequential "
+            f"content; don't force a diagram onto a simple factual answer. "
             f"- For a campus building, address, or any physical location, include "
             f"[[map: specific place name or address]] on its own — e.g. [[map: Union "
             f"Building, {university_display}]]. Always add the university name (and its "
