@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>WINK — Your AI Academic Companion</title>
-<style>
+<style nonce="{{ csp_nonce() }}">
 *{box-sizing:border-box;margin:0;padding:0;}
 :root{
   --navy:#041e42;--blue:#1d4ed8;--orange:#f97316;
@@ -476,7 +476,7 @@ tr:hover td{background:var(--bg);}
 
 </div>
 
-<script>
+<script nonce="{{ csp_nonce() }}">
 function goPage(name,tab){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));

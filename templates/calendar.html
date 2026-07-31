@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Calendar — WINK</title>
-  <style>
+  <style nonce="{{ csp_nonce() }}">
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
@@ -208,7 +208,7 @@
     </div>
   </div>
 
-  <script>
+  <script nonce="{{ csp_nonce() }}">
     // Automatically attach the CSRF token to every state-changing fetch()
     // call on this page, so none of the existing fetch() call sites below
     // need to be touched individually.

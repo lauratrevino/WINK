@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Ask WINK — Chat</title>
-  <style>
+  <style nonce="{{ csp_nonce() }}">
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100%; }
     body {
@@ -373,7 +373,7 @@
         <button class="toolbar-btn" id="export-btn" onclick="exportConversation()" disabled>⬇ Download</button>
         <button class="toolbar-btn" id="share-btn" onclick="shareConversation()" disabled>🔗 Share</button>
       </div>
-      <div class="messages-wrap" id="messages">
+      <div class="messages-wrap" id="messages" role="log" aria-live="polite" aria-atomic="false" aria-relevant="additions">
 
         <div class="welcome-msg" id="welcome">
           <img src="/static/WINK.jpeg" alt="WINK" style="width:64px;height:78px;border-radius:50%;object-fit:cover;margin:0 auto 12px;display:block;border:3px solid #FF8200;">
@@ -415,7 +415,7 @@
 
   </div>
 
-  <script>
+  <script nonce="{{ csp_nonce() }}">
     // Automatically attach the CSRF token to every state-changing fetch()
     // call on this page, so none of the existing fetch() call sites below
     // need to be touched individually.
