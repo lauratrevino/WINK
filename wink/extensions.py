@@ -70,6 +70,21 @@ anthropic_client = (
     if config.ANTHROPIC_API_KEY else None
 )
 
+# ── Voyage AI embeddings client (optional) ────────────────────
+# Same graceful-absence pattern as the OCR import in services/documents.py:
+# if the package isn't installed, or VOYAGE_API_KEY isn't set, this stays
+# None and services/retrieval.py's rank_chunks() falls back to TF-IDF —
+# never a hard failure either way.
+voyage_client = None
+if config.VOYAGE_API_KEY:
+    try:
+        import voyageai
+        voyage_client = voyageai.Client(api_key=config.VOYAGE_API_KEY)
+    except ImportError:
+        print("VOYAGE_API_KEY is set but the voyageai package isn't installed — "
+              "falling back to TF-IDF retrieval. Add voyageai to requirements.txt "
+              "and redeploy to enable neural embeddings.")
+
 # ── DB pool ───────────────────────────────────────────────────
 # Pooling connections instead of opening a brand-new TCP + auth handshake to
 # Postgres on every single query matters a lot under concurrent load — a
@@ -240,6 +255,14 @@ def init_db():
             chunk_index INTEGER NOT NULL,
             content TEXT NOT NULL,
             created_at TIMESTAMP DEFAULT NOW())""")
+        # Precomputed neural embedding for this chunk, stored as a JSON
+        # float array — populated at upload time (once) if a neural
+        # embedding backend is configured (see services/retrieval.py),
+        # left NULL otherwise (TF-IDF needs no precomputed embedding at
+        # all — see rank_chunks()). Storing it here means a question only
+        # ever needs ONE new embedding call (the question itself), not one
+        # per chunk, every single time.
+        cur.execute("ALTER TABLE document_chunks ADD COLUMN IF NOT EXISTS embedding TEXT")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_document_chunks_document_id ON document_chunks(document_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_document_chunks_student_id ON document_chunks(student_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_document_chunks_university ON document_chunks(university)")

@@ -126,6 +126,21 @@ RETRIEVAL_CHUNK_OVERLAP_CHARS = 150
 RETRIEVAL_TOP_N_STUDENT_DOCS = 25
 RETRIEVAL_TOP_N_GLOBAL_DOCS = 12
 
+# ── Neural embeddings (optional — see services/retrieval.py) ────
+# If VOYAGE_API_KEY is set and the voyageai package is installed,
+# retrieval uses real semantic embeddings instead of TF-IDF's literal
+# word-matching. Voyage AI is Anthropic's own recommended embeddings
+# partner. Falls back to TF-IDF automatically if either isn't present —
+# same graceful-degradation pattern as OCR in services/documents.py.
+VOYAGE_API_KEY = os.environ.get("VOYAGE_API_KEY", "")
+# voyage-4-lite: confirmed directly against Voyage's current pricing page
+# (docs.voyageai.com/docs/pricing) — $0.02 per 1M tokens, AND the first 200
+# million tokens per account are free. voyage-3.5-lite costs the same per
+# token but is listed under "older models," which get no free allowance at
+# all — there's no reason to default to the model that costs strictly more
+# in practice for identical per-token pricing and quality.
+EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "voyage-4-lite")
+
 CLASSIFICATIONS = ["Freshman", "Sophomore", "Junior", "Senior", "Graduate", "Faculty"]
 MAJORS = [
     "Accounting", "Biology", "Business Administration", "Chemistry",

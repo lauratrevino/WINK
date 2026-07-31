@@ -13,11 +13,12 @@ instead of requiring you to scroll through everything else to find it.
 import os
 import secrets
 from datetime import timedelta
+from pathlib import Path
 
 from flask import Flask, g
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from . import config, extensions
+from . import config, csp_hashes, extensions
 from .blueprints import admin, auth, calendar, chat, dashboard, documents, misc
 
 
@@ -58,44 +59,51 @@ def create_app():
     # nonce="{{ csp_nonce() }}" (see templates/), and the header below uses
     # the CSP3 script-src-elem/style-src-elem directives to require it —
     # this blocks an attacker-injected <script>/<style> element from
-    # executing even if they find an injection point. Inline event-handler
-    # attributes (onclick=...) and inline style="..." attributes are left on
-    # 'unsafe-inline' via script-src-attr/style-src-attr — CSP has no nonce
-    # mechanism for those at all, and the templates use both extensively;
-    # migrating every onclick to addEventListener is a template-by-template
-    # job for another pass, not something to do silently as part of this one.
+    # executing even if they find an injection point.
     @app.before_request
     def _set_csp_nonce():
         g.csp_nonce = secrets.token_urlsafe(16)
 
     app.jinja_env.globals["csp_nonce"] = lambda: g.csp_nonce
 
+    # ── CSP hash allowlists for event handlers and style attributes ──
+    # Computed once, here, directly from the real template files — not a
+    # hardcoded list that could silently drift out of sync after a future
+    # template edit. See csp_hashes.py for what is and isn't hashable (a
+    # dynamic per-instance value like a document ID can't be — those were
+    # all refactored to data-* attributes plus a delegated listener or a
+    # direct .style property assignment instead of appearing in markup).
+    _script_hashes, _style_hashes = csp_hashes.compute_hashes(Path(config.BASE_DIR) / "templates")
+    _script_src_attr = " ".join(f"'sha256-{h}'" for h in _script_hashes)
+    _style_src_attr = " ".join(f"'sha256-{h}'" for h in _style_hashes)
+    print(f"CSP: {len(_script_hashes)} event-handler hashes, {len(_style_hashes)} style-attribute hashes computed from templates/")
+
     @app.after_request
     def set_security_headers(response):
         nonce = g.get("csp_nonce", "")
         # script-src/style-src (bare) stay as a fallback for browsers that
         # predate the CSP3 script-src-elem/-attr split. Browsers that
-        # understand nonces also understand that split (they shipped
-        # together), so this doesn't reopen the hole for anyone modern:
+        # understand nonces and hashes also understand that split (they
+        # shipped together), so this doesn't reopen the hole for anyone
+        # modern:
         # - script-src-elem / style-src-elem: only <script>/<style> tags
-        #   carrying this request's nonce may run — every template's inline
-        #   block now has nonce="{{ csp_nonce() }}" (see templates/). This is
-        #   the part that actually matters: it blocks an attacker-injected
-        #   <script src="https://evil.com/x.js"> or <style> tag from ever
-        #   executing, which is the highest-value XSS payload.
-        # - script-src-attr / style-src-attr: inline event handlers
-        #   (onclick=...) and inline style="..." attributes. These have no
-        #   nonce mechanism in CSP at all (only 'unsafe-inline' or a
-        #   per-handler hash), and the templates use both extensively —
-        #   left permissive rather than a template-by-template JS rewrite.
+        #   carrying this request's nonce may run — blocks an
+        #   attacker-injected <script src="https://evil.com/x.js"> or
+        #   <style> tag from ever executing, the highest-value XSS payload.
+        # - script-src-attr / style-src-attr: only inline event handlers
+        #   (onclick=...) and style="..." attributes whose exact, known
+        #   content matches one of the hashes computed above may run —
+        #   blocks an attacker-injected onclick/style whose content doesn't
+        #   match anything already in the app, while every existing handler
+        #   keeps working unchanged.
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
             "script-src 'self' 'unsafe-inline'; "
             f"script-src-elem 'self' 'nonce-{nonce}'; "
-            "script-src-attr 'unsafe-inline'; "
+            f"script-src-attr 'unsafe-hashes' {_script_src_attr}; "
             "style-src 'self' 'unsafe-inline'; "
             f"style-src-elem 'self' 'nonce-{nonce}'; "
-            "style-src-attr 'unsafe-inline'; "
+            f"style-src-attr 'unsafe-hashes' {_style_src_attr}; "
             "img-src 'self' https: data:; "
             "frame-src https://www.google.com; "
             "connect-src 'self'; "
