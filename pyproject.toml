@@ -1,0 +1,23 @@
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+# Ruff's own documented defaults (pyflakes + a small pycodestyle error subset).
+# Deliberately NOT enabling the full rule catalog: this codebase's broad
+# `except Exception` blocks are intentional defensive choices throughout —
+# every route independently reports its own failure rather than letting one
+# unhandled exception take down a shared code path — not oversights to lint
+# away. A stricter ruleset can be opted into later per-file if wanted.
+select = ["E4", "E7", "E9", "F"]
+ignore = [
+    "E701",  # one-line `if x: return y` — used consistently throughout as
+             # this codebase's house style for short guard clauses
+    "E702",  # `conn.commit(); cur.close()` one-liners — same, used
+             # throughout for the DB cleanup pattern specifically
+    "F541",  # f-strings with no placeholder, inside the long concatenated
+             # chat system prompt — cosmetic only, not worth touching that
+             # carefully-worded prompt text for
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
