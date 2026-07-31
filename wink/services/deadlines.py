@@ -93,6 +93,42 @@ def get_all_deadlines(sid):
         print(f"get_all_deadlines error: {e}"); return []
 
 
+def build_study_plan(sid, weeks_ahead=4):
+    """A week-by-week plan combining what's already known separately:
+    upcoming deadlines (this module) and practice questions due for
+    review (services/practice.py). Doesn't compute anything new about
+    either — it's a merge, presented as one plan instead of two separate
+    dashboards, for the next `weeks_ahead` weeks starting today."""
+    from datetime import timedelta
+    from ..timeutil import utcnow_naive
+    from .practice import get_due_questions
+
+    today = utcnow_naive().date()
+    rows = [r for r in get_all_deadlines(sid) if r.get("due_date")]
+    due_questions = get_due_questions(sid, limit=200)
+
+    weeks = []
+    for w in range(weeks_ahead):
+        week_start = today + timedelta(days=7 * w)
+        week_end = week_start + timedelta(days=6)
+        week_deadlines = [
+            r for r in rows
+            if week_start.isoformat() <= r["due_date"] <= week_end.isoformat()
+        ]
+        # Practice review load "for this week" is only meaningfully known for
+        # week 0 (today) — get_due_questions() only returns what's due as of
+        # right now, not a future projection of what will accumulate by
+        # then, so later weeks show 0 rather than a misleading guess.
+        review_count = len(due_questions) if w == 0 else 0
+        weeks.append({
+            "week_start": week_start.isoformat(),
+            "week_end": week_end.isoformat(),
+            "deadlines": sorted(week_deadlines, key=lambda r: r["due_date"]),
+            "questions_due_for_review": review_count,
+        })
+    return weeks
+
+
 def detect_deadline_conflicts(sid, window_days=5, min_items=3):
     """Groups a student's deadlines into date-proximity clusters —
     consecutive deadlines no more than window_days apart land in the same

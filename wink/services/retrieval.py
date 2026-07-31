@@ -19,19 +19,25 @@ point the goal is to find the passages that actually answer THIS question,
 not truncate every document by the same blind percentage regardless of
 relevance.
 
-Embedding backend: this ships with TF-IDF (scikit-learn), which needs no
-model download and runs fully offline — verified against this app's real
-Postgres instance and its own real uploaded syllabi during development.
-TF-IDF ranks by literal word overlap (weighted by how distinctive each word
-is), so it's very good at "when is the midterm" (the syllabus almost
-certainly contains the word "midterm") and weaker at pure paraphrase
-("when do I get graded on the big test" against a syllabus that only ever
-says "examination") than a neural embedding model would be. See the
-"Upgrading retrieval accuracy" section in README.md for how to add a
-neural backend (sentence-transformers) later — the seam for it is
-`_rank_neural()` below; it isn't wired in because doing so requires
-downloading model weights from huggingface.co at runtime, which wasn't
-reachable to verify from the sandbox this was built in.
+Two ranking backends:
+- TF-IDF (scikit-learn), the original default — needs no model download,
+  runs fully offline, verified against this app's real Postgres instance
+  and its own real uploaded syllabi. Ranks by literal word overlap, so
+  it's very good at "when is the midterm" and weaker at pure paraphrase
+  ("when do I get graded on the big test" against a syllabus that only
+  ever says "examination").
+- Neural embeddings via Voyage AI (Anthropic's recommended embeddings
+  partner), used automatically whenever VOYAGE_API_KEY is set and every
+  candidate chunk already has a precomputed embedding stored (see
+  store_document_chunks() in services/documents.py). Understands
+  "textbook" and "required reading" are related without being told so
+  explicitly — the actual fix for TF-IDF's paraphrase gap. NOTE: the
+  Voyage API itself was never reachable from the sandbox this was built
+  in (same network restriction that blocked huggingface.co earlier), so
+  this was built and tested against a fake client that mimics Voyage's
+  documented response shape — the real API call has not been verified
+  end-to-end. Test this for real as one of the first things you do once
+  it's deployed somewhere with normal internet access.
 """
 import re
 
@@ -39,6 +45,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 from .. import config
+from ..extensions import voyage_client
 
 # TF-IDF only matches literal words, so a question phrased differently from
 # the document ("textbook" vs. a syllabus that only ever says "Required
@@ -159,26 +166,62 @@ def _rank_tfidf(question, chunks):
         return list(range(len(chunks)))
 
 
-def _rank_neural(question, chunks):
-    """Seam for a stronger, semantic embedding backend (e.g.
-    sentence-transformers) — not implemented here. See README.md's
-    "Upgrading retrieval accuracy" section for what adding it involves.
-    rank_chunks() below would try this first and fall back to
-    _rank_tfidf() if it's not available, the same pattern already used
-    for OCR in services/documents.py."""
-    raise NotImplementedError
+def embed_texts(texts, input_type):
+    """Embeds a batch of texts via Voyage AI. `input_type` should be
+    "document" when embedding chunks to store, or "query" when embedding
+    a student's question — Voyage's models are trained asymmetrically, so
+    using the right one for each side measurably improves match quality
+    over treating both the same way. Returns a list of embedding vectors
+    (each a plain list of floats), or None if the client isn't configured
+    or the call fails for any reason — callers must treat None as "neural
+    embeddings aren't available right now", not a fatal error; every
+    caller in this module already does."""
+    if not voyage_client or not texts:
+        return None
+    try:
+        result = voyage_client.embed(texts, model=config.EMBEDDING_MODEL, input_type=input_type)
+        return result.embeddings
+    except Exception as e:
+        print(f"embed_texts error: {e}")
+        return None
 
 
-def rank_chunks(question, chunks, top_n):
+def _rank_neural(question, chunks, chunk_embeddings):
+    """Ranks chunks by real semantic similarity using PRECOMPUTED chunk
+    embeddings (see store_document_chunks() in services/documents.py,
+    which computes and stores these once, at upload time) — this function
+    only ever makes one new embedding call, for the question itself, not
+    one per chunk, every single time a student asks something. Voyage
+    embeddings are unit-normalized, so a plain dot product already IS
+    cosine similarity — no separate normalization step needed.
+    Raises NotImplementedError (caught by rank_chunks() below) if neural
+    ranking isn't usable right now: no client configured, or any chunk in
+    this set is missing its precomputed embedding (e.g. it was uploaded
+    before this feature existed, or embedding failed at upload time) —
+    in either case the honest answer is "fall back to TF-IDF for this
+    request" rather than silently mixing ranked and unranked chunks."""
+    if not voyage_client or chunk_embeddings is None or any(e is None for e in chunk_embeddings):
+        raise NotImplementedError
+    query_embeddings = embed_texts([question], input_type="query")
+    if not query_embeddings:
+        raise NotImplementedError
+    query_vec = query_embeddings[0]
+    sims = [sum(x * y for x, y in zip(query_vec, vec)) for vec in chunk_embeddings]
+    return sorted(range(len(chunks)), key=lambda i: sims[i], reverse=True)
+
+
+def rank_chunks(question, chunks, top_n, chunk_embeddings=None):
     """Returns the top_n chunks (as a list of strings, in ranked-relevance
-    order) most relevant to `question`. Uses the neural backend if one is
-    installed and working, otherwise TF-IDF."""
+    order) most relevant to `question`. Uses precomputed neural embeddings
+    (see `chunk_embeddings` — a list parallel to `chunks`, each entry
+    either an embedding vector or None) if all of them are present and a
+    Voyage client is configured; otherwise TF-IDF."""
     if not chunks:
         return []
     if len(chunks) <= top_n:
         return chunks
     try:
-        order = _rank_neural(question, chunks)
+        order = _rank_neural(question, chunks, chunk_embeddings)
     except NotImplementedError:
         order = _rank_tfidf(question, chunks)
     return [chunks[i] for i in order[:top_n]]

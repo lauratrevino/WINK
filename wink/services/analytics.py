@@ -61,6 +61,62 @@ def get_questions_this_month(sid):
         print(f"get_questions_this_month error: {e}"); return 0
 
 
+def get_wrapped_stats(sid):
+    """End-of-semester recap stats for one student — real counts from
+    their own activity, nothing estimated or invented. Everything here
+    comes from data already being logged for other purposes (events,
+    documents, practice_questions) — no new tracking was added just for
+    this."""
+    if not config.DB_URL:
+        return None
+    try:
+        conn = get_db(); cur = conn.cursor()
+
+        cur.execute("SELECT COUNT(*) as n FROM events WHERE student_id=%s AND event_type='question_asked'", (sid,))
+        total_questions = cur.fetchone()["n"]
+
+        cur.execute("""SELECT course, COUNT(*) as n FROM documents WHERE student_id=%s
+                       GROUP BY course ORDER BY n DESC""", (sid,))
+        courses = [dict(r) for r in cur.fetchall()]
+
+        cur.execute("""SELECT date_trunc('week', created_at) as wk, COUNT(*) as n
+                       FROM events WHERE student_id=%s AND event_type='question_asked'
+                       GROUP BY wk ORDER BY n DESC LIMIT 1""", (sid,))
+        busiest = cur.fetchone()
+        busiest_week = {"week_start": busiest["wk"].date().isoformat(), "count": busiest["n"]} if busiest else None
+
+        cur.execute("""SELECT to_char(created_at, 'Day') as dow, COUNT(*) as n
+                       FROM events WHERE student_id=%s AND event_type='question_asked'
+                       GROUP BY dow ORDER BY n DESC LIMIT 1""", (sid,))
+        top_day = cur.fetchone()
+        busiest_day_of_week = top_day["dow"].strip() if top_day else None
+
+        cur.execute("SELECT COUNT(*) as n FROM practice_questions WHERE student_id=%s AND correct_streak > 0", (sid,))
+        questions_mastered = cur.fetchone()["n"]
+
+        # Longest run of consecutive days with at least one question asked.
+        cur.execute("""SELECT DISTINCT created_at::date as d FROM events
+                       WHERE student_id=%s AND event_type='question_asked' ORDER BY d""", (sid,))
+        days = [r["d"] for r in cur.fetchall()]
+        longest_streak, current_streak, prev = 0, 0, None
+        for d in days:
+            current_streak = current_streak + 1 if prev is not None and (d - prev).days == 1 else 1
+            longest_streak = max(longest_streak, current_streak)
+            prev = d
+
+        cur.close()
+        return {
+            "total_questions": total_questions,
+            "courses": courses,
+            "busiest_week": busiest_week,
+            "busiest_day_of_week": busiest_day_of_week,
+            "questions_mastered": questions_mastered,
+            "longest_streak_days": longest_streak,
+        }
+    except Exception as e:
+        print(f"get_wrapped_stats error: {e}"); return None
+
+
 def get_student_summaries(cur):
     """Per-student sessions/questions/uploads/docs counts for the admin
     dashboard. Written as two grouped aggregates (one pass over `events`,
@@ -251,5 +307,26 @@ def compute_engagement_insights(cur):
         "up": up, "down": down,
         "positive_pct": round(up / (up + down) * 100, 1) if (up + down) else None,
     }
+
+    # ── Common questions (a proxy for shared confusion, not true semantic
+    #    clustering) ── groups by EXACT question text match — genuinely
+    #    different phrasings of the same underlying confusion won't group
+    #    together (that would need the same embedding infrastructure used
+    #    for retrieval, applied to a different problem, and wasn't built
+    #    here) — but a real, recurring exact question from multiple
+    #    students in the same week is still a legitimate, honest signal
+    #    that something in the course material is unclear.
+    cur.execute("""
+        SELECT (payload::json->>'q') as question, COUNT(*) as n, COUNT(DISTINCT student_id) as n_students
+        FROM events
+        WHERE event_type = 'question_asked'
+          AND created_at >= NOW() - INTERVAL '7 days'
+          AND length(payload::json->>'q') > 8
+        GROUP BY (payload::json->>'q')
+        HAVING COUNT(DISTINCT student_id) >= 2
+        ORDER BY n_students DESC, n DESC
+        LIMIT 15
+    """)
+    out["common_questions"] = [dict(r) for r in cur.fetchall()]
 
     return out

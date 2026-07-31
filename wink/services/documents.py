@@ -3,13 +3,14 @@ Everything about turning uploaded files into text the model can use:
 extraction (including OCR for images), per-student and per-university
 context building for the chat prompt, and the document queries themselves.
 """
+import json
 import threading
 import time
 import traceback
 
 from .. import config
 from ..extensions import get_db
-from .retrieval import chunk_text, rank_chunks
+from .retrieval import chunk_text, embed_texts, rank_chunks
 
 # ── OCR ───────────────────────────────────────────────────────
 # Optional at import time: if pytesseract/Pillow or the tesseract-ocr system
@@ -195,48 +196,64 @@ def store_document_chunks(document_id, student_id, university, course, orig_name
     """Chunks a document's extracted text and stores the chunks for
     retrieval. Called once per upload (or re-upload/replace) — chunking
     itself is cheap, but doing it once at upload time rather than on every
-    question keeps /chat fast. Safe to call with empty content (no-ops)."""
+    question keeps /chat fast. Safe to call with empty content (no-ops).
+
+    If a neural embedding backend is configured (see services/retrieval.py),
+    this also embeds every chunk in ONE batched call and stores the result
+    — so a later question only ever needs to embed the question itself,
+    not re-embed this document's chunks every time it's asked about."""
     if not config.DB_URL or not (content or "").strip():
         return
     header = f"[{orig_name}] ({course})" if course else f"[{orig_name}]"
     chunks = chunk_text(content, header=header)
     if not chunks:
         return
+    embeddings = embed_texts(chunks, input_type="document")  # None if unavailable — that's fine
     try:
         conn = get_db(); cur = conn.cursor()
         for i, chunk in enumerate(chunks):
+            emb = embeddings[i] if embeddings else None
             cur.execute("""INSERT INTO document_chunks
-                           (document_id, student_id, university, chunk_index, content)
-                           VALUES (%s, %s, %s, %s, %s)""",
-                        (document_id, student_id, university or "", i, chunk))
+                           (document_id, student_id, university, chunk_index, content, embedding)
+                           VALUES (%s, %s, %s, %s, %s, %s)""",
+                        (document_id, student_id, university or "", i, chunk,
+                         json.dumps(emb) if emb is not None else None))
         conn.commit(); cur.close()
     except Exception as e:
         print(f"store_document_chunks error: {e}")
 
 
 def get_student_chunks(sid):
+    """Returns this student's chunks as a list of {"content", "embedding"}
+    dicts — "embedding" is None for any chunk that doesn't have one
+    (neural backend wasn't configured when it was uploaded, or the
+    embedding call failed at the time)."""
     if not config.DB_URL:
         return []
     try:
         conn = get_db(); cur = conn.cursor()
-        cur.execute("""SELECT content FROM document_chunks
+        cur.execute("""SELECT content, embedding FROM document_chunks
                        WHERE student_id=%s ORDER BY document_id, chunk_index""", (sid,))
-        chunks = [r["content"] for r in cur.fetchall()]; cur.close()
-        return chunks
+        rows = cur.fetchall(); cur.close()
+        return [{"content": r["content"], "embedding": json.loads(r["embedding"]) if r["embedding"] else None}
+                for r in rows]
     except Exception as e:
         print(f"get_student_chunks error: {e}"); return []
 
 
 def get_global_chunks(university):
+    """Same as get_student_chunks(), for a university's global reference
+    documents."""
     if not config.DB_URL:
         return []
     try:
         conn = get_db(); cur = conn.cursor()
-        cur.execute("""SELECT content FROM document_chunks
+        cur.execute("""SELECT content, embedding FROM document_chunks
                        WHERE student_id IS NULL AND lower(university)=lower(%s)
                        ORDER BY document_id, chunk_index""", (university or "",))
-        chunks = [r["content"] for r in cur.fetchall()]; cur.close()
-        return chunks
+        rows = cur.fetchall(); cur.close()
+        return [{"content": r["content"], "embedding": json.loads(r["embedding"]) if r["embedding"] else None}
+                for r in rows]
     except Exception as e:
         print(f"get_global_chunks error: {e}"); return []
 
@@ -293,9 +310,12 @@ def build_doc_context(docs, question=None, sid=None):
         # Too much material to include in full — retrieve the passages
         # most relevant to THIS question instead of blindly truncating
         # every document by the same amount.
-        chunks = get_student_chunks(sid)
-        if chunks:
-            top = rank_chunks(question, chunks, config.RETRIEVAL_TOP_N_STUDENT_DOCS)
+        chunk_rows = get_student_chunks(sid)
+        if chunk_rows:
+            chunk_texts = [c["content"] for c in chunk_rows]
+            chunk_embeddings = [c["embedding"] for c in chunk_rows]
+            top = rank_chunks(question, chunk_texts, config.RETRIEVAL_TOP_N_STUDENT_DOCS,
+                              chunk_embeddings=chunk_embeddings)
             ctx = intro
             ctx += (f"The student has uploaded more material ({len(docs)} files) than fits in one "
                     f"prompt, so below are the excerpts most relevant to their CURRENT question — "
@@ -420,9 +440,12 @@ def build_global_doc_context(docs, university=None, question=None):
         return ctx
 
     if question:
-        chunks = get_global_chunks(university)
-        if chunks:
-            top = rank_chunks(question, chunks, config.RETRIEVAL_TOP_N_GLOBAL_DOCS)
+        chunk_rows = get_global_chunks(university)
+        if chunk_rows:
+            chunk_texts = [c["content"] for c in chunk_rows]
+            chunk_embeddings = [c["embedding"] for c in chunk_rows]
+            top = rank_chunks(question, chunk_texts, config.RETRIEVAL_TOP_N_GLOBAL_DOCS,
+                              chunk_embeddings=chunk_embeddings)
             ctx = intro + footer_note
             ctx += f"{'='*60}\n\n"
             ctx += "\n\n---\n\n".join(top)
