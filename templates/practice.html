@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Practice — WINK</title>
+  <style nonce="{{ csp_nonce() }}">
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+      background: #f4f6fb; color: #444455; min-height: 100vh;
+    }
+    /* ── Nav (same pattern as every other page) ── */
+    .app-nav {
+      background: #002855; padding: 0 32px;
+      display: flex; align-items: center; height: 60px;
+      position: sticky; top: 0; z-index: 100;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.18);
+    }
+    .nav-logo { font-size: 22px; font-weight: 900; color: #fff; letter-spacing: -1px; text-decoration: none; }
+    .nav-logo span { color: #FF8200; }
+    .nav-divider { width: 1px; height: 24px; background: rgba(255,255,255,0.2); margin: 0 20px; }
+    .nav-links { display: flex; align-items: center; gap: 4px; }
+    .nav-links a { color: rgba(255,255,255,0.65); text-decoration: none; font-size: 14px; font-weight: 500; padding: 6px 14px; border-radius: 6px; transition: all 0.15s; }
+    .nav-links a:hover { background: rgba(255,255,255,0.1); color: #fff; }
+    .nav-links a.active { background: #FF8200; color: #fff; }
+    .nav-right { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+    .nav-user { font-size: 13px; color: rgba(255,255,255,0.6); }
+    .nav-user strong { color: #fff; }
+    .btn-logout { font-size: 13px; color: rgba(255,255,255,0.6); text-decoration: none; padding: 5px 12px; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; transition: all 0.15s; }
+    .btn-logout:hover { background: rgba(255,255,255,0.1); color: #fff; }
+    .nav-toggle { display: none; background: none; border: none; color: #fff; font-size: 22px; cursor: pointer; padding: 4px 10px; margin-left: auto; }
+    @media (max-width: 860px) {
+      .app-nav { flex-wrap: wrap; height: auto; padding: 10px 16px; }
+      .nav-toggle { display: block; }
+      .nav-links, .nav-right { display: none; width: 100%; }
+      .app-nav.nav-open .nav-links { display: flex; flex-direction: column; align-items: stretch; gap: 2px; margin-top: 10px; order: 3; }
+      .app-nav.nav-open .nav-links a { padding: 10px 12px; }
+      .app-nav.nav-open .nav-right { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; margin-top: 10px; margin-left: 0; order: 4; border-top: 1px solid rgba(255,255,255,0.15); padding-top: 10px; }
+      .nav-divider { display: none; }
+    }
+
+    .page-shell { max-width: 900px; margin: 0 auto; padding: 32px 24px 64px; }
+    .page-header { margin-bottom: 24px; }
+    .page-header h1 { font-size: 24px; font-weight: 800; color: #002855; }
+    .page-header p { font-size: 14px; color: #6b7a99; margin-top: 4px; }
+
+    .card {
+      background: #fff; border-radius: 12px; border: 1px solid #dde3f0;
+      box-shadow: 0 1px 4px rgba(0,40,85,0.06); padding: 24px; margin-bottom: 24px;
+    }
+    .card h2 { font-size: 17px; font-weight: 800; color: #002855; margin-bottom: 4px; }
+    .card .card-sub { font-size: 13px; color: #6b7a99; margin-bottom: 18px; }
+
+    .form-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 14px; }
+    .form-group { flex: 1; min-width: 160px; }
+    .form-group label { display: block; font-size: 13px; font-weight: 700; color: #002855; margin-bottom: 5px; }
+    .form-group input, .form-group select {
+      width: 100%; padding: 10px 12px; border: 1.5px solid #dde3f0; border-radius: 8px;
+      font-size: 14px; color: #333; background: #f8f9ff; outline: none;
+    }
+    .form-group input:focus, .form-group select:focus { border-color: #FF8200; background: #fff; }
+    .form-hint { font-size: 12px; color: #9ca3af; margin-top: 4px; }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 700;
+      padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer; transition: all 0.18s;
+    }
+    .btn-primary { background: #FF8200; color: #fff; }
+    .btn-primary:hover { background: #e57200; }
+    .btn-primary:disabled { background: #f0b877; cursor: not-allowed; }
+    .btn-ghost { background: transparent; color: #002855; border: 1.5px solid #002855; }
+    .btn-ghost:hover { background: #002855; color: #fff; }
+    .btn-sm { padding: 6px 12px; font-size: 12px; }
+    .btn-correct { background: #16a34a; color: #fff; }
+    .btn-correct:hover { background: #12833c; }
+    .btn-incorrect { background: #dc2626; color: #fff; }
+    .btn-incorrect:hover { background: #b91c1c; }
+
+    .alert { padding: 12px 16px; border-radius: 8px; font-size: 13px; margin-bottom: 14px; }
+    .alert-danger { background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; }
+    .alert-info { background: #eef4ff; border: 1px solid #cfe0ff; color: #002855; }
+
+    .question-card {
+      border: 1px solid #dde3f0; border-radius: 10px; padding: 16px; margin-bottom: 12px;
+    }
+    .question-card .q-text { font-size: 14px; font-weight: 700; color: #002855; margin-bottom: 8px; }
+    .question-card .q-answer {
+      display: none; font-size: 13px; color: #444; background: #f8f9ff;
+      border-radius: 8px; padding: 10px 12px; margin: 10px 0;
+    }
+    .question-card .q-answer.shown { display: block; }
+    .question-card .q-explanation { font-size: 12px; color: #6b7a99; margin-top: 6px; }
+    .question-card .q-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    .question-card.graded { opacity: 0.65; }
+    .badge-graded {
+      display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 9px;
+      border-radius: 999px; margin-left: 8px;
+    }
+    .badge-correct { background: #f0fdf4; color: #166534; }
+    .badge-incorrect { background: #fef2f2; color: #dc2626; }
+
+    .empty-state { text-align: center; padding: 32px 16px; color: #6b7a99; font-size: 13px; }
+    .loading-spinner { text-align: center; padding: 24px; color: #6b7a99; font-size: 13px; }
+
+    .attach-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+    .attach-row input[type="file"] { font-size: 13px; }
+    .attach-status { font-size: 12px; color: #6b7a99; }
+  </style>
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+</head>
+<body>
+
+  <nav class="app-nav" id="app-nav">
+    <a href="/dashboard" class="nav-logo">WINK<span>.</span></a>
+    <div class="nav-divider"></div>
+    <button class="nav-toggle" onclick="toggleNav()" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="app-nav">☰</button>
+    <div class="nav-links">
+      <a href="/dashboard" class="{{ 'active' if active == 'dashboard' else '' }}">Dashboard</a>
+      <a href="/documents" class="{{ 'active' if active == 'documents' else '' }}">My Documents</a>
+      <a href="/chat-page" class="{{ 'active' if active == 'chat' else '' }}">Ask WINK</a>
+      <a href="/calendar-page" class="{{ 'active' if active == 'calendar' else '' }}">Calendar</a>
+      <a href="/practice-page" class="{{ 'active' if active == 'practice' else '' }}">Practice</a>
+      <a href="/wrapped-page" class="{{ 'active' if active == 'wrapped' else '' }}">Wrapped</a>
+      {% if s.email == admin_email %}
+      <a href="/analytics-page" class="{{ 'active' if active == 'analytics' else '' }}">Analytics</a>
+      {% endif %}
+    </div>
+    <div class="nav-right">
+      <div class="nav-user">Hello, <strong>{{ s.first_name }}</strong></div>
+      <a href="/logout" class="btn-logout">Log out</a>
+    </div>
+  </nav>
+
+  <div class="page-shell">
+    <div class="page-header">
+      <h1>🧠 Practice &amp; Review</h1>
+      <p>Generate new practice questions from your course material, or review what's due today.</p>
+    </div>
+
+    <div class="card">
+      <h2>Generate practice questions</h2>
+      <div class="card-sub">Uses your uploaded material for a course. If you've also uploaded a past exam or quiz and tagged it as an assessment, its format is used as a style guide.</div>
+
+      <div id="generate-error" class="alert alert-danger" style="display:none;"></div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="course-input">Course</label>
+          <input type="text" id="course-input" list="known-courses" placeholder="e.g. CS 2302" autocomplete="off">
+          <datalist id="known-courses">
+            {% for c in known_courses %}
+            <option value="{{ c }}">
+            {% endfor %}
+          </datalist>
+        </div>
+        <div class="form-group" style="max-width:120px;">
+          <label for="count-input">How many</label>
+          <input type="number" id="count-input" value="8" min="1" max="15">
+        </div>
+      </div>
+
+      <div class="attach-row">
+        <label for="handout-input" class="btn btn-ghost btn-sm" style="cursor:pointer;">📎 Attach a handout for this session</label>
+        <input type="file" id="handout-input" style="display:none;" onchange="attachTempHandout()">
+        <span class="attach-status" id="attach-status">Not saved to your account — used for this generation only.</span>
+      </div>
+
+      <button class="btn btn-primary" id="generate-btn" onclick="generatePractice()">Generate questions</button>
+
+      <div id="generate-loading" class="loading-spinner" style="display:none;">Generating your practice questions…</div>
+      <div id="generate-results" style="margin-top:16px;"></div>
+    </div>
+
+    <div class="card">
+      <h2>Due for review</h2>
+      <div class="card-sub">Questions you've answered before, resurfaced on a schedule — answer correctly and it comes back further out; miss it and it comes back tomorrow.</div>
+      <button class="btn btn-ghost btn-sm" onclick="loadReview()">Refresh</button>
+      <div id="review-loading" class="loading-spinner">Loading…</div>
+      <div id="review-results" style="margin-top:16px;"></div>
+    </div>
+  </div>
+
+  <script nonce="{{ csp_nonce() }}">
+    // Automatically attach the CSRF token to every state-changing fetch()
+    // call on this page — same pattern as every other page.
+    (function() {
+      const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+      const originalFetch = window.fetch;
+      window.fetch = function(input, init) {
+        init = init || {};
+        const method = (init.method || 'GET').toUpperCase();
+        if (token && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+          const headers = new Headers(init.headers || {});
+          if (!headers.has('X-CSRFToken')) headers.set('X-CSRFToken', token);
+          init.headers = headers;
+        }
+        return originalFetch(input, init);
+      };
+    })();
+
+    function toggleNav() {
+      const nav = document.getElementById('app-nav');
+      const btn = document.querySelector('.nav-toggle');
+      const open = nav.classList.toggle('nav-open');
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str == null ? '' : String(str);
+      return div.innerHTML;
+    }
+
+    let tempHandoutContent = null;
+
+    async function attachTempHandout() {
+      const input = document.getElementById('handout-input');
+      const status = document.getElementById('attach-status');
+      const file = input.files[0];
+      if (!file) return;
+      status.textContent = 'Reading ' + file.name + '…';
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('temporary', 'true');
+      try {
+        const resp = await fetch('/upload', { method: 'POST', body: formData });
+        const data = await resp.json();
+        if (!resp.ok || !data.success) {
+          status.textContent = data.error || 'Could not read that file.';
+          tempHandoutContent = null;
+          return;
+        }
+        tempHandoutContent = data.content;
+        status.textContent = '✓ ' + file.name + ' attached for this session (not saved).';
+      } catch (e) {
+        status.textContent = 'Could not read that file.';
+        tempHandoutContent = null;
+      }
+    }
+
+    function renderQuestionCard(q, opts) {
+      opts = opts || {};
+      const wrap = document.createElement('div');
+      wrap.className = 'question-card';
+      wrap.dataset.qid = q.id || '';
+      const answerHtml = q.explanation
+        ? `<div>${escapeHtml(q.answer)}</div><div class="q-explanation">${escapeHtml(q.explanation)}</div>`
+        : `<div>${escapeHtml(q.answer)}</div>`;
+      wrap.innerHTML = `
+        <div class="q-text">${escapeHtml(q.question)}<span class="grade-badge"></span></div>
+        <div class="q-answer" id="answer-${escapeHtml(String(q.id || Math.random()))}">${answerHtml}</div>
+        <div class="q-actions"></div>`;
+
+      const actions = wrap.querySelector('.q-actions');
+      const revealBtn = document.createElement('button');
+      revealBtn.className = 'btn btn-ghost btn-sm';
+      revealBtn.textContent = 'Reveal answer';
+      revealBtn.addEventListener('click', function() {
+        wrap.querySelector('.q-answer').classList.toggle('shown');
+      });
+      actions.appendChild(revealBtn);
+
+      if (q.id) {
+        const correctBtn = document.createElement('button');
+        correctBtn.className = 'btn btn-correct btn-sm';
+        correctBtn.textContent = 'Got it right';
+        correctBtn.addEventListener('click', function() { gradeQuestion(q.id, true, correctBtn); });
+        const incorrectBtn = document.createElement('button');
+        incorrectBtn.className = 'btn btn-incorrect btn-sm';
+        incorrectBtn.textContent = 'Got it wrong';
+        incorrectBtn.addEventListener('click', function() { gradeQuestion(q.id, false, incorrectBtn); });
+        actions.appendChild(correctBtn);
+        actions.appendChild(incorrectBtn);
+      }
+      return wrap;
+    }
+
+    async function generatePractice() {
+      const course = document.getElementById('course-input').value.trim();
+      const count = parseInt(document.getElementById('count-input').value, 10) || 8;
+      const errorBox = document.getElementById('generate-error');
+      const loading = document.getElementById('generate-loading');
+      const results = document.getElementById('generate-results');
+      const btn = document.getElementById('generate-btn');
+      errorBox.style.display = 'none';
+      results.innerHTML = '';
+      if (!course) {
+        errorBox.textContent = 'Please enter a course.';
+        errorBox.style.display = 'block';
+        return;
+      }
+      btn.disabled = true;
+      loading.style.display = 'block';
+      try {
+        const body = { course: course, count: count };
+        if (tempHandoutContent) body.temp_material = tempHandoutContent;
+        const resp = await fetch('/generate-practice', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+          errorBox.textContent = data.error || 'Something went wrong. Please try again.';
+          errorBox.style.display = 'block';
+          return;
+        }
+        if (!data.questions || !data.questions.length) {
+          results.innerHTML = '<div class="empty-state">No questions were generated — try a different course or attach more material.</div>';
+          return;
+        }
+        data.questions.forEach(q => results.appendChild(renderQuestionCard(q)));
+      } catch (e) {
+        errorBox.textContent = 'Something went wrong. Please try again.';
+        errorBox.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        loading.style.display = 'none';
+      }
+    }
+
+    async function gradeQuestion(questionId, correct, btnEl) {
+      const card = btnEl.closest('.question-card');
+      try {
+        const resp = await fetch('/practice-attempt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question_id: questionId, correct: correct }),
+        });
+        if (!resp.ok) return;
+        card.classList.add('graded');
+        const badge = card.querySelector('.grade-badge');
+        badge.innerHTML = correct
+          ? '<span class="badge-graded badge-correct">Correct</span>'
+          : '<span class="badge-graded badge-incorrect">Review again soon</span>';
+        card.querySelectorAll('.btn-correct, .btn-incorrect').forEach(b => b.disabled = true);
+      } catch (e) { /* leave the card as-is if this fails — not worth blocking the student over */ }
+    }
+
+    async function loadReview() {
+      const loading = document.getElementById('review-loading');
+      const results = document.getElementById('review-results');
+      loading.style.display = 'block';
+      results.innerHTML = '';
+      try {
+        const resp = await fetch('/practice-review');
+        const data = await resp.json();
+        loading.style.display = 'none';
+        if (!data.questions || !data.questions.length) {
+          results.innerHTML = '<div class="empty-state">Nothing due for review right now — generate some practice questions above, or check back later.</div>';
+          return;
+        }
+        data.questions.forEach(q => results.appendChild(renderQuestionCard(q)));
+      } catch (e) {
+        loading.style.display = 'none';
+        results.innerHTML = '<div class="empty-state">Couldn\'t load your review queue — please refresh the page.</div>';
+      }
+    }
+
+    loadReview();
+  </script>
+</body>
+</html>

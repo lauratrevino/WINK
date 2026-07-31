@@ -257,6 +257,8 @@
       <a href="/documents" class="{{ 'active' if active == 'documents' else '' }}">My Documents</a>
       <a href="/chat-page" class="{{ 'active' if active == 'chat' else '' }}">Ask WINK</a>
       <a href="/calendar-page" class="{{ 'active' if active == 'calendar' else '' }}">Calendar</a>
+      <a href="/practice-page" class="{{ 'active' if active == 'practice' else '' }}">Practice</a>
+      <a href="/wrapped-page" class="{{ 'active' if active == 'wrapped' else '' }}">Wrapped</a>
       {% if s.email == admin_email %}
       <a href="/analytics-page" class="{{ 'active' if active == 'analytics' else '' }}">Analytics</a>
       {% endif %}
@@ -328,6 +330,30 @@
               Nothing due in the next week — upload a syllabus and WINK will track dates automatically.
             </div>
           {% endif %}
+        </div>
+      </div>
+
+      <!-- Busy-stretch warning — populated via JS from /deadline-conflicts;
+           hidden entirely unless a real conflict is found, so this never
+           shows an empty or misleading card. -->
+      <div class="card" id="conflict-card" style="display:none;grid-column:1 / -1;border-top:3px solid #FF8200;">
+        <div class="card-header">
+          <div class="card-title">⚠️ Busy Stretch Ahead</div>
+        </div>
+        <div class="card-body" id="conflict-body"></div>
+      </div>
+
+      <!-- Study plan — combines upcoming deadlines with practice-review
+           load into one week-by-week view, populated via JS from
+           /study-plan. Always shown (unlike the conflict card above),
+           since "nothing due" is itself useful information here. -->
+      <div class="card" style="grid-column:1 / -1;">
+        <div class="card-header">
+          <div class="card-title">🗓️ Study Plan — Next 4 Weeks</div>
+          <a href="/practice-page" style="font-size:13px;color:#FF8200;text-decoration:none;font-weight:600;white-space:nowrap;">Review practice questions →</a>
+        </div>
+        <div class="card-body" id="study-plan-body">
+          <div style="color:#6b7a99;font-size:13px;">Loading…</div>
         </div>
       </div>
 
@@ -2793,6 +2819,17 @@
                 </select>
               </div>
             </div>
+            <div class="profile-row">
+              <div class="profile-label">Preferred reply language</div>
+              <div class="profile-value" id="profile-view-language">{{ s.preferred_language or 'Auto-detect (matches what you type)' }}</div>
+              <div class="profile-edit" style="display:none;">
+                <select id="profile-input-language" class="profile-input" style="max-width:260px;">
+                  <option value="" {{ 'selected' if not s.preferred_language else '' }}>Auto-detect (matches what you type)</option>
+                  <option value="English" {{ 'selected' if s.preferred_language == 'English' else '' }}>English</option>
+                  <option value="Spanish" {{ 'selected' if s.preferred_language == 'Spanish' else '' }}>Spanish</option>
+                </select>
+              </div>
+            </div>
           </div>
         </div>
         <div id="profile-edit-actions" style="display:none;margin-top:14px;gap:10px;">
@@ -2901,6 +2938,7 @@
       document.getElementById('profile-view-classification').style.display = editing ? 'none' : 'block';
       document.getElementById('profile-view-major').style.display = editing ? 'none' : 'block';
       document.getElementById('profile-view-university').style.display = editing ? 'none' : 'block';
+      document.getElementById('profile-view-language').style.display = editing ? 'none' : 'block';
       document.getElementById('profile-edit-actions').style.display = editing ? 'flex' : 'none';
       document.getElementById('profile-edit-btn').style.display = editing ? 'none' : 'inline-block';
       if (!editing) {
@@ -2940,6 +2978,7 @@
       const classification = document.getElementById('profile-input-classification').value.trim();
       const major = document.getElementById('profile-input-major').value.trim();
       const university = document.getElementById('profile-input-university').value.trim();
+      const preferred_language = document.getElementById('profile-input-language').value;
       if (!first_name || !last_name || !classification || !major || !university) {
         winkToast('Please fill in every field.', true);
         return;
@@ -2948,7 +2987,7 @@
         const res = await fetch('/update-profile', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ first_name, last_name, classification, major, university })
+          body: JSON.stringify({ first_name, last_name, classification, major, university, preferred_language })
         });
         const data = await res.json();
         if (!data.success) { winkToast(data.error || 'Something went wrong.', true); return; }
@@ -2956,6 +2995,7 @@
         document.getElementById('profile-view-classification').innerHTML = `<span class="badge">${escapeHtml(data.profile.classification)}</span>`;
         document.getElementById('profile-view-major').textContent = data.profile.major;
         document.getElementById('profile-view-university').textContent = data.profile.university;
+        document.getElementById('profile-view-language').textContent = data.profile.preferred_language || 'Auto-detect (matches what you type)';
         toggleProfileEdit(false);
         winkToast('Profile updated.');
       } catch (e) {
@@ -2984,6 +3024,69 @@
       }
       btn.textContent = original; btn.disabled = false;
     }
+
+    async function loadDeadlineConflicts() {
+      try {
+        const res = await fetch('/deadline-conflicts');
+        if (!res.ok) return;
+        const data = await res.json();
+        const conflicts = data.conflicts || [];
+        if (!conflicts.length) return; // leave the card hidden — no false alarms
+        const card = document.getElementById('conflict-card');
+        const body = document.getElementById('conflict-body');
+        body.innerHTML = conflicts.map(cluster => {
+          const items = cluster.map(item =>
+            `<div class="deadline-item" style="grid-template-columns:auto 1fr;">
+               <div class="deadline-date">${escapeHtml((item.due_date || '').slice(5, 10))}</div>
+               <div>
+                 <div class="deadline-name">${escapeHtml(item.title)}</div>
+                 <div class="deadline-meta">${escapeHtml(item.course)}</div>
+               </div>
+             </div>`
+          ).join('');
+          return `<div style="margin-bottom:14px;">
+                    <div style="font-size:13px;font-weight:700;color:#002855;margin-bottom:6px;">
+                      ${cluster.length} things due close together:
+                    </div>
+                    <div class="deadline-list">${items}</div>
+                  </div>`;
+        }).join('');
+        card.style.display = 'block';
+      } catch (e) { /* not worth surfacing an error for a proactive-only widget */ }
+    }
+
+    async function loadStudyPlan() {
+      const body = document.getElementById('study-plan-body');
+      try {
+        const res = await fetch('/study-plan?weeks=4');
+        if (!res.ok) { body.innerHTML = '<div style="color:#6b7a99;font-size:13px;">Couldn\'t load your study plan.</div>'; return; }
+        const data = await res.json();
+        const weeks = data.weeks || [];
+        const today = new Date().toISOString().slice(0, 10);
+        body.innerHTML = weeks.map((w, i) => {
+          const label = i === 0 ? 'This week' : `Week of ${w.week_start.slice(5)}`;
+          const items = w.deadlines.map(d =>
+            `<div class="deadline-item" style="text-decoration:none;">
+               <div class="deadline-date">${d.due_date.slice(5)}</div>
+               <div><div class="deadline-name">${escapeHtml(d.title)}</div><div class="deadline-meta">${escapeHtml(d.course)}</div></div>
+             </div>`
+          ).join('');
+          const reviewLine = w.questions_due_for_review > 0
+            ? `<div style="font-size:12px;color:#FF8200;font-weight:600;margin-top:6px;">📚 ${w.questions_due_for_review} practice question${w.questions_due_for_review !== 1 ? 's' : ''} due for review</div>`
+            : '';
+          return `<div style="margin-bottom:16px;">
+                    <div style="font-size:12px;font-weight:700;color:#6b7a99;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;">${label}</div>
+                    ${items ? `<div class="deadline-list">${items}</div>` : '<div style="font-size:13px;color:#9ca3af;">Nothing due.</div>'}
+                    ${reviewLine}
+                  </div>`;
+        }).join('');
+      } catch (e) {
+        body.innerHTML = '<div style="color:#6b7a99;font-size:13px;">Couldn\'t load your study plan.</div>';
+      }
+    }
+
+    loadDeadlineConflicts();
+    loadStudyPlan();
   </script>
 </body>
 </html>

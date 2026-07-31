@@ -160,6 +160,8 @@
       <a href="/documents" class="{{ 'active' if active == 'documents' else '' }}">My Documents</a>
       <a href="/chat-page" class="{{ 'active' if active == 'chat' else '' }}">Ask WINK</a>
       <a href="/calendar-page" class="{{ 'active' if active == 'calendar' else '' }}">Calendar</a>
+      <a href="/practice-page" class="{{ 'active' if active == 'practice' else '' }}">Practice</a>
+      <a href="/wrapped-page" class="{{ 'active' if active == 'wrapped' else '' }}">Wrapped</a>
       {% if s.email == admin_email %}
       <a href="/analytics-page" class="{{ 'active' if active == 'analytics' else '' }}">Analytics</a>
       {% endif %}
@@ -250,13 +252,38 @@
 
     function pad(n) { return String(n).padStart(2, '0'); }
 
+    // Sets background-color via the DOM style property (never restricted by
+    // CSP, unlike the style="..." HTML attribute) for any element rendered
+    // with a data-bg placeholder instead of an inline style string.
+    function applyPendingBackgrounds(root) {
+      root.querySelectorAll('[data-bg]').forEach(el => {
+        el.style.background = el.dataset.bg;
+        el.removeAttribute('data-bg');
+      });
+    }
+
+    // Delegated: calendar day cells carry data-date instead of a per-cell
+    // inline onclick/onkeydown (the date differs every cell, so it can't be
+    // CSP-hash-allowlisted) — one listener on the grid covers all of them,
+    // including ones re-rendered on month navigation.
+    document.getElementById('cal-days').addEventListener('click', function(e) {
+      const cell = e.target.closest('[data-date]');
+      if (cell) openDayPanel(cell.dataset.date);
+    });
+    document.getElementById('cal-days').addEventListener('keydown', function(e) {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const cell = e.target.closest('[data-date]');
+      if (cell) { e.preventDefault(); openDayPanel(cell.dataset.date); }
+    });
+
     function renderLegend() {
       const legend = document.getElementById('legend');
       const courses = Object.keys(courseColors);
       if (courses.length === 0) { legend.innerHTML = ''; return; }
       legend.innerHTML = courses.map(c =>
-        `<div class="legend-item"><span class="legend-dot" style="background:${courseColors[c]}"></span>${escapeHtml(c)}</div>`
+        `<div class="legend-item"><span class="legend-dot" data-bg="${courseColors[c]}"></span>${escapeHtml(c)}</div>`
       ).join('');
+      applyPendingBackgrounds(legend);
     }
 
     function renderCalendar() {
@@ -291,7 +318,7 @@
         const items = cell.dateStr ? (deadlinesByDate[cell.dateStr] || []) : [];
         const isToday = cell.dateStr === todayStr;
         const chips = items.slice(0, 3).map(it =>
-          `<div class="cal-chip" style="background:${colorForCourse(it.course)}" title="${escapeHtml(it.title)}">${escapeHtml(it.title)}</div>`
+          `<div class="cal-chip" data-bg="${colorForCourse(it.course)}" title="${escapeHtml(it.title)}">${escapeHtml(it.title)}</div>`
         ).join('');
         const more = items.length > 3 ? `<div class="cal-more">+${items.length - 3} more</div>` : '';
         const classes = ['cal-day'];
@@ -300,13 +327,14 @@
         let interactiveAttrs = '';
         if (cell.dateStr) {
           const label = `${cell.day}${isToday ? ', today' : ''}${items.length ? `, ${items.length} item${items.length !== 1 ? 's' : ''} due` : ', nothing due'}`;
-          interactiveAttrs = `onclick="openDayPanel('${cell.dateStr}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openDayPanel('${cell.dateStr}')}" tabindex="0" role="button" aria-label="${escapeHtml(label)}"`;
+          interactiveAttrs = `data-date="${cell.dateStr}" tabindex="0" role="button" aria-label="${escapeHtml(label)}"`;
         }
         return `<div class="${classes.join(' ')}" ${interactiveAttrs}>
           <div class="cal-day-num${items.length ? ' has-items' : ''}">${cell.day}</div>
           ${chips}${more}
         </div>`;
       }).join('');
+      applyPendingBackgrounds(wrap);
     }
 
     function escapeHtml(text) {
@@ -326,13 +354,14 @@
       } else {
         body.innerHTML = items.map(it => `
           <div class="day-item">
-            <span class="day-item-dot" style="background:${colorForCourse(it.course)}"></span>
+            <span class="day-item-dot" data-bg="${colorForCourse(it.course)}"></span>
             <div>
               <div class="day-item-title">${escapeHtml(it.title)}</div>
               <div class="day-item-course">${escapeHtml(it.course)}</div>
               ${it.document_id ? `<a href="/documents#doc-row-${it.document_id}" class="day-item-doc-link">📄 ${escapeHtml(it.document_name || 'View source document')}</a>` : ''}
             </div>
           </div>`).join('');
+        applyPendingBackgrounds(body);
       }
       dayPanelLastFocus = document.activeElement;
       document.getElementById('day-panel').classList.add('open');

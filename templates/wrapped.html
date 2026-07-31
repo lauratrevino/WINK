@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WINK Wrapped</title>
+  <style nonce="{{ csp_nonce() }}">
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+      background: linear-gradient(135deg, #002855 0%, #003d7a 50%, #FF8200 150%);
+      min-height: 100vh; color: #fff;
+    }
+    .app-nav {
+      background: rgba(0,20,50,0.35); padding: 0 32px;
+      display: flex; align-items: center; height: 60px;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .nav-logo { font-size: 22px; font-weight: 900; color: #fff; letter-spacing: -1px; text-decoration: none; }
+    .nav-logo span { color: #FF8200; }
+    .nav-divider { width: 1px; height: 24px; background: rgba(255,255,255,0.2); margin: 0 20px; }
+    .nav-links { display: flex; align-items: center; gap: 4px; }
+    .nav-links a { color: rgba(255,255,255,0.7); text-decoration: none; font-size: 14px; font-weight: 500; padding: 6px 14px; border-radius: 6px; }
+    .nav-links a:hover { background: rgba(255,255,255,0.12); color: #fff; }
+    .nav-links a.active { background: #FF8200; color: #fff; }
+    .nav-right { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+    .nav-user { font-size: 13px; color: rgba(255,255,255,0.7); }
+    .nav-user strong { color: #fff; }
+    .btn-logout { font-size: 13px; color: rgba(255,255,255,0.7); text-decoration: none; padding: 5px 12px; border: 1px solid rgba(255,255,255,0.25); border-radius: 6px; }
+    .nav-toggle { display: none; background: none; border: none; color: #fff; font-size: 22px; cursor: pointer; padding: 4px 10px; margin-left: auto; }
+    @media (max-width: 860px) {
+      .app-nav { flex-wrap: wrap; height: auto; padding: 10px 16px; }
+      .nav-toggle { display: block; }
+      .nav-links, .nav-right { display: none; width: 100%; }
+      .app-nav.nav-open .nav-links { display: flex; flex-direction: column; gap: 2px; margin-top: 10px; order: 3; }
+      .app-nav.nav-open .nav-right { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; margin-top: 10px; order: 4; }
+    }
+
+    .wrap-shell { max-width: 760px; margin: 0 auto; padding: 48px 24px 80px; text-align: center; }
+    .wrap-title { font-size: 40px; font-weight: 900; letter-spacing: -1px; }
+    .wrap-title span { color: #FF8200; }
+    .wrap-sub { font-size: 15px; color: rgba(255,255,255,0.75); margin-top: 8px; margin-bottom: 40px; }
+
+    .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; text-align: left; }
+    @media (max-width: 620px) { .stat-grid { grid-template-columns: 1fr; } }
+    .stat-card {
+      background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 16px; padding: 24px; backdrop-filter: blur(4px);
+    }
+    .stat-card.wide { grid-column: 1 / -1; }
+    .stat-number { font-size: 42px; font-weight: 900; color: #FF8200; line-height: 1; }
+    .stat-label { font-size: 14px; color: rgba(255,255,255,0.85); margin-top: 8px; font-weight: 600; }
+    .stat-detail { font-size: 12px; color: rgba(255,255,255,0.6); margin-top: 4px; }
+    .course-pill {
+      display: inline-block; background: rgba(255,255,255,0.15); border-radius: 999px;
+      padding: 5px 12px; font-size: 12px; font-weight: 600; margin: 3px 4px 0 0;
+    }
+    .empty-state { padding: 60px 24px; color: rgba(255,255,255,0.7); font-size: 15px; }
+    .loading-state { padding: 60px 24px; color: rgba(255,255,255,0.7); font-size: 15px; }
+  </style>
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+</head>
+<body>
+
+  <nav class="app-nav" id="app-nav">
+    <a href="/dashboard" class="nav-logo">WINK<span>.</span></a>
+    <div class="nav-divider"></div>
+    <button class="nav-toggle" onclick="toggleNav()" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="app-nav">☰</button>
+    <div class="nav-links">
+      <a href="/dashboard">Dashboard</a>
+      <a href="/documents">My Documents</a>
+      <a href="/chat-page">Ask WINK</a>
+      <a href="/calendar-page">Calendar</a>
+      <a href="/practice-page">Practice</a>
+      <a href="/wrapped-page" class="active">Wrapped</a>
+      {% if s.email == admin_email %}
+      <a href="/analytics-page">Analytics</a>
+      {% endif %}
+    </div>
+    <div class="nav-right">
+      <div class="nav-user">Hello, <strong>{{ s.first_name }}</strong></div>
+      <a href="/logout" class="btn-logout">Log out</a>
+    </div>
+  </nav>
+
+  <div class="wrap-shell">
+    <div class="wrap-title">Your Semester, <span>Wrapped</span></div>
+    <div class="wrap-sub">{{ s.first_name }}'s year with WINK, in real numbers.</div>
+    <div id="wrapped-content" class="loading-state">Pulling together your stats…</div>
+  </div>
+
+  <script nonce="{{ csp_nonce() }}">
+    function toggleNav() {
+      const nav = document.getElementById('app-nav');
+      const btn = document.querySelector('.nav-toggle');
+      const open = nav.classList.toggle('nav-open');
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str == null ? '' : String(str);
+      return div.innerHTML;
+    }
+
+    async function loadWrapped() {
+      const el = document.getElementById('wrapped-content');
+      try {
+        const resp = await fetch('/wrapped-data');
+        const d = await resp.json();
+        if (!d || !d.total_questions) {
+          el.className = 'empty-state';
+          el.innerHTML = "You haven't asked WINK anything yet this semester — come back after you've used it a bit and this page will fill up with real stats about your semester.";
+          return;
+        }
+
+        const cards = [];
+        cards.push(`<div class="stat-card">
+          <div class="stat-number">${d.total_questions}</div>
+          <div class="stat-label">Questions asked</div>
+        </div>`);
+
+        if (d.longest_streak_days > 1) {
+          cards.push(`<div class="stat-card">
+            <div class="stat-number">${d.longest_streak_days}</div>
+            <div class="stat-label">Day streak</div>
+            <div class="stat-detail">Your longest run of consecutive days using WINK</div>
+          </div>`);
+        }
+
+        if (d.questions_mastered > 0) {
+          cards.push(`<div class="stat-card">
+            <div class="stat-number">${d.questions_mastered}</div>
+            <div class="stat-label">Practice questions mastered</div>
+            <div class="stat-detail">Answered correctly at least once</div>
+          </div>`);
+        }
+
+        if (d.busiest_week) {
+          cards.push(`<div class="stat-card">
+            <div class="stat-number">${d.busiest_week.count}</div>
+            <div class="stat-label">Busiest week</div>
+            <div class="stat-detail">Week of ${d.busiest_week.week_start}</div>
+          </div>`);
+        }
+
+        if (d.busiest_day_of_week) {
+          cards.push(`<div class="stat-card">
+            <div class="stat-number" style="font-size:28px;">${escapeHtml(d.busiest_day_of_week)}</div>
+            <div class="stat-label">Your busiest day of the week</div>
+          </div>`);
+        }
+
+        if (d.courses && d.courses.length) {
+          const pills = d.courses.map(c => `<span class="course-pill">${escapeHtml(c.course)}</span>`).join('');
+          cards.push(`<div class="stat-card wide">
+            <div class="stat-label" style="margin-bottom:8px;">Courses you brought to WINK this semester</div>
+            ${pills}
+          </div>`);
+        }
+
+        el.className = 'stat-grid';
+        el.innerHTML = cards.join('');
+      } catch (e) {
+        el.className = 'empty-state';
+        el.innerHTML = "Couldn't load your Wrapped right now — try refreshing the page.";
+      }
+    }
+    loadWrapped();
+  </script>
+</body>
+</html>

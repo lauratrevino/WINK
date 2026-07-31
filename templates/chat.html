@@ -180,15 +180,28 @@
     .msg-avatar.user-av { background: #FF8200; color: #fff; }
     .msg-bubble {
       padding: 12px 16px; border-radius: 12px;
-      font-size: 14px; line-height: 1.65;
+      font-size: calc(14px * var(--wink-text-scale, 1)); line-height: 1.65;
       max-width: calc(100% - 50px);
     }
     .msg.wink .msg-bubble { background: #fff; border: 1px solid #dde3f0; color: #333; border-radius: 2px 12px 12px 12px; }
     .msg.user .msg-bubble { background: #002855; color: #fff; border-radius: 12px 2px 12px 12px; }
+    .msg-feedback { display: flex; gap: 4px; margin-top: 4px; }
+    .wink-citation {
+      font-style: normal; font-weight: 600; color: #002855; background: #eef4ff;
+      padding: 1px 6px; border-radius: 4px; font-size: 0.92em; border: 1px solid #cfe0ff;
+    }
+    .feedback-btn {
+      background: none; border: none; cursor: pointer; font-size: 14px;
+      padding: 2px 6px; border-radius: 6px; opacity: 0.55; transition: all 0.15s;
+    }
+    .feedback-btn:hover { opacity: 1; background: #f0f2fa; }
+    .feedback-thanks { font-size: 11px; color: #6b7a99; padding: 2px 0; }
     .msg-bubble a { color: #FF8200; }
     .msg-bubble p { margin-bottom: 8px; }
     .wink-embed { margin: 8px 0; border-radius: 10px; overflow: hidden; }
     .wink-map { width: 100%; max-width: 420px; height: 230px; border: 1px solid #dde3f0; }
+    .wink-diagram { max-width: 100%; overflow-x: auto; padding: 12px; background: #fff; border: 1px solid #dde3f0; border-radius: 10px; }
+    .wink-diagram svg { max-width: 100%; height: auto; }
     .wink-map iframe { width: 100%; height: 100%; border: 0; display: block; }
     .wink-image { max-width: 340px; }
     .wink-image img { width: 100%; height: auto; display: block; border: 1px solid #dde3f0; border-radius: 10px; }
@@ -310,6 +323,7 @@
     .wink-modal-btn.danger { background: #b91c1c; color: #fff; }
   </style>
   <meta name="csrf-token" content="{{ csrf_token() }}">
+  <script src="/static/mermaid.min.js"></script>
 </head>
 <body>
 
@@ -322,6 +336,8 @@
       <a href="/documents" class="{{ 'active' if active == 'documents' else '' }}">My Documents</a>
       <a href="/chat-page" class="{{ 'active' if active == 'chat' else '' }}">Ask WINK</a>
       <a href="/calendar-page" class="{{ 'active' if active == 'calendar' else '' }}">Calendar</a>
+      <a href="/practice-page" class="{{ 'active' if active == 'practice' else '' }}">Practice</a>
+      <a href="/wrapped-page" class="{{ 'active' if active == 'wrapped' else '' }}">Wrapped</a>
       {% if s.email == admin_email %}
       <a href="/analytics-page" class="{{ 'active' if active == 'analytics' else '' }}">Analytics</a>
       {% endif %}
@@ -372,6 +388,10 @@
       <div class="chat-toolbar">
         <button class="toolbar-btn" id="export-btn" onclick="exportConversation()" disabled>⬇ Download</button>
         <button class="toolbar-btn" id="share-btn" onclick="shareConversation()" disabled>🔗 Share</button>
+        <span style="width:1px;height:20px;background:#dde3f0;margin:0 4px;"></span>
+        <button class="toolbar-btn" id="text-smaller-btn" onclick="adjustTextSize(-1)" aria-label="Decrease text size">A−</button>
+        <button class="toolbar-btn" id="text-larger-btn" onclick="adjustTextSize(1)" aria-label="Increase text size">A+</button>
+        <button class="toolbar-btn" id="read-aloud-btn" onclick="readLatestAnswerAloud()">🔊 Read latest answer</button>
       </div>
       <div class="messages-wrap" id="messages" role="log" aria-live="polite" aria-atomic="false" aria-relevant="additions">
 
@@ -441,6 +461,51 @@
       btn.setAttribute('aria-expanded', open ? 'true' : 'false');
     }
 
+    // ── Accessibility: text size ──────────────────────────────
+    // Steps between 0.85x and 1.6x, persisted so it carries over to the
+    // next visit. Applied via a CSS custom property set directly through
+    // the DOM style property (see .msg-bubble's font-size above) — never
+    // the style="..." HTML attribute, so this can't be affected by CSP's
+    // style-src-attr restriction regardless of how that's configured.
+    const TEXT_SCALE_STEPS = [0.85, 1, 1.15, 1.3, 1.45, 1.6];
+    function applyTextScale(scale) {
+      document.documentElement.style.setProperty('--wink-text-scale', scale);
+      localStorage.setItem('winkTextScale', String(scale));
+    }
+    function adjustTextSize(direction) {
+      const current = parseFloat(localStorage.getItem('winkTextScale')) || 1;
+      let idx = TEXT_SCALE_STEPS.reduce((closest, v, i) =>
+        Math.abs(v - current) < Math.abs(TEXT_SCALE_STEPS[closest] - current) ? i : closest, 0);
+      idx = Math.max(0, Math.min(TEXT_SCALE_STEPS.length - 1, idx + direction));
+      applyTextScale(TEXT_SCALE_STEPS[idx]);
+    }
+    (function restoreTextScale() {
+      const saved = parseFloat(localStorage.getItem('winkTextScale'));
+      if (saved) applyTextScale(saved);
+    })();
+
+    // ── Accessibility: read the latest answer aloud ───────────
+    // Uses the browser's built-in Web Speech API — no server call, no
+    // new dependency. Reads the plain text of the most recent WINK
+    // message (not the raw HTML/markdown), and toggles to a stop control
+    // if pressed again while speaking.
+    function readLatestAnswerAloud() {
+      const btn = document.getElementById('read-aloud-btn');
+      if (window.speechSynthesis.speaking) {
+        window.speechSynthesis.cancel();
+        btn.textContent = '🔊 Read latest answer';
+        return;
+      }
+      const winkMessages = document.querySelectorAll('.msg.wink .msg-bubble');
+      if (winkMessages.length === 0) return;
+      const latest = winkMessages[winkMessages.length - 1];
+      const utterance = new SpeechSynthesisUtterance(latest.textContent);
+      utterance.onend = () => { btn.textContent = '🔊 Read latest answer'; };
+      utterance.onerror = () => { btn.textContent = '🔊 Read latest answer'; };
+      btn.textContent = '⏹ Stop reading';
+      window.speechSynthesis.speak(utterance);
+    }
+
     function winkToast(msg, isError = false) {
       let t = document.getElementById('wink-toast');
       if (!t) {
@@ -505,6 +570,7 @@
     let currentConversationId = null;
     let currentTempDoc = null; // { name, content } — cleared on New Chat / switching conversations
     let photoMarkerId = 0;
+    let diagramMarkerId = 0;
 
     const WELCOME_HTML = `<div class="welcome-msg" id="welcome">
       <img src="/static/WINK.jpeg" alt="WINK" style="width:64px;height:78px;border-radius:50%;object-fit:cover;margin:0 auto 12px;display:block;border:3px solid #FF8200;">
@@ -565,10 +631,31 @@
         const id = `wink-photo-${++photoMarkerId}`;
         return stash(`<div class="wink-embed wink-photo-pending" id="${id}" data-query="${query.trim().replace(/"/g,'&quot;')}"><span class="wink-photo-loading">🔎 Looking for a photo…</span></div>`);
       });
+      // Diagrams: ```mermaid fenced code blocks -> an actual rendered
+      // diagram via the self-hosted mermaid.js — resolved after insert,
+      // same async pattern as resolvePhotoMarkers() (see
+      // resolveDiagramMarkers() below). text was already escapeHtml()'d
+      // above, so decode entities back to real characters before mermaid
+      // parses them, then safely re-escape into the data attribute.
+      html = html.replace(/```mermaid\n([\s\S]*?)```/g, (m, code) => {
+        const id = `wink-diagram-${++diagramMarkerId}`;
+        const raw = code.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'");
+        return stash(`<div class="wink-embed wink-diagram-pending" id="${id}" data-mermaid="${raw.replace(/"/g,'&quot;')}"><span class="wink-photo-loading">📊 Rendering diagram…</span></div>`);
+      });
       // Images: standard markdown ![alt](url) -> an actual rendered image
       html = html.replace(/!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g, (m, alt, url) => {
         return stash(`<div class="wink-embed wink-image"><img src="${url}" alt="${alt.replace(/"/g,'&quot;')}" loading="lazy" onerror="this.parentElement.style.display='none'"></div>`);
       });
+
+      // Source citations: the system prompt instructs the model to name
+      // the actual uploaded file it drew an answer from (e.g.
+      // "Spring2026Syllabus.docx"), not just say "your documents" —
+      // highlight any such filename distinctly so a student can see at a
+      // glance which answers are grounded in something they uploaded.
+      // Runs after the map/image stashing above so it can't accidentally
+      // match inside an already-stashed embed's URL.
+      html = html.replace(/\b(\S+\.(?:docx|pdf|pptx|xlsx|txt|png|jpe?g))\b/gi,
+        '<cite class="wink-citation">$1</cite>');
 
       // Bold
       html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
@@ -615,6 +702,35 @@
       }
     }
 
+    let mermaidInitDone = false;
+    async function resolveDiagramMarkers(container) {
+      const pending = container.querySelectorAll('.wink-diagram-pending');
+      if (pending.length === 0) return;
+      if (typeof mermaid === 'undefined') {
+        pending.forEach(el => {
+          el.innerHTML = '<span class="wink-photo-missing">📊 Diagram rendering isn\'t available right now.</span>';
+          el.classList.remove('wink-diagram-pending');
+        });
+        return;
+      }
+      if (!mermaidInitDone) {
+        mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'strict' });
+        mermaidInitDone = true;
+      }
+      for (const el of pending) {
+        const source = el.dataset.mermaid;
+        try {
+          const { svg } = await mermaid.render('wink-mermaid-' + el.id, source);
+          el.innerHTML = svg;
+          el.classList.remove('wink-diagram-pending');
+          el.classList.add('wink-diagram');
+        } catch (e) {
+          el.innerHTML = '<span class="wink-photo-missing">📊 Couldn\'t render that diagram.</span>';
+          el.classList.remove('wink-diagram-pending');
+        }
+      }
+    }
+
     function addMessage(role, text) {
       const welcome = document.getElementById('welcome');
       if (welcome) welcome.remove();
@@ -638,6 +754,38 @@
       wrap.insertBefore(div, typing);
       wrap.scrollTop = wrap.scrollHeight;
       return bubble;
+    }
+
+    // Thumbs up/down on a specific assistant answer — see /rate-answer.
+    // Only rateable once the answer belongs to a saved conversation
+    // (convId set), which is true for every answer except mid-stream.
+    function addFeedbackButtons(container, convId, msgIndex) {
+      if (!convId && convId !== 0) return;
+      const fb = document.createElement('div');
+      fb.className = 'msg-feedback';
+      const up = document.createElement('button');
+      up.type = 'button'; up.className = 'feedback-btn'; up.setAttribute('aria-label', 'Good answer'); up.textContent = '👍';
+      up.addEventListener('click', function() { submitFeedback(convId, msgIndex, 'up', up); });
+      const down = document.createElement('button');
+      down.type = 'button'; down.className = 'feedback-btn'; down.setAttribute('aria-label', 'Not helpful'); down.textContent = '👎';
+      down.addEventListener('click', function() { submitFeedback(convId, msgIndex, 'down', down); });
+      fb.appendChild(up);
+      fb.appendChild(down);
+      container.appendChild(fb);
+    }
+
+    async function submitFeedback(convId, msgIndex, rating, btnEl) {
+      const group = btnEl.parentElement;
+      try {
+        const resp = await fetch('/rate-answer', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ conversation_id: convId, message_index: msgIndex, rating: rating }),
+        });
+        if (resp.ok) {
+          group.innerHTML = '<span class="feedback-thanks">Thanks for the feedback.</span>';
+        }
+      } catch (e) { /* not worth interrupting the student over a failed rating */ }
     }
 
     function setToolbarEnabled(enabled) {
@@ -754,9 +902,13 @@
         currentConversationId = id;
         currentTempDoc = null;
         document.getElementById('messages').innerHTML = TYPING_HTML;
-        messages.forEach(m => {
+        messages.forEach((m, i) => {
           const bubble = addMessage(m.role, m.content);
-          if (m.role !== 'user' && bubble) resolvePhotoMarkers(bubble);
+          if (m.role !== 'user' && bubble) {
+            resolvePhotoMarkers(bubble);
+            resolveDiagramMarkers(bubble);
+            addFeedbackButtons(bubble.parentElement, currentConversationId, i);
+          }
         });
         setToolbarEnabled(true);
         highlightActiveConversation(id);
@@ -892,6 +1044,8 @@
 
         messages.push({ role: 'assistant', content: fullText });
         resolvePhotoMarkers(bubble);
+        resolveDiagramMarkers(bubble);
+        addFeedbackButtons(div, currentConversationId, messages.length - 1);
         setToolbarEnabled(true);
         if (isNewConversation) loadConversationList();
 

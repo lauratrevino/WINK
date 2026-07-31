@@ -265,6 +265,8 @@
       <a href="/documents" class="{{ 'active' if active == 'documents' else '' }}">My Documents</a>
       <a href="/chat-page" class="{{ 'active' if active == 'chat' else '' }}">Ask WINK</a>
       <a href="/calendar-page" class="{{ 'active' if active == 'calendar' else '' }}">Calendar</a>
+      <a href="/practice-page" class="{{ 'active' if active == 'practice' else '' }}">Practice</a>
+      <a href="/wrapped-page" class="{{ 'active' if active == 'wrapped' else '' }}">Wrapped</a>
       {% if s.email == admin_email %}
       <a href="/analytics-page" class="{{ 'active' if active == 'analytics' else '' }}">Analytics</a>
       {% endif %}
@@ -319,6 +321,13 @@
         <div class="form-group">
           <label class="field-label" for="crn-input">Add CRN#</label>
           <input type="text" id="crn-input" placeholder="e.g., 12345" required>
+        </div>
+        <div class="form-group">
+          <label class="field-label" for="doc-type-input">Document Type</label>
+          <select id="doc-type-input">
+            <option value="material">Course material (syllabus, notes, slides)</option>
+            <option value="assessment">Past exam or quiz (used as a style example for practice questions)</option>
+          </select>
         </div>
       </div>
 
@@ -383,7 +392,7 @@
                   </td>
                   <td>{{ (doc.size_bytes / 1024)|round(1) }} KB</td>
                   <td>{{ doc.uploaded_at.strftime('%b %d, %Y') if doc.uploaded_at else '—' }}</td>
-                  <td><button class="btn-delete" onclick="deleteDoc({{ doc.id }})">Delete</button></td>
+                  <td><button class="btn-delete" data-doc-id="{{ doc.id }}">Delete</button></td>
                 </tr>
                 {% endfor %}
               </tbody>
@@ -528,6 +537,7 @@
       const files = Array.from(fileInput.files);
       const course = courseInput.value.trim();
       const crn = crnInput.value.trim();
+      const docType = document.getElementById('doc-type-input').value;
 
       if (!course) {
         status.innerHTML = '<span class="status-error">Please enter a course name.</span>';
@@ -551,7 +561,7 @@
         if (isAtLimit()) { skipped += (files.length - uploaded - failed); break; }
         status.innerHTML = `<span class="status-info">⏳ Uploading ${escapeHtml(file.name)} (${uploaded + failed + 1} of ${files.length})…</span>`;
         const fd = new FormData();
-        fd.append('file', file); fd.append('course', course); fd.append('crn', crn);
+        fd.append('file', file); fd.append('course', course); fd.append('crn', crn); fd.append('doc_type', docType);
         try {
           const res = await fetch('/upload', { method: 'POST', body: fd });
           const data = await res.json();
@@ -580,6 +590,15 @@
 
       if (lastDocs) refreshLibrary(lastDocs);
     }
+
+    // Delegated listener for every delete button — both the ones rendered
+    // server-side at page load and the ones re-rendered by JS after an
+    // upload/delete carry a data-doc-id instead of an inline onclick, so
+    // this one listener covers both without needing per-button wiring.
+    document.addEventListener('click', function(e) {
+      const btn = e.target.closest('.btn-delete');
+      if (btn && btn.dataset.docId) deleteDoc(parseInt(btn.dataset.docId, 10));
+    });
 
     async function deleteDoc(id) {
       const ok = await winkConfirm({
@@ -662,7 +681,7 @@
             <td><div class="doc-name-cell"><span class="doc-file-icon">${fileIcon(d.orig_name)}</span><span class="doc-name-text">${escapeHtml(d.orig_name)}</span></div></td>
             <td>${(d.size_bytes/1024).toFixed(1)} KB</td>
             <td>${uploadedDate}</td>
-            <td><button class="btn-delete" onclick="deleteDoc(${d.id})" aria-label="Delete ${escapeHtml(d.orig_name)}">Delete</button></td>
+            <td><button class="btn-delete" data-doc-id="${d.id}" aria-label="Delete ${escapeHtml(d.orig_name)}">Delete</button></td>
           </tr>`;
         });
         html += `</tbody></table></div></div>`;

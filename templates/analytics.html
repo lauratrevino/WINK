@@ -200,6 +200,8 @@
       <a href="/documents">Documents</a>
       <a href="/chat-page">Ask WINK</a>
       <a href="/calendar-page">Calendar</a>
+      <a href="/practice-page">Practice</a>
+      <a href="/wrapped-page">Wrapped</a>
       <a href="/analytics-page" class="active">Analytics</a>
     </div>
     <div class="nav-right">
@@ -352,6 +354,19 @@
           <div class="card-body" id="upload-mix-container">
             <div style="color:#6b7a99;font-size:13px;">Loading…</div>
           </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h2>Answer Feedback</h2><span style="font-size:13px;color:#6b7a99;">Thumbs up/down from students</span></div>
+          <div class="card-body" id="answer-feedback-container">
+            <div style="color:#6b7a99;font-size:13px;">Loading…</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h2>Common Questions This Week</h2><span style="font-size:13px;color:#6b7a99;">Same question, asked by 2+ different students — may signal something worth clarifying in the material</span></div>
+        <div class="card-body" id="common-questions-container">
+          <div style="color:#6b7a99;font-size:13px;">Loading…</div>
         </div>
       </div>
 
@@ -2944,7 +2959,7 @@
         } else {
           cb.innerHTML = d.conversations.map((c, i) => `
             <div class="convo-item">
-              <div class="convo-header" onclick="toggleConvo(${i})">
+              <div class="convo-header" data-convo-index="${i}">
                 <div>
                   <div style="font-size:11px;color:#6b7a99;margin-bottom:3px;">${escapeHtml(c.first_name)} ${escapeHtml(c.last_name)} · ${escapeHtml(c.ts)}</div>
                   <div class="convo-q">❓ ${escapeHtml(c.question.substring(0,120))}${c.question.length > 120 ? '…' : ''}</div>
@@ -2974,12 +2989,14 @@
         // Bar charts
         function renderBars(containerId, items, maxN, orange) {
           const max = Math.max(...items.map(x => x.n), 1);
-          document.getElementById(containerId).innerHTML = items.slice(0, maxN).map(item => `
+          const container = document.getElementById(containerId);
+          container.innerHTML = items.slice(0, maxN).map(item => `
             <div class="bar-row">
               <div class="bar-label" title="${item.major || item.classification}">${(item.major || item.classification).substring(0,20)}</div>
-              <div class="bar-track"><div class="bar-fill ${orange?'orange':''}" style="width:${Math.round(item.n/max*100)}%"></div></div>
+              <div class="bar-track"><div class="bar-fill ${orange?'orange':''}" data-w="${Math.round(item.n/max*100)}%"></div></div>
               <div class="bar-val">${item.n}</div>
             </div>`).join('');
+          applyPendingStyles(container);
         }
         renderBars('class-chart', d.by_class, 8, false);
         renderBars('major-chart', d.by_major, 12, true);
@@ -2991,6 +3008,8 @@
         renderHeatmap(d.usage_heatmap);
         renderDeadlineSpikes(d.deadline_spikes);
         renderUploadMix(d.upload_mix);
+        renderAnswerFeedback(d.answer_feedback);
+        renderCommonQuestions(d.common_questions);
         renderStaleDocs(d.stale_global_docs);
 
       } catch(e) {
@@ -3044,9 +3063,10 @@
       el.innerHTML = filtered.slice(0, 12).map(item => `
         <div class="bar-row">
           <div class="bar-label" title="${escapeHtml(item.course)}">${escapeHtml(item.course).substring(0,20)}</div>
-          <div class="bar-track"><div class="bar-fill orange" style="width:${Math.round(item.n/max*100)}%"></div></div>
+          <div class="bar-track"><div class="bar-fill orange" data-w="${Math.round(item.n/max*100)}%"></div></div>
           <div class="bar-val">${item.n}</div>
         </div>`).join('');
+      applyPendingStyles(el);
     }
 
     function renderHeatmap(grid) {
@@ -3068,12 +3088,13 @@
         html += `<tr><td class="heatmap-row-label">${days[d]}</td>`;
         for (let h = 0; h < 24; h++) {
           const n = grid[d][h] || 0;
-          html += `<td style="background:${colorFor(n)}" title="${days[d]} ${h}:00 — ${n} question${n!==1?'s':''}">${n || ''}</td>`;
+          html += `<td data-bg="${colorFor(n)}" title="${days[d]} ${h}:00 — ${n} question${n!==1?'s':''}">${n || ''}</td>`;
         }
         html += '</tr>';
       }
       html += '</tbody></table>';
       el.innerHTML = html;
+      applyPendingStyles(el);
     }
 
     function renderDeadlineSpikes(spikes) {
@@ -3104,10 +3125,55 @@
       ];
       el.innerHTML = rows.map(([color, label, n]) => `
         <div class="upload-mix-row">
-          <div class="upload-mix-swatch" style="background:${color};"></div>
+          <div class="upload-mix-swatch" data-bg="${color}"></div>
           <div style="flex:1;font-size:13px;color:#444;">${label}</div>
           <div style="font-weight:700;color:#002855;">${n}</div>
           <div style="width:50px;text-align:right;color:#6b7a99;font-size:12px;">${total ? Math.round(n/total*100) : 0}%</div>
+        </div>`).join('');
+      applyPendingStyles(el);
+    }
+
+    function renderAnswerFeedback(feedback) {
+      const el = document.getElementById('answer-feedback-container');
+      if (!el) return;
+      if (!feedback || (feedback.up === 0 && feedback.down === 0)) {
+        el.innerHTML = '<div style="color:#6b7a99;font-size:13px;">No feedback recorded yet — students can rate answers with the 👍/👎 buttons in chat.</div>';
+        return;
+      }
+      const total = feedback.up + feedback.down;
+      const pct = feedback.positive_pct;
+      const rows = [
+        ['#166534', '👍 Helpful', feedback.up],
+        ['#dc2626', '👎 Not helpful', feedback.down],
+      ];
+      let html = rows.map(([color, label, n]) => `
+        <div class="upload-mix-row">
+          <div class="upload-mix-swatch" data-bg="${color}"></div>
+          <div style="flex:1;font-size:13px;color:#444;">${label}</div>
+          <div style="font-weight:700;color:#002855;">${n}</div>
+          <div style="width:50px;text-align:right;color:#6b7a99;font-size:12px;">${total ? Math.round(n/total*100) : 0}%</div>
+        </div>`).join('');
+      html += `<div style="margin-top:12px;padding-top:12px;border-top:1px solid #eef0f6;font-size:13px;color:#444;">
+        <strong style="color:#002855;">${pct !== null ? pct + '%' : '—'}</strong> of rated answers were marked helpful (${total} total ratings).
+      </div>`;
+      el.innerHTML = html;
+      applyPendingStyles(el);
+    }
+
+    function renderCommonQuestions(items) {
+      const el = document.getElementById('common-questions-container');
+      if (!el) return;
+      if (!items || items.length === 0) {
+        el.innerHTML = '<div style="color:#6b7a99;font-size:13px;">No question has been asked by 2 or more different students in the past week yet.</div>';
+        return;
+      }
+      el.innerHTML = items.map(item => `
+        <div style="display:flex;gap:14px;align-items:flex-start;padding:10px 0;border-bottom:1px solid #eef0f6;">
+          <div style="flex-shrink:0;min-width:78px;text-align:center;font-weight:700;color:#002855;font-size:13px;background:#eef4ff;border-radius:6px;padding:4px 6px;">${item.n_students} students</div>
+          <div>
+            <div style="font-size:13px;font-weight:600;color:#002855;">${escapeHtml(item.question)}</div>
+            <div style="font-size:11px;color:#6b7a99;margin-top:2px;">Asked ${item.n} time${item.n !== 1 ? 's' : ''} total</div>
+          </div>
         </div>`).join('');
     }
 
@@ -3152,14 +3218,29 @@
       }
     }
 
-    function toggleConvo(i) {
-      const body = document.getElementById('convo-body-' + i);
-      body.classList.toggle('open');
-    }
+    // Delegated: convo-header no longer carries a per-item inline onclick
+    // (its index changes every render, so it can't be CSP-hash-allowlisted).
+    document.addEventListener('click', function(e) {
+      const header = e.target.closest('.convo-header');
+      if (header && header.dataset.convoIndex !== undefined) {
+        const body = document.getElementById('convo-body-' + header.dataset.convoIndex);
+        if (body) body.classList.toggle('open');
+      }
+    });
 
     // ── General reference documents ─────────────────────────────
     function escapeHtml(text) {
       return String(text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+
+    // Applies width/background set via data-w/data-bg placeholders using the
+    // DOM style property directly — never restricted by CSP, unlike setting
+    // the style="..." HTML attribute itself. Used anywhere a value (a bar's
+    // percentage width, a heatmap cell's color) varies per row and so can't
+    // be a fixed, CSP-hash-allowlisted inline style string.
+    function applyPendingStyles(root) {
+      root.querySelectorAll('[data-w]').forEach(el => { el.style.width = el.dataset.w; el.removeAttribute('data-w'); });
+      root.querySelectorAll('[data-bg]').forEach(el => { el.style.background = el.dataset.bg; el.removeAttribute('data-bg'); });
     }
 
     let gdSelectedFile = null;
@@ -3217,6 +3298,11 @@
       btn.textContent = 'Upload'; btn.disabled = !(gdSelectedFile && gdSelectedUniversity);
     }
 
+    document.addEventListener('click', function(e) {
+      const gdBtn = e.target.closest('.btn-delete-gd');
+      if (gdBtn && gdBtn.dataset.gdDocId) deleteGdDoc(parseInt(gdBtn.dataset.gdDocId, 10));
+    });
+
     async function deleteGdDoc(id) {
       const ok = await winkConfirm({
         title: 'Remove this general document?',
@@ -3264,7 +3350,7 @@
             <td style="font-weight:600;color:#002855;">${escapeHtml(d.orig_name)}</td>
             <td>${(d.size_bytes / 1024).toFixed(1)} KB</td>
             <td>${d.uploaded_at ? new Date(d.uploaded_at).toLocaleDateString() : ''}</td>
-            <td><button class="btn-delete-gd" onclick="deleteGdDoc(${d.id})" aria-label="Delete ${escapeHtml(d.orig_name)}">🗑</button></td>
+            <td><button class="btn-delete-gd" data-gd-doc-id="${d.id}" aria-label="Delete ${escapeHtml(d.orig_name)}">🗑</button></td>
           </tr>
         `).join('');
       } catch (e) {
