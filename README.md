@@ -10,6 +10,301 @@ renders successfully with representative data, and static file serving
 (`/static/WINK.jpeg`, etc.) works — checked with a live Flask test client,
 not just by inspection.
 
+## WOW-factor features (this pass)
+
+Five of six — peer study rooms was deliberately held back (see below), not
+built under pressure to "add it all."
+
+**1. Voice input.** Turned out this already existed in the codebase before
+this pass touched it — a mic button and a full `toggleVoiceInput()`
+implementation via the browser's `SpeechRecognition` API were already
+wired up. Verified it's actually complete (button, function, and the
+`.recording` CSS class it references all present) rather than claim
+credit for building something that was already there.
+
+**2. Diagrams via Mermaid.js.** The real `mermaid` package (v11.16.0,
+fetched via `npm pack` since CDNs aren't reachable from this sandbox —
+the same network restriction noted for Voyage AI and huggingface.co
+earlier), **self-hosted** as a static file rather than loaded from a CDN,
+so it needed zero CSP changes at all (same-origin `'self'` already
+covers it). The chat prompt now tells the model to use ` ```mermaid ` 
+fenced code blocks for genuinely structural content (flowcharts, state
+diagrams, timelines), rendered client-side following the same
+async-resolve-after-insert pattern already used for photo lookups, with a
+real fallback if rendering fails.
+
+**3. Grade calculator.** Not a new UI — a precise instruction added to the
+existing answering strategy: when a syllabus's real grading-weight
+breakdown is in a student's documents, do the actual weighted-average
+arithmetic (asking for whatever current scores are missing first) rather
+than estimating, and show the calculation so it's checkable.
+
+**4. Semester study plan.** New `build_study_plan()` merges two things
+that existed separately — upcoming deadlines and spaced-repetition review
+load — into one week-by-week view, `GET /study-plan`, now shown on the
+dashboard right below the busy-stretch warning. **A real bug caught and
+fixed during this build:** an edit accidentally swallowed the
+`detect_deadline_conflicts` function's own signature line (the same
+"replace an anchor without re-including it" mistake made a few times this
+session with README headers) — caught immediately by `ruff`, fixed, and
+verified with a real test confirming deadlines land in the correct week
+bucket.
+
+**5. WINK Wrapped.** A new page (`/wrapped-page`), the one purely-for-fun
+feature in the app — total questions asked, longest daily streak, practice
+questions mastered, busiest week, busiest day of the week, and courses
+brought to WINK, all real counts pulled from data already being logged
+for other purposes, no new tracking added. Verified against real Postgres
+activity, not just that the page renders.
+
+**Peer study rooms — deliberately not built.** Anonymized visibility into
+other students' questions, or students working in the same space, raises
+real privacy and moderation questions (a struggling question becoming
+visible in a way a student didn't expect; no clear moderation path if
+someone uses shared visibility to harass another student) that deserve an
+actual design conversation, not a feature rushed in under "add it all."
+
+**Final state:** every reachable page still renders correctly, including
+the new `/wrapped-page`, with the same nav link added everywhere else.
+Full suite: 67 tests, all passing.
+
+
+
+## Pre-launch hardening pass (this pass)
+
+Five things, in the order requested: fixed the two flagged real problems,
+added three of the suggested competitive features.
+
+**1. CSP hardening — `unsafe-inline` removed from `script-src-attr` and
+`style-src-attr`.** Found and fixed 8 dynamic (per-instance-varying) event
+handlers and 7 dynamic style attributes across every template — including
+several I hadn't originally scoped (a Jinja-server-rendered
+`onclick="deleteDoc({{ doc.id }})"` in `documents.html`, and a paired
+`onclick`/`onkeydown` in `calendar.html` that a narrower first search
+missed entirely — a broader, more careful re-sweep caught it before
+anything shipped). Every one of those was converted to a `data-*`
+attribute plus a delegated JavaScript listener, or — for styles — a direct
+`element.style.property` assignment, confirmed via MDN documentation to
+be completely unaffected by CSP's style-attribute restriction (only the
+literal `style="..."` HTML attribute is restricted, never DOM property
+manipulation).
+
+The remaining genuinely-static handlers (now the only kind left) are
+allowlisted by SHA-256 hash — computed **dynamically at app startup
+directly from the real template files** (`wink/csp_hashes.py`), not a
+hardcoded list that could silently drift out of sync the next time a
+template changes. Verified the hashing algorithm itself against a
+known-correct published example, verified a real handler's computed hash
+appears in the actual served response header, and added a permanent test
+that fails loudly if any future template edit reintroduces a dynamic
+(un-hashable) handler outside of `index.html`/`base.html` (confirmed dead,
+no route renders either). 4 new tests in `tests/test_csp_hashes.py`.
+
+**2. Answer-feedback aggregate UI.** The thumbs-up/down data was being
+recorded and aggregated since an earlier pass, with nowhere to see it.
+New "Answer Feedback" card on `/analytics-page`.
+
+**3. Source citations, rendered distinctly.** The chat prompt already
+instructed the model to name the actual file it drew an answer from;
+now any such filename mentioned in a response gets visually highlighted
+(`.wink-citation` — a subtle bordered badge) so it's not just readable in
+prose but visible at a glance. **A real bug caught before shipping:** the
+first version of this regex matched far too aggressively — instead of
+highlighting just a filename, it wrapped entire multi-sentence spans of
+prose in citation styling, because the character class allowing spaces
+and periods inside a "filename" let it run from one word all the way to
+the next real filename it found. Tested against real sample text before
+finalizing, caught it, and replaced it with a version that never crosses
+whitespace, matching only realistic filename-shaped tokens.
+
+**4. Accessibility: text size and read-aloud (chat page only).**
+Two toolbar buttons — text size (`A−`/`A+`, five steps, persisted via
+`localStorage`, applied through a CSS custom property set via the DOM
+`.style` property rather than any attribute CSP would ever restrict) and
+"Read latest answer" (the browser's built-in Web Speech API, no server
+call, no new dependency). **Scoped honestly to the chat page only** —
+propagating this to every other page, and a genuine full audit of
+keyboard-navigability across every `onclick` handler in the app, is real
+remaining work this pass didn't attempt.
+
+**5. Instructor-facing "Common Questions This Week."** New card on
+`/analytics-page`: the same question asked by 2+ different students in
+the past 7 days, as a real, honest proxy for "something in the material
+may need clarifying" — **not** true semantic clustering (that would need
+the same embedding infrastructure built for retrieval, applied to a
+different problem, and wasn't built here). Groups by exact question-text
+match only; two students phrasing the same confusion differently won't
+group together. Verified against real Postgres with three students, two
+asking an identical question and one asking something unrelated —
+confirmed only the genuinely-shared question surfaces, with the right
+counts.
+
+**Final state confirmed before handoff:** every reachable page
+(`dashboard`, `documents`, `chat-page`, `calendar-page`, `practice-page`,
+`analytics-page`, plus `login`/`register`/`landing`) still renders
+correctly. Full suite: 62 tests, all passing.
+
+
+
+## Neural embeddings via Voyage AI (this pass)
+
+The TF-IDF paraphrase gap from an earlier pass (missing "textbook" when
+the document only said "Required Text") now has a real fix, not just a
+documented limitation: **Voyage AI**, Anthropic's own recommended
+embeddings partner. It's used automatically — no code change needed to
+turn it on — whenever `VOYAGE_API_KEY` is set and every candidate chunk
+already has a precomputed embedding.
+
+### How to turn it on
+
+1. Get an API key at [voyageai.com](https://www.voyageai.com) (has a free tier).
+2. Set `VOYAGE_API_KEY` in your deployment's environment variables (Render's
+   dashboard, same place `ANTHROPIC_API_KEY` lives). Nothing else to
+   configure — `EMBEDDING_MODEL` defaults to `voyage-4-lite`, confirmed
+   against Voyage's current pricing page as the best combination of price
+   and free allowance (see "Cost" below), or set your own via that same
+   env var.
+3. Redeploy. That's it — no template changes, no new endpoints, no
+   migration to run by hand (the `embedding` column on `document_chunks`
+   already exists in the schema and gets created automatically by
+   `init_db()`).
+4. **New uploads** get real embeddings from that point on, computed once,
+   at upload time, and stored — a question only ever needs to embed
+   itself, not re-embed a student's whole document set every time.
+   **Existing uploads** from before you set the key won't have stored
+   embeddings; retrieval falls back to TF-IDF for those specific chunks
+   automatically (no error, no missing data) until they're re-uploaded.
+
+### Why Voyage over a local model
+
+The other realistic option was `sentence-transformers` (free, runs
+locally, no per-call cost) — not used here because it needs to download
+a few hundred MB of model weights from huggingface.co, adding real
+first-request latency and a meaningfully heavier container. Voyage is a
+lightweight API client with no local model at all, and it's what
+Anthropic itself points people toward for embeddings, so it fits this
+app's existing "keep the stack simple" philosophy better. The tradeoff
+you're accepting: a small per-call cost and a dependency on Voyage's API
+being up, versus zero ongoing cost and no new dependency at all with
+sentence-transformers. Either is reasonable; this pass implemented Voyage.
+
+### Cost
+
+Confirmed directly against Voyage's current pricing page
+(docs.voyageai.com/docs/pricing): `voyage-4-lite` is **$0.02 per million
+tokens, with the first 200 million tokens free for every account.**
+
+What actually gets billed, given how this is wired in:
+- **At upload time:** every chunk of a newly uploaded document, embedded
+  once (~200-250 tokens per ~1,000-character chunk — a typical 20,000-character
+  syllabus is roughly 20-25 chunks, ~5,000 tokens total).
+- **At question time:** only the student's *question itself* — a few
+  dozen tokens — and only when retrieval actually kicks in (a student's
+  material has to exceed the ~40,000-character budget first; most
+  students most of the time are still on the "everything fits, no
+  retrieval needed" path and never trigger an embedding call there at all).
+
+Rough math at "hundreds of students" scale: 500 students × 10 documents
+each × ~5,000 tokens = ~25 million tokens for an entire semester's worth
+of uploads — well inside the 200-million-token free allowance. Even a much
+heavier estimate (2,000 students, 20 documents each) lands around 200
+million tokens — right at the free-tier boundary. **Realistically: $0 for
+this project at its current scale, for the foreseeable future.** If usage
+ever meaningfully exceeds the free tier, the overage is $0.02 per million
+tokens — a few dollars, not a few hundred.
+
+### How important is this, really
+
+Not blocking. The "include everything in full when it fits" path (the
+default for most students most of the time) already gets full, untruncated
+answers regardless of which ranking backend is configured — neural
+embeddings only change behavior for students who've uploaded enough
+material to exceed the budget, and even then, only for questions phrased
+differently from their own documents' wording (TF-IDF still gets literal-
+keyword questions right either way).
+
+That said: given the stated priority for this project — that answer
+accuracy is the first priority, because it's a research tool where the
+findings depend on it — this is worth turning on regardless of it not
+being strictly necessary for basic functioning. It's a real accuracy
+improvement, for a cost that's realistically zero at this project's scale,
+requiring one environment variable and a redeploy. The honest way to think
+about it: low urgency, but very little reason not to, given how cheap it
+turned out to be.
+
+### What's verified, and what genuinely isn't
+
+Same constraint as the OCR/Docker passes: `api.voyageai.com` was never
+reachable from the sandbox this was built in (the same network allowlist
+that blocked huggingface.co). What **is** verified:
+- The real `voyageai` package (0.5.0, confirmed the current version on
+  PyPI, not guessed) installs cleanly alongside everything else
+- Its actual `Client.embed()` signature and `EmbeddingsObject.embeddings`
+  return shape were inspected directly against the installed package —
+  the code matches what's really there, not assumed from memory
+- Everything *around* the API call — chunking, batched embedding calls,
+  storing results, retrieving them, the cosine-similarity ranking math,
+  and the automatic TF-IDF fallback when embeddings are missing or the
+  client isn't configured — is tested against real Postgres with a fake
+  client built to mimic that real, inspected response shape (6 tests,
+  `tests/test_neural_embeddings.py`)
+
+What is **not** verified: an actual network call to Voyage's API
+returning a real embedding. That's the one piece to check first, deliberately,
+once this is deployed somewhere with normal internet access — e.g. upload
+a document, confirm in the database that `document_chunks.embedding` is
+populated (not NULL), and ask a paraphrased question you know TF-IDF
+would've missed.
+
+
+
+## UI for everything above (this pass)
+
+Every feature from the last several passes had a working, tested API and
+no way to actually use it — this pass adds the front-end for all of it,
+additively: every edit to an *existing* template only adds new elements
+(a field, a button, a widget), and nothing existing was removed or
+rewired. The one new page (`practice.html`) is a brand-new file, so it
+carries zero risk to anything already there.
+
+- **New `/practice-page`** — generate practice questions (including from
+  a temporarily-attached handout, using the exact `/upload`
+  `temporary=true` → `temp_material` flow from earlier), reveal answers,
+  self-grade, and see what's due for review, all in one page.
+- **Nav link to it** added to all six pages (including itself) —
+  one-line, additive, in the same style as every existing nav link.
+- **Preferred-language dropdown** added to the dashboard profile editor,
+  wired into the existing save/cancel flow.
+- **Document-type selector** (course material vs. past assessment) added
+  to the upload form on `/documents`.
+- **Thumbs up/down** added to chat messages, both freshly-streamed
+  answers and reloaded past conversations.
+- **A "Busy Stretch Ahead" widget** on the dashboard, populated via a
+  background fetch to `/deadline-conflicts` — stays completely hidden
+  unless a real conflict is found, so it can never show an empty or
+  misleading card.
+
+**How this was verified — real, not assumed:** every template was
+re-rendered after every single edit to catch a broken change immediately,
+not at the end. Beyond that, a real end-to-end pass against live Postgres
+exercised the *actual* new form fields and JS the templates now send —
+registered a real student, uploaded a real file with `doc_type=assessment`
+through the real form field name and confirmed it persisted correctly,
+set a language preference through the real API call the dashboard now
+makes and confirmed it shows up on a subsequent real page load, and
+confirmed the practice page reflects a real just-uploaded course. All of
+that is now captured as 7 permanent regression tests
+(`tests/test_ui_wiring.py`), and the full suite (50 tests total) passes
+together.
+
+**What's still not done:** no thumbs-up/down UI on `/analytics-page` to
+actually *view* the aggregated feedback numbers (they're computed and
+tested, just not displayed anywhere yet); no way to mark a document as an
+assessment *after* upload (only at upload time); the "Busy Stretch Ahead"
+widget shows raw deadline clusters without any dismiss/snooze action.
+
+
+
 ## Practice tests from a temporary handout (this pass)
 
 Answering a direct question: yes, now — a student can upload a handout
