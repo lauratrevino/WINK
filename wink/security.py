@@ -91,6 +91,32 @@ def admin_page_required(f):
     return wrapper
 
 
+def verified_required(f):
+    """Stack directly below @login_required, e.g.:
+        @login_required
+        @verified_required
+        def route(): ...
+    (Python applies the outer/first-listed decorator's checks before the
+    inner one at call time, so login_required's check and g.student
+    assignment happen before this one reads it.) Blocks cost-generating
+    actions — chat, uploads, practice-question generation — until the
+    student has clicked their email verification link, so a registration
+    with an email address nobody controls can't touch the AI or upload
+    institution-specific material. Deliberately does NOT gate read-only
+    routes (viewing the dashboard, resending the verification email) — an
+    unverified student can still see their own account and get unstuck."""
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if not g.student.get("email_verified"):
+            return jsonify({
+                "error": "Please verify your email address first — check your inbox for the "
+                         "verification link WINK sent when you registered, or use the resend "
+                         "option on your dashboard."
+            }), 403
+        return f(*args, **kwargs)
+    return wrapper
+
+
 # ── Rate limiting ─────────────────────────────────────────────
 # Backed by Postgres when a database is configured, so the limit is shared
 # and durable across every gunicorn worker, every instance, and every

@@ -211,6 +211,11 @@ def init_db():
             expires_at TIMESTAMP NOT NULL,
             used BOOLEAN DEFAULT FALSE,
             created_at TIMESTAMP DEFAULT NOW())""")
+        # NOTE: despite the column name, this stores a SHA-256 hash of the
+        # reset token, not the raw token — see auth.py's forgot_password()/
+        # reset_password(). The raw token only ever exists in the emailed
+        # link; if the database itself were ever exposed, this column
+        # alone can't be used to take over an account.
         # Deadlines extracted from uploaded documents (syllabi, assignment sheets)
         cur.execute("""CREATE TABLE IF NOT EXISTS deadlines (
             id SERIAL PRIMARY KEY,

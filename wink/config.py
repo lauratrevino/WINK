@@ -13,6 +13,18 @@ import secrets
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
 ALLOWED_EXT = {"pdf", "docx", "txt", "pptx", "xlsx", "png", "jpg", "jpeg"}
+
+# ── Document parsing resource limits ──────────────────────────
+# docx/pptx/xlsx are all ZIP containers — a maliciously crafted archive can
+# pass the file-signature check (it really is a valid ZIP) and then expand
+# to consume far more CPU/memory than its on-disk size suggests (a "zip
+# bomb"). These bound the worst case using only the ZIP central directory
+# (cheap to read, doesn't require decompressing anything) before handing
+# the file to python-docx/pptx/openpyxl at all.
+MAX_ZIP_UNCOMPRESSED_BYTES = 200 * 1024 * 1024  # 200MB total across all entries
+MAX_ZIP_COMPRESSION_RATIO = 100  # a legitimate Office file rarely exceeds ~20:1
+MAX_ZIP_ENTRY_COUNT = 5000  # legitimate Office files have dozens to low hundreds
+MAX_PDF_PAGES = 500  # bounds worst-case time in the per-page extraction loop below
 # extract_text() falls back to a placeholder for these if OCR isn't available
 # in the running environment (missing tesseract binary) — see
 # services/documents.py. Both upload paths use this to warn the student
