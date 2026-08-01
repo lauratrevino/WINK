@@ -186,3 +186,27 @@ local clone, a zip from that earlier session, git history), prefer those
 over this rebuild — they were tested against real Postgres with a fake
 Anthropic client in that session, and this rebuild has only been
 syntax-checked, not run against a live database.
+
+## Nav links added across every page (this round)
+
+Grades and Research weren't showing up because most pages' nav bars
+never had links to them — adding the routes/pages doesn't add them to
+every other template's hardcoded nav markup automatically (this app
+doesn't extend a shared nav from `base.html` yet, even though `base.html`
+exists — see the original review's note on template duplication).
+
+Updated in this pass: `analytics.html`, `dashboard.html`, `documents.html`,
+`practice.html`, `calendar.html`, `chat.html`, `grades.html`, `wrapped.html`
+— each now has a **Grades** link, and an **Analytics**/**Research** pair
+gated behind `{% if s.email == admin_email %}` (matching however each page
+already gated Analytics). `research.html` itself had no nav at all before
+this — it now has the same nav bar as every other page, so `/research`
+also passed `s=g.student`, `admin_email=config.ADMIN_EMAIL`, and
+`active="research"` into the template (added to
+`wink/blueprints/research.py`'s `render_template()` call).
+
+**If you add a new page later**, the nav link has to be added by hand to
+every existing template's nav block — there's no single source of truth
+for it yet. Moving every page to actually extend `base.html` (which
+already exists in your repo, just isn't used by any of these pages) would
+fix that for good, at the cost of a larger one-time refactor.
