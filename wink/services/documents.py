@@ -44,9 +44,44 @@ def _extract_image_text(filepath, orig_name):
         return f"[Image file: {orig_name}]"
 
 
+def _zip_bomb_safe(filepath):
+    """Reads only the ZIP central directory (metadata — file names, entry
+    count, compressed/uncompressed sizes) without decompressing anything,
+    and rejects the file if it looks like a decompression bomb: too many
+    entries, too much total uncompressed data, or any single entry with an
+    implausible compression ratio. docx/pptx/xlsx are all ZIP containers,
+    so this runs for all three before python-docx/pptx/openpyxl ever try
+    to actually parse the file's real content."""
+    import zipfile
+    try:
+        with zipfile.ZipFile(filepath) as zf:
+            infos = zf.infolist()
+            if len(infos) > config.MAX_ZIP_ENTRY_COUNT:
+                print(f"zip_bomb_check: rejected, {len(infos)} entries exceeds cap")
+                return False
+            total_uncompressed = sum(i.file_size for i in infos)
+            if total_uncompressed > config.MAX_ZIP_UNCOMPRESSED_BYTES:
+                print(f"zip_bomb_check: rejected, {total_uncompressed} uncompressed bytes exceeds cap")
+                return False
+            for i in infos:
+                if i.compress_size > 0 and i.file_size / i.compress_size > config.MAX_ZIP_COMPRESSION_RATIO:
+                    print(f"zip_bomb_check: rejected, entry {i.filename!r} has a "
+                          f"{i.file_size / i.compress_size:.0f}:1 compression ratio")
+                    return False
+            return True
+    except zipfile.BadZipFile:
+        # Not a valid ZIP at all — file_signature_valid() should already
+        # have caught this at upload time, but fail closed here too rather
+        # than let a malformed file reach the real parser.
+        return False
+
+
 def extract_text(filepath, orig_name):
     ext = orig_name.rsplit(".", 1)[-1].lower() if "." in orig_name else ""
     text = ""
+    if ext in ("docx", "pptx", "xlsx") and not _zip_bomb_safe(filepath):
+        print(f"extract_text: {orig_name} failed the zip-bomb safety check, skipping extraction")
+        return ""
     try:
         if ext == "txt":
             with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
@@ -55,16 +90,20 @@ def extract_text(filepath, orig_name):
             try:
                 from pypdf import PdfReader
                 reader = PdfReader(filepath)
-                pages = []
-                for i, page in enumerate(reader.pages):
-                    try:
-                        t = page.extract_text()
-                        if t and t.strip():
-                            pages.append(f"[Page {i+1}]\n{t.strip()}")
-                    except Exception as pe:
-                        print(f"PDF page {i+1} error: {pe}")
-                text = "\n\n".join(pages)
-                print(f"PDF extracted {len(text)} chars from {len(reader.pages)} pages")
+                if len(reader.pages) > config.MAX_PDF_PAGES:
+                    print(f"PDF extract skipped: {len(reader.pages)} pages exceeds the {config.MAX_PDF_PAGES}-page cap")
+                    text = ""
+                else:
+                    pages = []
+                    for i, page in enumerate(reader.pages):
+                        try:
+                            t = page.extract_text()
+                            if t and t.strip():
+                                pages.append(f"[Page {i+1}]\n{t.strip()}")
+                        except Exception as pe:
+                            print(f"PDF page {i+1} error: {pe}")
+                    text = "\n\n".join(pages)
+                    print(f"PDF extracted {len(text)} chars from {len(reader.pages)} pages")
             except Exception as e:
                 print(f"PDF extract failed: {e}"); traceback.print_exc()
         elif ext == "docx":
