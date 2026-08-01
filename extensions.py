@@ -311,6 +311,24 @@ def init_db():
         cur.execute("CREATE INDEX IF NOT EXISTS idx_practice_questions_student_id ON practice_questions(student_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_practice_questions_review_date ON practice_questions(student_id, next_review_date)")
 
+        # Grade calculator: a course's grading-weight breakdown (e.g.
+        # "Homework 20%, Midterm 30%"), extracted once from that course's
+        # uploaded material — see services/grades.py. Editable afterward,
+        # since extraction can miss or misread a category; a full
+        # replace-on-save (delete then re-insert) rather than per-row
+        # updates, matching the pattern already used for a document
+        # replace-on-reupload. Scores are NOT stored here — see grades.html,
+        # they live in the browser's own localStorage as scratch-pad data.
+        cur.execute("""CREATE TABLE IF NOT EXISTS grading_weights (
+            id SERIAL PRIMARY KEY,
+            student_id INTEGER REFERENCES students(id) ON DELETE CASCADE,
+            course TEXT NOT NULL,
+            category TEXT NOT NULL,
+            weight NUMERIC NOT NULL,
+            sort_order INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT NOW())""")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_grading_weights_student_course ON grading_weights(student_id, course)")
+
         # ── Research provenance: one row per chat answer ──────────────
         # Exists so a later analysis (or a faculty reviewer scoring a sample
         # of real answers on the /research admin page) can see exactly what

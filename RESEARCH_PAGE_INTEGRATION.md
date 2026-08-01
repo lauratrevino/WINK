@@ -147,3 +147,42 @@ deadline-reading route in this app already does).
 - Everything is additive — no existing student-facing behavior changes until
   you wire in #1–#3 above, and even then it only affects logging plus how
   confidently the assistant talks about unconfirmed deadlines.
+
+## Grade calculator — rebuilt from scratch
+
+Separately: `wink/services/grades.py`, `wink/blueprints/grades.py`, and
+`templates/grades.html` are a full rebuild of the grade calculator from an
+earlier session, since the original files were lost and couldn't be
+re-uploaded. I only had fragments of the original from conversation search
+(a README description, a DB schema snippet, part of the blueprint) — this
+is a fresh implementation matching that documented behavior, **not** a
+byte-for-byte restore. Also added `grades` to the blueprint registration in
+`wink/__init__.py`, the `grading_weights` table to `wink/extensions.py`, and
+a "Grades" nav link to `calendar.html` and `chat.html` (the only two
+templates I have to edit — add the same link to your other pages'
+nav-links block if they don't already have one).
+
+**What it does:** pick a course → "Pull weights from my syllabus" calls
+`/extract-grading-weights`, which runs a one-time Haiku extraction (same
+pattern as deadline extraction) over that course's uploaded documents and
+stores the result via `store_grading_weights()` (full replace-on-save).
+The weights render as an editable table — add/remove/rename categories,
+autosaves 700ms after your last edit via `/save-grading-weights`. Enter a
+score for any category to see the live current-grade recompute (blank
+categories are excluded from the weighted average, not counted as zero).
+Enter a target overall grade and it solves for the average needed across
+whatever's still blank — verified against the worked example from the
+original session (20/85, 30/78, 30/blank, 20/95, target 85% → needs
+85.33% on the blank category; the formula reproduces that exactly).
+
+**Scores are NOT sent to the server** — they're kept in this browser's
+`localStorage`, keyed per student + course, since they're scratch-pad
+what-if numbers, not the real grading scheme. Weights ARE saved
+server-side, since they represent the actual breakdown and should follow
+the student across devices.
+
+If you still have the *original* `grades.py`/`grades.html` anywhere (a
+local clone, a zip from that earlier session, git history), prefer those
+over this rebuild — they were tested against real Postgres with a fake
+Anthropic client in that session, and this rebuild has only been
+syntax-checked, not run against a live database.
