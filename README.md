@@ -10,6 +10,69 @@ renders successfully with representative data, and static file serving
 (`/static/WINK.jpeg`, etc.) works — checked with a live Flask test client,
 not just by inspection.
 
+## Fixes from an external code review (this pass)
+
+Four real, verified fixes — privacy/Terms pages and RBAC/MFA deliberately
+excluded, the former to be scoped as its own effort with actual legal
+review, the latter held back the same way peer study rooms were: a bigger
+build than a quick fix, with real risk (a broken MFA flow could lock out
+the only admin account) if rushed.
+
+**1. Email verification is now enforced**, not just tracked. New
+`verified_required` decorator, stacked below `@login_required` on `/chat`,
+`/upload`, and `/generate-practice` — a registration with an email nobody
+controls can no longer touch the AI or upload institution-specific
+material. Deliberately does NOT gate read-only routes (dashboard viewing,
+resending the verification email), so an unverified student isn't fully
+locked out, just unable to use cost-generating features yet. This broke
+21 existing tests — correctly, since it proved the gate was real — so
+every test file's shared `register()` helper was updated to mark the
+student verified immediately (realistic for what those tests are actually
+checking), and a new `test_email_verification_gate.py` (8 tests) covers
+the gate itself, including a full real register → get the real token from
+the database → verify → confirm upload now succeeds flow.
+
+**2. `/health` no longer exposes DB/API-key configuration status.** First
+attempt at this was wrong and got caught before shipping: simply
+returning `{"status": "ok"}` always would have broken Render's actual
+ability to detect a genuinely degraded instance. Fixed properly — the
+real database check still runs and still reports "degraded" when it
+fails, only the granular per-dependency detail is no longer public.
+
+**3. Password reset tokens are now hashed (SHA-256) before storage** — no
+schema migration needed, since nothing else referenced the existing
+`password_resets.token` column's content. The raw token now only ever
+exists in the emailed link. Verified with a real end-to-end test: register,
+request a reset, capture the real raw token the way an actual email would
+(via `DEBUG_SHOW_RESET_LINKS`, never by reading the database — the
+database only ever holds the hash), reset the password with it, confirm
+login works with the new password, **and directly assert the raw token
+never appears anywhere in the `password_resets` table**.
+
+**4. Document parsing now rejects zip-bomb-shaped files and PDFs with
+implausible page counts**, without needing a malware scanner or a
+separate isolated worker process (a bigger, real infrastructure change
+this pass didn't attempt). docx/pptx/xlsx are all ZIP containers — a new
+`_zip_bomb_safe()` reads only the ZIP central directory (cheap — no
+decompression) and rejects any file with more than 5,000 entries, more
+than 200MB of total uncompressed data, or any single entry with a
+compression ratio over 100:1, before the file ever reaches
+python-docx/pptx/openpyxl. PDFs over 500 pages are skipped before the
+per-page extraction loop runs. Verified against a genuine pathological
+file, not a mock: constructed a real 51KB `.docx` that decompresses to
+50MB (a real 1,029:1 ratio), confirmed it's rejected, and confirmed the
+real syllabus and PDF used throughout this project's other tests still
+extract completely normally through the same check.
+
+**What this does not cover, honestly:** real malware/virus scanning (would
+need ClamAV or a managed scanning service — a real infrastructure
+addition), true CPU/memory isolation via a separate worker process, and
+algorithmic-complexity attacks against the parsing libraries themselves
+that don't show up as an extreme compression ratio or page count. Those
+remain open, larger items from the original review.
+
+
+
 ## WOW-factor features (this pass)
 
 Five of six — peer study rooms was deliberately held back (see below), not
