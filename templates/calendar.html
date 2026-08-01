@@ -136,6 +136,38 @@
     .day-item-doc-link:hover { text-decoration: underline; }
     .day-empty { text-align: center; color: #6b7a99; font-size: 13px; padding: 20px 0; }
 
+    /* Deadline confirmation status — see get_deadline_confirmation_stats()
+       on the backend. WINK extracts these dates with AI; a status badge
+       and Confirm/Correct/Dismiss controls make clear which ones a
+       student has actually verified against their own syllabus. */
+    .day-item-status {
+      display: inline-block; font-size: 10px; font-weight: 700;
+      padding: 2px 7px; border-radius: 999px; margin-top: 4px; text-transform: uppercase;
+      letter-spacing: .03em;
+    }
+    .day-item-status.detected { background: #fde9d0; color: #8a5300; }
+    .day-item-status.confirmed { background: #dcf5e3; color: #166534; }
+    .day-item-status.corrected { background: #e6edf5; color: #002855; }
+    .day-item-snippet {
+      font-size: 11px; color: #6b7a99; margin-top: 4px; font-style: italic;
+      border-left: 2px solid #dde3f0; padding-left: 7px;
+    }
+    .day-item-actions { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+    .day-item-actions button {
+      font-size: 11px; font-weight: 700; border-radius: 6px; padding: 4px 9px;
+      border: 1px solid #dde3f0; background: #fff; color: #002855; cursor: pointer;
+    }
+    .day-item-actions button:hover { border-color: #FF8200; color: #FF8200; }
+    .day-item-actions button.primary { background: #002855; color: #fff; border-color: #002855; }
+    .day-item-actions button.primary:hover { background: #003d7a; color: #fff; }
+    .day-item-actions button:disabled { opacity: .5; cursor: default; }
+    .day-item-correct-form { display: none; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+    .day-item-correct-form.open { display: flex; }
+    .day-item-correct-form input {
+      font-size: 12px; padding: 5px 7px; border: 1px solid #dde3f0; border-radius: 6px;
+    }
+    .day-item-correct-form input[type="text"] { flex: 1; min-width: 120px; }
+
     .empty-state { text-align: center; padding: 48px 24px; background: #fff; border-radius: 12px; border: 1px solid #dde3f0; margin-top: 16px; }
     .empty-state .empty-icon { font-size: 44px; margin-bottom: 10px; display: block; }
     .empty-state h3 { font-size: 17px; color: #002855; margin-bottom: 6px; }
@@ -343,7 +375,10 @@
 
     let dayPanelLastFocus = null;
 
+    let currentPanelDate = null;
+
     function openDayPanel(dateStr) {
+      currentPanelDate = dateStr;
       const items = deadlinesByDate[dateStr] || [];
       const dateObj = new Date(dateStr + 'T00:00:00');
       document.getElementById('day-panel-title').textContent =
@@ -352,15 +387,38 @@
       if (items.length === 0) {
         body.innerHTML = '<div class="day-empty">Nothing due this day.</div>';
       } else {
-        body.innerHTML = items.map(it => `
+        body.innerHTML = items.map(it => {
+          const status = it.status || 'detected';
+          const statusLabel = status === 'confirmed' ? 'Confirmed'
+            : status === 'corrected' ? 'Corrected'
+            : status === 'superseded' ? 'Dismissed'
+            : 'Unconfirmed — AI-detected';
+          const snippet = it.source_snippet
+            ? `<div class="day-item-snippet">Found in: “${escapeHtml(it.source_snippet)}”</div>` : '';
+          const actions = status === 'detected' ? `
+            <div class="day-item-actions" data-id="${it.id}">
+              <button class="primary" data-action="confirm">✓ Confirm</button>
+              <button data-action="show-correct">✎ Correct</button>
+              <button data-action="dismiss">✕ Dismiss</button>
+            </div>
+            <div class="day-item-correct-form" data-id="${it.id}">
+              <input type="text" data-field="title" value="${escapeHtml(it.title)}" aria-label="Corrected title">
+              <input type="date" data-field="due_date" value="${it.due_date || ''}" aria-label="Corrected due date">
+              <button class="primary" data-action="save-correct">Save</button>
+            </div>` : '';
+          return `
           <div class="day-item">
             <span class="day-item-dot" data-bg="${colorForCourse(it.course)}"></span>
-            <div>
+            <div style="flex:1; min-width:0;">
               <div class="day-item-title">${escapeHtml(it.title)}</div>
               <div class="day-item-course">${escapeHtml(it.course)}</div>
+              <span class="day-item-status ${status}">${statusLabel}</span>
+              ${snippet}
               ${it.document_id ? `<a href="/documents#doc-row-${it.document_id}" class="day-item-doc-link">📄 ${escapeHtml(it.document_name || 'View source document')}</a>` : ''}
+              ${actions}
             </div>
-          </div>`).join('');
+          </div>`;
+        }).join('');
         applyPendingBackgrounds(body);
       }
       dayPanelLastFocus = document.activeElement;
@@ -368,6 +426,80 @@
       document.addEventListener('keydown', handleDayPanelKeydown);
       // Move focus into the dialog so keyboard/screen-reader users land inside it
       requestAnimationFrame(() => document.querySelector('.day-panel-close').focus());
+    }
+
+    // Delegated (day-panel-body is rebuilt on every openDayPanel call, so a
+    // per-button listener would leak / miss new buttons) — handles Confirm,
+    // Correct (reveals the inline edit form), Dismiss, and Save.
+    document.getElementById('day-panel-body').addEventListener('click', async function(e) {
+      const btn = e.target.closest('button[data-action]');
+      if (!btn) return;
+      const action = btn.dataset.action;
+      const container = btn.closest('[data-id]');
+      const id = container && container.dataset.id;
+      if (!id) return;
+
+      if (action === 'show-correct') {
+        const form = container.parentElement.querySelector('.day-item-correct-form');
+        if (form) form.classList.add('open');
+        return;
+      }
+      if (action === 'confirm') {
+        await sendDeadlineStatus(id, 'confirmed');
+        return;
+      }
+      if (action === 'dismiss') {
+        if (!window.confirm('Dismiss this deadline? It will stop appearing in reminders.')) return;
+        await sendDeadlineStatus(id, 'superseded');
+        return;
+      }
+      if (action === 'save-correct') {
+        const form = container;
+        const title = form.querySelector('[data-field="title"]').value.trim();
+        const dueDate = form.querySelector('[data-field="due_date"]').value;
+        if (!title || !dueDate) { alert('Title and due date are required.'); return; }
+        await sendDeadlineStatus(id, 'corrected', title, dueDate);
+        return;
+      }
+    });
+
+    // Posts a status change to the backend (see services/deadlines.py's
+    // set_deadline_status()), then reloads /calendar-data so the calendar
+    // grid, legend, and this panel all reflect the change immediately.
+    async function sendDeadlineStatus(id, status, title, dueDate) {
+      try {
+        const res = await fetch(`/deadlines/${id}/confirm`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status, title, due_date: dueDate }),
+        });
+        if (!res.ok) { alert('Could not save — please try again.'); return; }
+        const updated = await res.json();
+        await reloadDeadlines();
+        openDayPanel((updated && updated.due_date) || currentPanelDate);
+      } catch (e) {
+        console.error('sendDeadlineStatus error', e);
+        alert('Network error — please try again.');
+      }
+    }
+
+    async function reloadDeadlines() {
+      try {
+        const res = await fetch('/calendar-data');
+        const data = await res.json();
+        allDeadlines = data.deadlines || [];
+      } catch (e) {
+        console.error('calendar-data fetch error', e);
+        allDeadlines = [];
+      }
+      deadlinesByDate = {};
+      allDeadlines.forEach(d => {
+        if (!d.due_date) return;
+        (deadlinesByDate[d.due_date] = deadlinesByDate[d.due_date] || []).push(d);
+        colorForCourse(d.course);
+      });
+      renderLegend();
+      renderCalendar();
     }
 
     function closeDayPanel() {

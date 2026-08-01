@@ -654,8 +654,16 @@
       // glance which answers are grounded in something they uploaded.
       // Runs after the map/image stashing above so it can't accidentally
       // match inside an already-stashed embed's URL.
+      //
+      // NOTE (accuracy caveat): this is a text match on the model's own
+      // output after the fact — it confirms the model *wrote* a filename,
+      // not that the retrieved passage actually came from that file or
+      // supports the claim next to it. The title attribute says so
+      // directly rather than implying a verified citation; a real
+      // passage-level citation system (chunk id + page → the actual
+      // excerpt) is the tracked fix, see the July 2026 WINK review.
       html = html.replace(/\b(\S+\.(?:docx|pdf|pptx|xlsx|txt|png|jpe?g))\b/gi,
-        '<cite class="wink-citation">$1</cite>');
+        '<cite class="wink-citation" title="Mentioned by name — not an independently verified citation">$1</cite>');
 
       // Bold
       html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
