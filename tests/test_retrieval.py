@@ -8,11 +8,17 @@ import pytest
 
 
 def register(client, email="student@utep.edu"):
-    return client.post("/register", data={
+    """Registers, then marks the student verified — realistic for tests
+    exercising upload/chat/practice functionality rather than the
+    verification gate itself (see test_email_verification_gate.py)."""
+    from conftest import mark_email_verified
+    resp = client.post("/register", data={
         "email": email, "password": "password123",
         "first_name": "Ada", "last_name": "Lovelace",
         "classification": "Senior", "major": "Computer Science", "university": "UTEP",
     })
+    mark_email_verified(email)
+    return resp
 
 
 class TestChunkStorageOnUpload:

@@ -25,6 +25,8 @@ import time
 
 import pytest
 
+from conftest import mark_email_verified
+
 
 class SlowFakeStream:
     """Simulates a model response that takes real wall-clock time to
@@ -91,12 +93,14 @@ def test_many_concurrent_slow_chats_dont_starve_a_small_pool(app, client, monkey
     authed_clients = []
     for i in range(N):
         c = app.test_client()
+        email = f"loadtest{i}@utep.edu"
         r = c.post("/register", data={
-            "email": f"loadtest{i}@utep.edu", "password": "password123",
+            "email": email, "password": "password123",
             "first_name": "Load", "last_name": f"Test{i}",
             "classification": "Senior", "major": "Computer Science", "university": "UTEP",
         })
         assert r.status_code == 302
+        mark_email_verified(email)
         authed_clients.append(c)
 
     results = {}

@@ -35,3 +35,23 @@ def clean_db(app):
                        deadlines, conversations, rate_limits RESTART IDENTITY CASCADE""")
         conn.commit(); cur.close()
     yield
+
+
+def mark_email_verified(email):
+    """Marks a test student as email-verified directly against Postgres,
+    using its own standalone connection rather than Flask's request-scoped
+    pool — so it works from a plain helper function, not just from inside
+    a request or an app-context block. Most tests register a student to
+    test something OTHER than the verification gate itself (uploads, chat,
+    practice generation, etc.), so they call this right after registering
+    to simulate "already clicked the verification link" — the realistic
+    state for what they're actually testing. The gate itself has its own
+    dedicated test in test_email_verification_gate.py that deliberately
+    does NOT call this."""
+    import psycopg2
+    conn = psycopg2.connect(os.environ["DATABASE_URL"])
+    cur = conn.cursor()
+    cur.execute("UPDATE students SET email_verified=TRUE WHERE email=%s", (email,))
+    conn.commit()
+    cur.close()
+    conn.close()

@@ -11,11 +11,17 @@ import pytest
 def register(client, email="student@utep.edu", password="password123",
              first_name="Ada", last_name="Lovelace", classification="Senior",
              major="Computer Science", university="UTEP"):
-    return client.post("/register", data={
+    """Registers, then marks the student verified — realistic for tests
+    exercising upload/chat functionality rather than the verification
+    gate itself (see test_email_verification_gate.py)."""
+    from conftest import mark_email_verified
+    resp = client.post("/register", data={
         "email": email, "password": password, "first_name": first_name,
         "last_name": last_name, "classification": classification,
         "major": major, "university": university,
     }, follow_redirects=False)
+    mark_email_verified(email)
+    return resp
 
 
 def login(client, email="student@utep.edu", password="password123"):

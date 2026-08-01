@@ -10,11 +10,17 @@ import pytest
 
 
 def register(client, email="student@utep.edu"):
-    return client.post("/register", data={
+    """Registers, then marks the student verified — realistic for tests
+    exercising upload/chat/practice functionality rather than the
+    verification gate itself (see test_email_verification_gate.py)."""
+    from conftest import mark_email_verified
+    resp = client.post("/register", data={
         "email": email, "password": "password123",
         "first_name": "Ada", "last_name": "Lovelace",
         "classification": "Senior", "major": "Computer Science", "university": "UTEP",
     })
+    mark_email_verified(email)
+    return resp
 
 
 class TestSpacedRepetitionScheduling:
@@ -316,3 +322,50 @@ class TestWrapped:
         resp = client.get("/wrapped-page")
         assert resp.status_code == 200
         assert b"Wrapped" in resp.data
+
+
+class TestReminderDeliveryTracking:
+    def test_failed_email_does_not_mark_that_students_deadlines_reminded(self, client, app, monkeypatch):
+        """Real bug caught during an external review: a transient SMTP
+        failure used to mark EVERY student's deadlines as reminded, not
+        just the ones whose email actually sent — permanently suppressing
+        future reminders for anyone caught by that failure. Two students,
+        one whose email succeeds and one whose email fails."""
+        from wink.extensions import get_db
+        from datetime import date, timedelta
+        import wink.blueprints.calendar as calendar_bp
+
+        for email in ["ok@utep.edu", "fails@utep.edu"]:
+            register(client, email=email)
+
+        with app.app_context():
+            conn = get_db(); cur = conn.cursor()
+            cur.execute("""INSERT INTO deadlines (student_id, course, title, due_date, reminded)
+                           VALUES (1, 'CS 2302', 'Quiz', %s, FALSE) RETURNING id""",
+                        (date.today() + timedelta(days=1),))
+            ok_id = cur.fetchone()["id"]
+            cur.execute("""INSERT INTO deadlines (student_id, course, title, due_date, reminded)
+                           VALUES (2, 'CS 2302', 'Quiz', %s, FALSE) RETURNING id""",
+                        (date.today() + timedelta(days=1),))
+            fail_id = cur.fetchone()["id"]
+            conn.commit(); cur.close()
+
+        def fake_send_email(to_email, subject, body):
+            return to_email == "ok@utep.edu"  # simulate one real send failure
+
+        monkeypatch.setattr(calendar_bp, "send_email", fake_send_email)
+        monkeypatch.setattr(calendar_bp.config, "CRON_SECRET", "test-secret")
+
+        resp = client.post("/send-deadline-reminders", query_string={"key": "test-secret"})
+        assert resp.status_code == 200
+
+        with app.app_context():
+            conn = get_db(); cur = conn.cursor()
+            cur.execute("SELECT reminded FROM deadlines WHERE id=%s", (ok_id,))
+            ok_reminded = cur.fetchone()["reminded"]
+            cur.execute("SELECT reminded FROM deadlines WHERE id=%s", (fail_id,))
+            fail_reminded = cur.fetchone()["reminded"]
+            cur.close()
+
+        assert ok_reminded is True, "the student whose email succeeded should be marked reminded"
+        assert fail_reminded is False, "the student whose email FAILED must stay reminded=False so they're retried"
