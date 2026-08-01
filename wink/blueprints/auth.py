@@ -1,3 +1,4 @@
+import hashlib
 import secrets
 import traceback
 from datetime import timedelta
@@ -193,10 +194,16 @@ def forgot_password():
             return render_template("login.html", forgot=True, reset_sent=True)
 
         token = secrets.token_urlsafe(32)
+        # Store a hash, not the raw token — if the database itself were
+        # ever exposed (a different threat than the log-exposure issue
+        # fixed above), a stolen row shouldn't be directly usable as a
+        # working reset link. The raw token exists only in the emailed
+        # link the student actually clicks.
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
         expires_at = utcnow_naive() + timedelta(hours=1)
         cur.execute(
             "INSERT INTO password_resets(student_id, token, expires_at) VALUES(%s,%s,%s)",
-            (s["id"], token, expires_at)
+            (s["id"], token_hash, expires_at)
         )
         conn.commit(); cur.close()
         log_event(s["id"], "password_reset_requested", {"email": email})
@@ -233,12 +240,13 @@ def reset_password(token):
     try:
         if not config.DB_URL:
             return render_template("login.html", error="Database not configured.")
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
         conn = get_db(); cur = conn.cursor()
         cur.execute("""
             SELECT pr.id AS reset_id, pr.student_id, pr.expires_at, pr.used, s.email
             FROM password_resets pr JOIN students s ON s.id = pr.student_id
             WHERE pr.token=%s
-        """, (token,))
+        """, (token_hash,))
         row = cur.fetchone()
 
         if not row or row["used"] or row["expires_at"] < utcnow_naive():

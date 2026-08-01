@@ -9,7 +9,7 @@ from werkzeug.utils import secure_filename
 
 from .. import config
 from ..extensions import anthropic_client, get_db
-from ..security import login_required, page_login_required, rate_limited
+from ..security import login_required, page_login_required, rate_limited, verified_required
 from ..services.analytics import log_event, parse_conversation_messages
 from ..services.deadlines import build_deadlines_context
 from ..services.documents import build_doc_context, build_global_doc_context, get_docs, get_global_docs
@@ -52,6 +52,7 @@ def practice_page():
 
 @bp.route("/chat", methods=["POST"])
 @login_required
+@verified_required
 def chat():
     try:
         s = g.student
@@ -338,6 +339,7 @@ def chat():
 
 @bp.route("/generate-practice", methods=["POST"])
 @login_required
+@verified_required
 def generate_practice():
     """Generates new practice questions from a course's material, optionally
     styled after a real past assessment. Material can come from the

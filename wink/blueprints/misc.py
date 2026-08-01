@@ -17,18 +17,21 @@ def landing():
 
 @bp.route("/health")
 def health():
-    db_ok = False
+    """Render's health check needs to know if this instance is actually
+    degraded (so it can restart/route around it) — but the detailed
+    per-dependency status (whether the DB specifically is down, whether an
+    API key specifically is missing) used to be exposed here too, which
+    handed anyone profiling the site a free, unauthenticated signal about
+    which internal system was misconfigured. Now only a minimal
+    status is public; the real check still runs underneath it."""
+    db_ok = True
     if config.DB_URL:
         try:
             conn = get_db(); cur = conn.cursor()
             cur.execute("SELECT 1")
             cur.fetchone()
-            db_ok = True
             cur.close()
         except Exception as e:
             print(f"health check db error: {e}")
-    return jsonify({
-        "status": "ok" if (db_ok or not config.DB_URL) else "degraded",
-        "db": db_ok,
-        "api_key": bool(config.ANTHROPIC_API_KEY),
-    })
+            db_ok = False
+    return jsonify({"status": "ok" if db_ok else "degraded"})

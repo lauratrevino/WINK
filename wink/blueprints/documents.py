@@ -7,7 +7,7 @@ from werkzeug.utils import secure_filename
 
 from .. import config
 from ..extensions import get_db
-from ..security import login_required, page_login_required, admin_required, file_signature_valid, rate_limited
+from ..security import login_required, page_login_required, admin_required, file_signature_valid, rate_limited, verified_required
 from ..services.analytics import log_event
 from ..services.deadlines import extract_deadlines
 from ..services.documents import (
@@ -39,6 +39,7 @@ def documents_page():
 
 @bp.route("/upload", methods=["POST"])
 @login_required
+@verified_required
 def upload_file():
     try:
         s = g.student

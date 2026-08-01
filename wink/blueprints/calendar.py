@@ -161,18 +161,25 @@ def send_deadline_reminders():
             by_student[r["sid"]]["items"].append(r)
 
         sent_count = 0
+        reminded_ids = []
         for sid, info in by_student.items():
             lines = [f"  • {it['title']} ({it['course']}) — due {it['due_date'].strftime('%A, %b %d')}"
                      for it in info["items"]]
             body = (f"Hi {info['first_name']},\n\nHere's what's coming up in the next few days:\n\n"
                     + "\n".join(lines) + "\n\n— WINK")
+            # Only mark THIS student's deadlines as reminded if their email
+            # actually sent. A transient SMTP failure used to mark every
+            # student's deadlines as reminded regardless of delivery
+            # success, permanently suppressing future reminders for anyone
+            # caught by that failure (since the next run's query only looks
+            # at reminded=FALSE rows) — real bug, fixed here.
             if send_email(info["email"], "Upcoming deadlines — WINK", body):
                 sent_count += 1
+                reminded_ids.extend(it["id"] for it in info["items"])
 
-        if rows:
-            ids = [r["id"] for r in rows]
+        if reminded_ids:
             conn = get_db(); cur = conn.cursor()
-            cur.execute("UPDATE deadlines SET reminded=TRUE WHERE id = ANY(%s)", (ids,))
+            cur.execute("UPDATE deadlines SET reminded=TRUE WHERE id = ANY(%s)", (reminded_ids,))
             conn.commit(); cur.close()
 
         return jsonify({"students_notified": sent_count, "deadlines_covered": len(rows)})
