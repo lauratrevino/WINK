@@ -129,7 +129,15 @@ def create_app():
         # cache on browsers that already fetched the old version. If/when
         # static filenames get content-hashed (e.g. nav.a1b2c3.css), this can
         # switch to a long "immutable" cache safely.
-        if request.path.startswith("/static/"):
+        #
+        # Only applied to a SUCCESSFUL response (status < 400) — caching a
+        # 404 would tell the browser to remember "this file doesn't exist"
+        # for a full day, so uploading a missing file afterward wouldn't
+        # actually fix anything until that cached 404 expired. This bug is
+        # exactly what happened with the hero images earlier: they 404'd
+        # while missing, browsers cached that 404, and re-uploading the real
+        # file didn't visibly help until this check was added.
+        if request.path.startswith("/static/") and response.status_code < 400:
             response.headers["Cache-Control"] = f"public, max-age={config.STATIC_CACHE_MAX_AGE_SECONDS}"
         # Tells the browser to force HTTPS on every future visit for a year,
         # so a visitor who reaches the app over plain HTTP even once (a typo,
