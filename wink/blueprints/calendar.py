@@ -7,7 +7,7 @@ from ..errors import log_error
 from ..extensions import csrf, get_db
 from ..security import login_required, page_login_required, rate_limited
 from ..services.analytics import log_event
-from ..services.deadlines import build_study_plan, detect_deadline_conflicts, extract_deadlines, get_all_deadlines, get_upcoming_deadlines
+from ..services.deadlines import build_study_plan, detect_deadline_conflicts, extract_deadlines, get_all_deadlines, get_upcoming_deadlines, insert_deadlines, set_deadline_status
 from ..services.documents import get_docs
 from ..services.email import send_email
 
@@ -41,6 +41,37 @@ def calendar_page():
 def calendar_data():
     s = g.student
     return jsonify({"deadlines": get_all_deadlines(s["id"])})
+
+
+@bp.route("/deadlines/<int:deadline_id>/confirm", methods=["POST"])
+@login_required
+def confirm_deadline(deadline_id):
+    """Student-facing half of the deadline confirmation workflow — the
+    Confirm / Correct / Dismiss controls on the calendar page's day panel
+    call this. Wraps services/deadlines.py's set_deadline_status(); this
+    route was documented as needed back when that UI was built but never
+    actually added, so those buttons have been 404ing since — see
+    RESEARCH_PAGE_INTEGRATION.md's original wiring note."""
+    s = g.student
+    try:
+        data = request.get_json(silent=True) or {}
+        status = data.get("status", "confirmed")
+        updated = set_deadline_status(
+            deadline_id, s["id"], status,
+            title=data.get("title"), due_date=data.get("due_date"),
+        )
+        if not updated:
+            return jsonify({"error": "Deadline not found"}), 404
+        if updated.get("due_date"):
+            # Flask's jsonify doesn't ISO-format a raw date object the way
+            # the frontend expects — do it explicitly, same pattern used
+            # everywhere else in this app.
+            updated["due_date"] = updated["due_date"].isoformat()
+        log_event(s["id"], "deadline_status_changed", {"deadline_id": deadline_id, "status": status})
+        return jsonify(updated)
+    except Exception as e:
+        log_error("calendar.confirm_deadline", e, deadline_id=deadline_id)
+        return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
 
 
 @bp.route("/deadline-conflicts")
@@ -120,13 +151,11 @@ def reprocess_deadlines():
             # Replace this document's deadlines rather than duplicating them —
             # only reached when we have new results to replace them WITH.
             cur.execute("DELETE FROM deadlines WHERE document_id=%s", (d["id"],))
-            for item in found:
-                cur.execute("""INSERT INTO deadlines(student_id,document_id,course,title,due_date)
-                               VALUES(%s,%s,%s,%s,%s)""",
-                            (s["id"], d["id"], d["course"], item["title"], item["due_date"]))
+            conn.commit()
+            insert_deadlines(s["id"], d["id"], d["course"], found)
             docs_processed += 1
             total_found += len(found)
-        conn.commit(); cur.close()
+        cur.close()
         log_event(s["id"], "deadlines_reprocessed", {"docs": docs_processed, "found": total_found, "skipped_empty": docs_skipped_empty})
         return jsonify({"success": True, "documents_processed": docs_processed, "deadlines_found": total_found})
     except Exception as e:

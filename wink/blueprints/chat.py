@@ -1,5 +1,6 @@
 import json
 import secrets
+import time
 from datetime import datetime
 
 from flask import (Blueprint, current_app, g, jsonify, render_template,
@@ -14,6 +15,7 @@ from ..services.analytics import log_event, parse_conversation_messages
 from ..services.deadlines import build_deadlines_context
 from ..services.documents import build_doc_context, build_global_doc_context, get_docs, get_global_docs
 from ..services.practice import generate_practice_questions, get_due_questions, record_attempt, store_practice_questions
+from ..services.research import log_answer, record_student_feedback
 from ..timeutil import utcnow_naive
 
 bp = Blueprint("chat", __name__)
@@ -99,6 +101,14 @@ def chat():
             messages.pop(0)
 
         docs = get_docs(s["id"])
+        # Mirrors the exact condition build_doc_context() uses internally to
+        # decide full-context vs. retrieval fallback — computed here too
+        # (cheaply; docs are already in memory) so /chat can log which path
+        # actually served this answer without changing build_doc_context()'s
+        # return signature everywhere else it's called.
+        total_doc_chars = sum(len((d.get("content") or "")) for d in docs)
+        used_retrieval = total_doc_chars > config.MAX_DOC_CONTEXT_CHARS
+        retrieval_backend = ("neural" if config.VOYAGE_API_KEY else "tfidf") if used_retrieval else "full_context"
         doc_ctx = build_doc_context(docs, question=user_msg, sid=s["id"])
         deadline_ctx = build_deadlines_context(s["id"])
         student_university = (s.get("university") or "").strip()
@@ -294,6 +304,7 @@ def chat():
             return jsonify({"error": "ANTHROPIC_API_KEY not set"}), 500
 
         student_id = s["id"]
+        start_time = time.time()
 
         def generate():
             full_reply = []
@@ -313,6 +324,7 @@ def chat():
                 yield "\n\nSomething went wrong on our end — please try asking again."
             reply = "".join(full_reply) or "I had trouble finding an answer — please try again."
             log_event(student_id, "answer_given", {"len": len(reply), "full_answer": reply})
+            message_index = None
             if config.DB_URL and conv_id:
                 try:
                     conn = get_db(); cur = conn.cursor()
@@ -320,11 +332,28 @@ def chat():
                     if not isinstance(saved, list): saved = []
                     saved.append({"role": "user", "content": user_msg, "ts": utcnow_naive().isoformat()})
                     saved.append({"role": "assistant", "content": reply, "ts": utcnow_naive().isoformat()})
+                    message_index = len(saved) - 1
                     cur.execute("UPDATE conversations SET messages=%s, updated_at=NOW() WHERE id=%s",
                                 (json.dumps(saved), conv_id))
                     conn.commit(); cur.close()
                 except Exception as e:
                     log_error("chat.conversation_save", e, conversation_id=conv_id)
+            # Research provenance — records exactly what produced this
+            # answer (model, retrieval path, source documents, latency) so
+            # the /research admin page has real data to show and a faculty
+            # reviewer has something to score. Never raises into the
+            # response — log_answer() already fails safe internally.
+            log_answer(
+                student_id=student_id,
+                question=user_msg,
+                answer_text=reply,
+                conversation_id=conv_id,
+                message_index=message_index,
+                retrieval_backend=retrieval_backend,
+                chunk_count=config.RETRIEVAL_TOP_N_STUDENT_DOCS if used_retrieval else 0,
+                document_ids=[d["id"] for d in docs],
+                latency_ms=int((time.time() - start_time) * 1000),
+            )
 
         resp = current_app.response_class(stream_with_context(generate()), mimetype="text/plain")
         resp.headers["X-Accel-Buffering"] = "no"
@@ -458,6 +487,12 @@ def rate_answer():
         log_event(s["id"], "answer_feedback", {
             "conversation_id": conversation_id, "message_index": message_index, "rating": rating,
         })
+        # Mirrors onto the matching answer_logs row (see services/research.py)
+        # so a student's thumbs up/down and a faculty reviewer's later
+        # correct/incorrect rating end up on the same row — that's what makes
+        # get_feedback_vs_accuracy_gap() on /research a real, queryable number
+        # instead of the two living in places that can never be compared.
+        record_student_feedback(conversation_id, message_index, rating)
         return jsonify({"success": True})
     except Exception as e:
         log_error("chat.rate_answer", e)

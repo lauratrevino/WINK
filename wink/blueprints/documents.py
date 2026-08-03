@@ -9,7 +9,7 @@ from ..errors import log_error
 from ..extensions import get_db
 from ..security import login_required, page_login_required, admin_required, file_signature_valid, rate_limited, verified_required
 from ..services.analytics import log_event
-from ..services.deadlines import extract_deadlines
+from ..services.deadlines import extract_deadlines, insert_deadlines
 from ..services.documents import (
     extract_text, get_docs, get_global_docs, group_docs_by_course,
     invalidate_global_docs_cache, invalidate_student_docs_cache,
@@ -159,12 +159,7 @@ def upload_file():
         if new_doc_id and content:
             deadlines = extract_deadlines(content)
             if deadlines and config.DB_URL:
-                conn = get_db(); cur = conn.cursor()
-                for d in deadlines:
-                    cur.execute("""INSERT INTO deadlines(student_id,document_id,course,title,due_date)
-                                   VALUES(%s,%s,%s,%s,%s)""",
-                                (s["id"], new_doc_id, course, d["title"], d["due_date"]))
-                conn.commit(); cur.close()
+                insert_deadlines(s["id"], new_doc_id, course, deadlines)
                 deadlines_found = len(deadlines)
 
         log_event(s["id"], "file_replaced" if replaced else "file_uploaded",
