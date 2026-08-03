@@ -19,7 +19,7 @@ from flask import Flask, g
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from . import config, csp_hashes, extensions
-from .blueprints import admin, auth, calendar, chat, dashboard, documents, misc
+from .blueprints import admin, auth, calendar, chat, dashboard, documents, grades, misc, research
 
 
 def create_app():
@@ -124,7 +124,7 @@ def create_app():
             response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         return response
 
-    for bp_module in (misc, auth, dashboard, documents, calendar, chat, admin):
+    for bp_module in (misc, auth, dashboard, documents, calendar, chat, admin, research, grades):
         app.register_blueprint(bp_module.bp)
 
     with app.app_context():

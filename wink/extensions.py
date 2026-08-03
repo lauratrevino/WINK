@@ -226,6 +226,21 @@ def init_db():
             due_date DATE,
             reminded BOOLEAN DEFAULT FALSE,
             created_at TIMESTAMP DEFAULT NOW())""")
+        # 'detected' (default, straight out of extract_deadlines — an AI guess,
+        # never yet reviewed by the student) -> 'confirmed' (student verified it
+        # against their syllabus) or 'corrected' (student fixed the date/title)
+        # -> 'superseded' (a newer upload replaced it). Only confirmed/corrected
+        # deadlines should ever justify a strong reminder — see
+        # build_deadlines_context() and get_deadline_confirmation_stats() below,
+        # which report the correction rate as a real, if rough, precision proxy
+        # for the extraction model instead of no accuracy signal at all.
+        cur.execute("ALTER TABLE deadlines ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'detected'")
+        # The sentence(s) extract_deadlines actually pulled the date/title
+        # from, so a student (or, on the research page, a reviewer) can check
+        # the claim against the source instead of trusting it blind.
+        cur.execute("ALTER TABLE deadlines ADD COLUMN IF NOT EXISTS source_snippet TEXT DEFAULT ''")
+        cur.execute("ALTER TABLE deadlines ADD COLUMN IF NOT EXISTS confirmed_at TIMESTAMP")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_deadlines_status ON deadlines(status)")
         # Saved chat conversations, so students can revisit and export past sessions
         cur.execute("""CREATE TABLE IF NOT EXISTS conversations (
             id SERIAL PRIMARY KEY,
@@ -295,6 +310,68 @@ def init_db():
             created_at TIMESTAMP DEFAULT NOW())""")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_practice_questions_student_id ON practice_questions(student_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_practice_questions_review_date ON practice_questions(student_id, next_review_date)")
+
+        # Grade calculator: a course's grading-weight breakdown (e.g.
+        # "Homework 20%, Midterm 30%"), extracted once from that course's
+        # uploaded material — see services/grades.py. Editable afterward,
+        # since extraction can miss or misread a category; a full
+        # replace-on-save (delete then re-insert) rather than per-row
+        # updates, matching the pattern already used for a document
+        # replace-on-reupload. Scores are NOT stored here — see grades.html,
+        # they live in the browser's own localStorage as scratch-pad data.
+        cur.execute("""CREATE TABLE IF NOT EXISTS grading_weights (
+            id SERIAL PRIMARY KEY,
+            student_id INTEGER REFERENCES students(id) ON DELETE CASCADE,
+            course TEXT NOT NULL,
+            category TEXT NOT NULL,
+            weight NUMERIC NOT NULL,
+            sort_order INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT NOW())""")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_grading_weights_student_course ON grading_weights(student_id, course)")
+
+        # ── Research provenance: one row per chat answer ──────────────
+        # Exists so a later analysis (or a faculty reviewer scoring a sample
+        # of real answers on the /research admin page) can see exactly what
+        # produced any given answer — which model, which retrieval backend
+        # (full-context vs. TF-IDF vs. neural), how many chunks/documents fed
+        # it, and how long it took — instead of that information only ever
+        # existing implicitly, in code that may have already changed by the
+        # time anyone asks "was this answer any good?". faculty_rating/
+        # faculty_notes/rated_by/rated_at start NULL and are filled in later,
+        # by a reviewer, not by the student or the model — this table is the
+        # accuracy-evaluation data the WINK review (July 2026) found missing.
+        cur.execute("""CREATE TABLE IF NOT EXISTS answer_logs (
+            id SERIAL PRIMARY KEY,
+            student_id INTEGER REFERENCES students(id) ON DELETE CASCADE,
+            conversation_id INTEGER,
+            message_index INTEGER,
+            question TEXT NOT NULL,
+            answer_text TEXT DEFAULT '',
+            model TEXT NOT NULL,
+            retrieval_backend TEXT NOT NULL,
+            chunk_count INTEGER DEFAULT 0,
+            document_ids TEXT DEFAULT '[]',
+            latency_ms INTEGER,
+            prompt_version TEXT DEFAULT 'v1',
+            student_feedback TEXT,
+            faculty_rating TEXT,
+            faculty_notes TEXT DEFAULT '',
+            rated_by TEXT DEFAULT '',
+            rated_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT NOW())""")
+        # student_feedback ('up'/'down', from the existing /rate-answer thumbs
+        # button — see blueprints/chat.py) is deliberately a SEPARATE column
+        # from faculty_rating ('correct'/'incorrect'/'unsure', from a human
+        # reviewer on /research): the WINK review was explicit that these
+        # measure different things (satisfaction vs. correctness) and must
+        # not be conflated. Keeping both on the same row is what makes the
+        # gap between them measurable — see
+        # get_feedback_vs_accuracy_gap() in services/research.py.
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_answer_logs_conv_msgidx ON answer_logs(conversation_id, message_index)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_answer_logs_student_id ON answer_logs(student_id)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_answer_logs_created_at ON answer_logs(created_at)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_answer_logs_rating ON answer_logs(faculty_rating)")
+
         conn.commit(); cur.close()
         print("DB initialized OK.")
     except Exception as e:
