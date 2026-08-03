@@ -1,11 +1,11 @@
 import os
-import traceback
 import uuid
 
 from flask import Blueprint, g, jsonify, render_template, request
 from werkzeug.utils import secure_filename
 
 from .. import config
+from ..errors import log_error
 from ..extensions import get_db
 from ..security import login_required, page_login_required, admin_required, file_signature_valid, rate_limited, verified_required
 from ..services.analytics import log_event
@@ -33,7 +33,7 @@ def documents_page():
                                grouped_docs=grouped_docs, known_courses=known_courses,
                                active="documents", max_docs=config.MAX_DOCS_PER_STUDENT)
     except Exception as e:
-        print(f"documents error: {e}"); traceback.print_exc()
+        log_error("documents.documents", e)
         return "<h2>Something went wrong</h2><p>Please try again, or <a href='/logout'>log out</a> and back in.</p>", 500
 
 
@@ -176,7 +176,7 @@ def upload_file():
             "no_ocr_warning": ext in config.IMAGE_EXTS_NO_OCR
         })
     except Exception as e:
-        print(f"upload error: {e}"); traceback.print_exc()
+        log_error("documents.upload", e)
         return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
 
 
@@ -200,7 +200,7 @@ def delete_file():
         invalidate_student_docs_cache(s["id"])
         return jsonify({"success": True, "docs": get_docs(s["id"])})
     except Exception as e:
-        print(f"delete error: {e}"); traceback.print_exc()
+        log_error("documents.delete", e)
         return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
 
 
@@ -257,7 +257,7 @@ def upload_global_document():
         log_event(s["id"], "global_file_uploaded", {"name": orig, "label": label, "university": university, "chars": len(content)})
         return jsonify({"success": True, "docs": get_global_docs(university), "chars_extracted": len(content)})
     except Exception as e:
-        print(f"global upload error: {e}"); traceback.print_exc()
+        log_error("documents.global_upload", e)
         return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
 
 
@@ -283,5 +283,5 @@ def delete_global_document():
             cur.close()
         return jsonify({"success": True, "docs": get_global_docs(university or None)})
     except Exception as e:
-        print(f"delete global error: {e}"); traceback.print_exc()
+        log_error("documents.delete_global", e)
         return jsonify({"error": "Something went wrong on our end. Please try again."}), 500

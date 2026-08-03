@@ -1,8 +1,8 @@
-import traceback
 
 from flask import Blueprint, g, jsonify, render_template, request
 
 from .. import config
+from ..errors import log_error
 from ..extensions import get_db
 from ..security import login_required, page_login_required
 from ..services.analytics import log_event, get_questions_this_month, get_wrapped_stats
@@ -26,7 +26,7 @@ def dashboard():
                                upcoming_deadlines=upcoming_deadlines,
                                questions_this_month=questions_this_month)
     except Exception as e:
-        print(f"dashboard error: {e}"); traceback.print_exc()
+        log_error("dashboard.dashboard", e)
         return "<h2>Something went wrong</h2><p>Please try again, or <a href='/logout'>log out</a> and back in.</p>", 500
 
 
@@ -76,7 +76,7 @@ def update_profile():
             profile["preferred_language"] = preferred_language
         return jsonify({"success": True, "profile": profile})
     except Exception as e:
-        print(f"update_profile error: {e}"); traceback.print_exc()
+        log_error("dashboard.update_profile", e)
         return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
 
 
@@ -92,7 +92,7 @@ def wrapped_page():
         log_event(s["id"], "page_view", {"page": "wrapped"})
         return render_template("wrapped.html", s=s, admin_email=config.ADMIN_EMAIL, active="wrapped")
     except Exception as e:
-        print(f"wrapped_page error: {e}"); traceback.print_exc()
+        log_error("dashboard.wrapped_page", e)
         return "<h2>Something went wrong</h2><p>Please try again, or <a href='/logout'>log out</a> and back in.</p>", 500
 
 

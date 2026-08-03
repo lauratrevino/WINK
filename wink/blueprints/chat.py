@@ -1,6 +1,5 @@
 import json
 import secrets
-import traceback
 from datetime import datetime
 
 from flask import (Blueprint, current_app, g, jsonify, render_template,
@@ -8,6 +7,7 @@ from flask import (Blueprint, current_app, g, jsonify, render_template,
 from werkzeug.utils import secure_filename
 
 from .. import config
+from ..errors import log_error
 from ..extensions import anthropic_client, get_db
 from ..security import login_required, page_login_required, rate_limited, verified_required
 from ..services.analytics import log_event, parse_conversation_messages
@@ -27,7 +27,7 @@ def chat_page():
         log_event(s["id"], "page_view", {"page": "chat"})
         return render_template("chat.html", s=s, admin_email=config.ADMIN_EMAIL, active="chat")
     except Exception as e:
-        print(f"chat_page error: {e}"); traceback.print_exc()
+        log_error("chat.chat_page", e)
         return "<h2>Something went wrong</h2><p>Please try again, or <a href='/logout'>log out</a> and back in.</p>", 500
 
 
@@ -46,7 +46,7 @@ def practice_page():
         return render_template("practice.html", s=s, admin_email=config.ADMIN_EMAIL,
                                active="practice", known_courses=known_courses)
     except Exception as e:
-        print(f"practice_page error: {e}"); traceback.print_exc()
+        log_error("chat.practice_page", e)
         return "<h2>Something went wrong</h2><p>Please try again, or <a href='/logout'>log out</a> and back in.</p>", 500
 
 
@@ -309,7 +309,7 @@ def chat():
                         full_reply.append(text)
                         yield text
             except Exception as e:
-                print(f"stream error: {e}"); traceback.print_exc()
+                log_error("chat.stream", e)
                 yield "\n\nSomething went wrong on our end — please try asking again."
             reply = "".join(full_reply) or "I had trouble finding an answer — please try again."
             log_event(student_id, "answer_given", {"len": len(reply), "full_answer": reply})
@@ -324,7 +324,7 @@ def chat():
                                 (json.dumps(saved), conv_id))
                     conn.commit(); cur.close()
                 except Exception as e:
-                    print(f"conversation save error: {e}")
+                    log_error("chat.conversation_save", e, conversation_id=conv_id)
 
         resp = current_app.response_class(stream_with_context(generate()), mimetype="text/plain")
         resp.headers["X-Accel-Buffering"] = "no"
@@ -333,7 +333,7 @@ def chat():
             resp.headers["X-Conversation-Id"] = str(conv_id)
         return resp
     except Exception as e:
-        print(f"chat error: {e}"); traceback.print_exc()
+        log_error("chat.chat", e)
         return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
 
 
@@ -398,7 +398,7 @@ def generate_practice():
             return jsonify({"error": "Couldn't generate practice questions from that material — please try again."}), 500
         return jsonify({"questions": questions, "based_on_assessment_style": bool(assessment_text)})
     except Exception as e:
-        print(f"generate_practice error: {e}"); traceback.print_exc()
+        log_error("chat.generate_practice", e)
         return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
 
 
@@ -420,7 +420,7 @@ def practice_attempt():
             return jsonify({"error": "Question not found"}), 404
         return jsonify({"success": True, "question": updated})
     except Exception as e:
-        print(f"practice_attempt error: {e}"); traceback.print_exc()
+        log_error("chat.practice_attempt", e)
         return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
 
 
@@ -460,7 +460,7 @@ def rate_answer():
         })
         return jsonify({"success": True})
     except Exception as e:
-        print(f"rate_answer error: {e}"); traceback.print_exc()
+        log_error("chat.rate_answer", e)
         return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
 
 
@@ -484,7 +484,7 @@ def list_conversations():
             })
         return jsonify({"conversations": out})
     except Exception as e:
-        print(f"list_conversations error: {e}"); traceback.print_exc()
+        log_error("chat.list_conversations", e)
         return jsonify({"error": "Something went wrong on our end."}), 500
 
 
@@ -502,7 +502,7 @@ def get_conversation(conv_id):
         msgs = parse_conversation_messages(row["messages"])
         return jsonify({"id": row["id"], "title": row["title"], "messages": msgs})
     except Exception as e:
-        print(f"get_conversation error: {e}"); traceback.print_exc()
+        log_error("chat.get_conversation", e)
         return jsonify({"error": "Something went wrong on our end."}), 500
 
 
@@ -517,7 +517,7 @@ def delete_conversation(conv_id):
         conn.commit(); cur.close()
         return jsonify({"success": True})
     except Exception as e:
-        print(f"delete_conversation error: {e}"); traceback.print_exc()
+        log_error("chat.delete_conversation", e)
         return jsonify({"error": "Something went wrong on our end."}), 500
 
 
@@ -548,7 +548,7 @@ def export_conversation(conv_id):
         resp.headers["Content-Disposition"] = f'attachment; filename="{safe_name}.md"'
         return resp
     except Exception as e:
-        print(f"export_conversation error: {e}"); traceback.print_exc()
+        log_error("chat.export_conversation", e)
         return jsonify({"error": "Something went wrong on our end."}), 500
 
 
@@ -572,7 +572,7 @@ def share_conversation(conv_id):
         cur.close()
         return jsonify({"share_url": url_for("chat.view_shared_conversation", token=token, _external=True)})
     except Exception as e:
-        print(f"share_conversation error: {e}"); traceback.print_exc()
+        log_error("chat.share_conversation", e)
         return jsonify({"error": "Something went wrong on our end."}), 500
 
 
@@ -604,5 +604,5 @@ def view_shared_conversation(token):
 {rows_html}
 </body></html>"""
     except Exception as e:
-        print(f"view_shared_conversation error: {e}"); traceback.print_exc()
+        log_error("chat.view_shared_conversation", e)
         return "Something went wrong.", 500

@@ -1,12 +1,12 @@
 import hashlib
 import secrets
-import traceback
 from datetime import timedelta
 
 from flask import Blueprint, current_app, g, jsonify, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from .. import config
+from ..errors import log_error
 from ..extensions import get_db
 from ..security import login_required, rate_limited
 from ..services.analytics import log_event
@@ -82,7 +82,7 @@ def register():
         return render_template("register.html", error=None,
                                classifications=config.CLASSIFICATIONS, majors=config.MAJORS)
     except Exception as e:
-        print(f"register error: {e}"); traceback.print_exc()
+        log_error("auth.register", e)
         return err("Something went wrong on our end. Please try again in a moment.")
 
 
@@ -117,7 +117,7 @@ def login():
             return render_template("login.html", error="Invalid email or password.")
         return render_template("login.html", error=None)
     except Exception as e:
-        print(f"login error: {e}"); traceback.print_exc()
+        log_error("auth.login", e)
         return render_template("login.html", error="Something went wrong on our end. Please try again in a moment.")
 
 
@@ -150,7 +150,7 @@ def verify_email(token):
             "Your email is verified! You can close this tab and keep using WINK.",
             mimetype="text/plain")
     except Exception as e:
-        print(f"verify_email error: {e}"); traceback.print_exc()
+        log_error("auth.verify_email", e)
         return current_app.response_class("Something went wrong on our end. Please try again.", mimetype="text/plain"), 500
 
 
@@ -171,7 +171,7 @@ def resend_verification():
                    f"Hi {s['first_name']},\n\nPlease confirm your email address by visiting:\n{verify_link}\n\n— WINK")
         return jsonify({"success": True})
     except Exception as e:
-        print(f"resend_verification error: {e}"); traceback.print_exc()
+        log_error("auth.resend_verification", e)
         return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
 
 
@@ -231,7 +231,7 @@ def forgot_password():
             return render_template("login.html", forgot=True, reset_sent=True, reset_link=reset_link)
         return render_template("login.html", forgot=True, reset_sent=True)
     except Exception as e:
-        print(f"forgot_password error: {e}"); traceback.print_exc()
+        log_error("auth.forgot_password", e)
         return render_template("login.html", forgot=True, error="Something went wrong. Please try again.")
 
 
@@ -274,5 +274,5 @@ def reset_password(token):
         cur.close()
         return render_template("reset_password.html", token=token)
     except Exception as e:
-        print(f"reset_password error: {e}"); traceback.print_exc()
+        log_error("auth.reset_password", e)
         return render_template("reset_password.html", token=token, error="Something went wrong on our end. Please try again in a moment.")

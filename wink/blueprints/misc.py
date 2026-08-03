@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, render_template
 
 from .. import config
+from ..errors import log_error
 from ..extensions import get_db
 
 bp = Blueprint("misc", __name__)
@@ -12,7 +13,8 @@ def landing():
     try:
         return render_template("landing.html")
     except Exception as e:
-        print(f"landing error: {e}"); return render_template("landing.html")
+        log_error("misc.landing", e)
+        return render_template("landing.html")
 
 
 @bp.route("/health")
@@ -32,6 +34,6 @@ def health():
             cur.fetchone()
             cur.close()
         except Exception as e:
-            print(f"health check db error: {e}")
+            log_error("misc.health_db_check", e)
             db_ok = False
     return jsonify({"status": "ok" if db_ok else "degraded"})

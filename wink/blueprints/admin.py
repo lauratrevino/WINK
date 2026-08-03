@@ -1,8 +1,8 @@
-import traceback
 
 from flask import Blueprint, g, jsonify, render_template, request
 
 from .. import config
+from ..errors import log_error
 from ..extensions import get_db
 from ..security import admin_page_required, admin_required
 from ..services.analytics import compute_engagement_insights, get_student_summaries, log_event, safe_payload
@@ -18,7 +18,7 @@ def analytics_page():
         log_event(s["id"], "page_view", {"page": "analytics"})
         return render_template("analytics.html", s=s, active="analytics")
     except Exception as e:
-        print(f"analytics_page error: {e}"); traceback.print_exc()
+        log_error("admin.analytics_page", e)
         return "<h2>Something went wrong</h2><p>Please try again, or <a href='/logout'>log out</a> and back in.</p>", 500
 
 
@@ -81,7 +81,7 @@ def analytics_data():
             "by_class": by_class
         })
     except Exception as e:
-        print(f"analytics_data error: {e}"); traceback.print_exc()
+        log_error("admin.analytics_data", e)
         return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
 
 
@@ -222,7 +222,7 @@ def analytics_data_full():
             **insights
         })
     except Exception as e:
-        print(f"analytics_data_full error: {e}"); traceback.print_exc()
+        log_error("admin.analytics_data_full", e)
         return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
 
 
@@ -257,7 +257,7 @@ def student_conversations(sid):
                 i += 1
         return jsonify({"conversations": conversations})
     except Exception as e:
-        print(f"student_conversations error: {e}"); traceback.print_exc()
+        log_error("admin.student_conversations", e)
         return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
 
 
@@ -288,5 +288,5 @@ def toggle_student_active():
         log_event(s["id"], "student_suspended" if not new_active else "student_reactivated", {"target_id": target_id})
         return jsonify({"success": True, "is_active": new_active})
     except Exception as e:
-        print(f"toggle_student_active error: {e}"); traceback.print_exc()
+        log_error("admin.toggle_student_active", e)
         return jsonify({"error": "Something went wrong on our end. Please try again."}), 500

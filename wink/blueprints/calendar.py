@@ -1,9 +1,9 @@
 import concurrent.futures
-import traceback
 
 from flask import Blueprint, g, jsonify, render_template, request
 
 from .. import config
+from ..errors import log_error
 from ..extensions import csrf, get_db
 from ..security import login_required, page_login_required, rate_limited
 from ..services.analytics import log_event
@@ -97,7 +97,7 @@ def reprocess_deadlines():
                 try:
                     results[d["id"]] = future.result()
                 except Exception as e:
-                    print(f"reprocess_deadlines extract error for doc {d['id']}: {e}")
+                    log_error("calendar.reprocess_deadlines_extract", e, doc_id=d['id'])
                     results[d["id"]] = []
 
         # DB writes happen afterward, sequentially, in one connection/one
@@ -130,7 +130,7 @@ def reprocess_deadlines():
         log_event(s["id"], "deadlines_reprocessed", {"docs": docs_processed, "found": total_found, "skipped_empty": docs_skipped_empty})
         return jsonify({"success": True, "documents_processed": docs_processed, "deadlines_found": total_found})
     except Exception as e:
-        print(f"reprocess_deadlines error: {e}"); traceback.print_exc()
+        log_error("calendar.reprocess_deadlines", e)
         return jsonify({"error": "Something went wrong on our end."}), 500
 
 
@@ -184,5 +184,5 @@ def send_deadline_reminders():
 
         return jsonify({"students_notified": sent_count, "deadlines_covered": len(rows)})
     except Exception as e:
-        print(f"send_deadline_reminders error: {e}"); traceback.print_exc()
+        log_error("calendar.send_deadline_reminders", e)
         return jsonify({"error": "Something went wrong on our end."}), 500
