@@ -37,8 +37,8 @@
 </nav>
 
 <script nonce="{{ csp_nonce() }}">
-  // Bundled with the nav markup above so one {% include "_nav.html" %}
-  // gives a page both — no separate toggleNav() to remember to paste too.
+  // Bundled with the nav markup above so including this one file gives a
+  // page both — no separate toggleNav() to remember to paste too.
   // Safe to include on a page that also defines its own toggleNav(): the
   // second definition simply wins, since both do the same thing.
   function toggleNav() {
