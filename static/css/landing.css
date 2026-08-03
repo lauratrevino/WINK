@@ -9,7 +9,7 @@
       position: relative;
       width: 100%;
       aspect-ratio: 1365 / 768;
-      background-image: url("{{ url_for('static', filename='images/landing-hero.jpg') }}");
+      background-image: url("/static/images/landing-hero.jpg");
       background-size: cover;
       background-position: center center;
       background-repeat: no-repeat;

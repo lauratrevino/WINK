@@ -10,7 +10,7 @@
 
     .page-bg {
       position: absolute; inset: 0;
-      background-image: url("{{ url_for('static', filename='images/login-hero.jpg') }}");
+      background-image: url("/static/images/login-hero.jpg");
       background-size: cover;
       background-position: center center;
       z-index: 0;
