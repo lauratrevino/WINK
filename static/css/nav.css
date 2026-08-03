@@ -1,0 +1,55 @@
+/*
+  Shared nav styling — extracted from what was, until this pass, a
+  byte-for-byte identical CSS block pasted into 7 of WINK's 9 authenticated
+  pages (analytics, calendar, dashboard, documents, grades, practice,
+  research all had exactly this). Every page now links this file instead
+  of re-declaring it, so it downloads once and is served from cache on
+  every subsequent page load instead of being re-sent, unchanged, with
+  every single request.
+
+  Two pages deliberately do NOT use this file as-is:
+  - chat.html overrides `.app-nav` locally (non-sticky nav, flex-shrink:0,
+    for its own scrolling layout) — see the small override left in its
+    own <style> block.
+  - wrapped.html has an intentionally distinct translucent nav over its
+    gradient background and was left on its own custom CSS rather than
+    forced into this shared file.
+*/
+.app-nav {
+  background: #002855; padding: 0 32px;
+  display: flex; align-items: center; height: 60px;
+  position: sticky; top: 0; z-index: 100;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.18);
+}
+.nav-logo { font-size: 22px; font-weight: 900; color: #fff; letter-spacing: -1px; text-decoration: none; }
+.nav-logo span { color: #FF8200; }
+.nav-divider { width: 1px; height: 24px; background: rgba(255,255,255,0.2); margin: 0 20px; }
+.nav-links { display: flex; align-items: center; gap: 4px; }
+.nav-links a { color: rgba(255,255,255,0.65); text-decoration: none; font-size: 14px; font-weight: 500; padding: 6px 14px; border-radius: 6px; transition: all 0.15s; }
+.nav-links a:hover { background: rgba(255,255,255,0.1); color: #fff; }
+.nav-links a.active { background: #FF8200; color: #fff; }
+.nav-right { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+.nav-user { font-size: 13px; color: rgba(255,255,255,0.6); }
+.nav-user strong { color: #fff; }
+.btn-logout { font-size: 13px; color: rgba(255,255,255,0.6); text-decoration: none; padding: 5px 12px; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; transition: all 0.15s; }
+.btn-logout:hover { background: rgba(255,255,255,0.1); color: #fff; }
+.nav-toggle {
+  display: none; background: none; border: none; color: #fff;
+  font-size: 22px; cursor: pointer; padding: 4px 10px; margin-left: auto;
+}
+@media (max-width: 860px) {
+  .app-nav { flex-wrap: wrap; height: auto; padding: 10px 16px; }
+  .nav-toggle { display: block; }
+  .nav-links, .nav-right { display: none; width: 100%; }
+  .app-nav.nav-open .nav-links {
+    display: flex; flex-direction: column; align-items: stretch; gap: 2px;
+    margin-top: 10px; order: 3;
+  }
+  .app-nav.nav-open .nav-links a { padding: 10px 12px; }
+  .app-nav.nav-open .nav-right {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
+    margin-top: 10px; margin-left: 0; order: 4;
+    border-top: 1px solid rgba(255,255,255,0.15); padding-top: 10px;
+  }
+  .nav-divider { display: none; }
+}
