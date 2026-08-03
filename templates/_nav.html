@@ -1,0 +1,50 @@
+{#
+  Shared nav for every authenticated WINK page. This is the single source of
+  truth the engineering audit recommended — before this, adding a new page
+  (Grades, Research) meant hand-editing the same <nav> block in 8+ separate
+  templates, and it was easy to miss one (which is exactly what happened:
+  Grades/Research links were missing from several pages until this file
+  existed). Any page that does {% include "_nav.html" %} instead of pasting
+  its own copy picks up new links automatically the next time this file
+  changes — no repeated per-page edits needed again.
+
+  Expects the same three variables every page already passes:
+    s            - the logged-in student dict (needs .first_name, .email)
+    admin_email  - from config.ADMIN_EMAIL, to gate Analytics/Research
+    active       - which nav item to highlight ('dashboard', 'grades', etc.)
+#}
+<nav class="app-nav" id="app-nav">
+  <a href="/dashboard" class="nav-logo">WINK<span>.</span></a>
+  <div class="nav-divider"></div>
+  <button class="nav-toggle" onclick="toggleNav()" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="app-nav">☰</button>
+  <div class="nav-links">
+    <a href="/dashboard" class="{{ 'active' if active == 'dashboard' else '' }}">Dashboard</a>
+    <a href="/documents" class="{{ 'active' if active == 'documents' else '' }}">My Documents</a>
+    <a href="/chat-page" class="{{ 'active' if active == 'chat' else '' }}">Ask WINK</a>
+    <a href="/calendar-page" class="{{ 'active' if active == 'calendar' else '' }}">Calendar</a>
+    <a href="/practice-page" class="{{ 'active' if active == 'practice' else '' }}">Practice</a>
+    <a href="/grades-page" class="{{ 'active' if active == 'grades' else '' }}">Grades</a>
+    <a href="/wrapped-page" class="{{ 'active' if active == 'wrapped' else '' }}">Wrapped</a>
+    {% if s.email == admin_email %}
+    <a href="/analytics-page" class="{{ 'active' if active == 'analytics' else '' }}">Analytics</a>
+    <a href="/research" class="{{ 'active' if active == 'research' else '' }}">Research</a>
+    {% endif %}
+  </div>
+  <div class="nav-right">
+    <div class="nav-user">Hello, <strong>{{ s.first_name }}</strong></div>
+    <a href="/logout" class="btn-logout">Log out</a>
+  </div>
+</nav>
+
+<script nonce="{{ csp_nonce() }}">
+  // Bundled with the nav markup above so one {% include "_nav.html" %}
+  // gives a page both — no separate toggleNav() to remember to paste too.
+  // Safe to include on a page that also defines its own toggleNav(): the
+  // second definition simply wins, since both do the same thing.
+  function toggleNav() {
+    const nav = document.getElementById('app-nav');
+    const btn = document.querySelector('.nav-toggle');
+    const open = nav.classList.toggle('nav-open');
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+</script>
