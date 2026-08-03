@@ -1,258 +1,128 @@
 """
-Research-facing metrics for WINK: per-answer provenance logging, the
-reproducibility "config snapshot" (model/retrieval/chunking settings a
-later analysis would need to know to interpret results), and a lightweight
-interface for a faculty reviewer to score a sample of real answers for
-correctness.
+Admin-only research dashboard. Read-only except for /research/rate-answer,
+which lets a faculty reviewer score a sample of real answers correct /
+incorrect / unsure — the accuracy-evaluation step the July 2026 external
+WINK review found missing. Nothing here changes what a student sees; this
+is instrumentation and review tooling for the people running the research
+pilot.
 
-This module exists directly in response to the July 2026 external review of
-WINK, which found the system had a good architecture for answering
-accurately but no independently demonstrated accuracy rate, no passage-level
-citation trail, and no separation between "students approved of this
-answer" and "this answer was actually correct." log_answer()/rate_answer()
-below are the minimum viable version of that: every answer gets a row
-recording exactly what produced it, and a reviewer (not the student, not the
-model) can later mark a sample of those rows correct/incorrect/unsure.
+Wire-up needed elsewhere (not in this file, since those routes live in
+blueprints/chat.py and blueprints/documents.py, which weren't part of this
+change):
 
-None of this changes student-facing behavior. Call log_answer() from the
-/chat route right after a response is generated (see the integration note
-in blueprints/research.py) — everything else here only reads what's been
-logged.
+  1. In blueprints/chat.py's /chat route, right after the model response is
+     complete, call:
+
+         from ..services.research import log_answer
+         log_answer(
+             student_id=g.student["id"],
+             question=user_message,
+             answer_text=full_response_text,
+             conversation_id=conversation_id,          # or None
+             message_index=len(saved_messages) - 1,    # this answer's index in conversation.messages
+             retrieval_backend="neural" if used_neural else ("tfidf" if used_retrieval else "full_context"),
+             chunk_count=len(top_chunks) if used_retrieval else 0,
+             document_ids=[d["id"] for d in docs],
+             latency_ms=int((time.time() - start_time) * 1000),
+         )
+
+     `used_neural`/`used_retrieval`/`top_chunks` are whatever build_doc_context()
+     already computed for that turn — this just records them instead of
+     discarding them once the prompt is built.
+
+     Then in the existing /rate-answer route (the thumbs up/down endpoint
+     chat.html's `submitFeedback()` already calls), add one line alongside
+     whatever it already does:
+
+         from ..services.research import record_student_feedback
+         record_student_feedback(conversation_id, message_index, rating)
+
+     This mirrors the student's thumbs up/down onto the same answer_logs row
+     a faculty reviewer might later rate correct/incorrect — see
+     get_feedback_vs_accuracy_gap() in services/research.py, which actually
+     measures the review's "distinguish perceived helpfulness from
+     correctness" point instead of just asserting it.
+
+  2. Wherever documents.py's upload route currently inserts extracted
+     deadlines directly, switch to services/deadlines.py's insert_deadlines()
+     instead of a raw INSERT, so every new deadline starts at status
+     'detected' rather than bypassing the confirmation-state contract.
+
+  3. In blueprints/calendar.py, add a small "Confirm" / "Edit & confirm" /
+     "Dismiss" control per deadline that calls a new (student-facing, not
+     admin) route wrapping services/deadlines.py's set_deadline_status() —
+     that's the actual student-side half of the confirmation workflow; this
+     file only reads the resulting stats.
 """
-import json
+from flask import Blueprint, g, jsonify, render_template, request
 
 from .. import config
-from ..extensions import get_db
+from ..errors import log_error
+from ..security import admin_page_required, admin_required
+from ..services import research as research_service
+from ..services.deadlines import get_deadline_confirmation_stats
 
-_VALID_RATINGS = {"correct", "incorrect", "unsure"}
+bp = Blueprint("research", __name__)
 
 
-def log_answer(student_id, question, answer_text="", conversation_id=None, message_index=None,
-                retrieval_backend="full_context", chunk_count=0,
-                document_ids=None, latency_ms=None, prompt_version="v1"):
-    """Records one row of provenance for one chat answer. Call this once per
-    /chat response, right after the model call completes — model/
-    retrieval_backend/chunk_count/document_ids should describe exactly what
-    fed that specific answer (e.g. "neural" + the chunk indices actually
-    returned by rank_chunks(), not just "retrieval was available").
-    message_index should match the index used by the existing /rate-answer
-    thumbs up/down route (conversation.messages is a list; this is that
-    answer's position in it) — that's what lets record_student_feedback()
-    below find the right row later. Silently no-ops (returns None) if
-    there's no database or the insert fails — logging failures should never
-    break a chat response for the student. Truncates question/answer_text
-    defensively since this is diagnostic data, not the source of truth for
-    conversation history (that's `conversations.messages`)."""
-    if not config.DB_URL:
-        return None
+@bp.route("/research")
+@admin_page_required
+def research_dashboard():
     try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("""INSERT INTO answer_logs
-                       (student_id, conversation_id, message_index, question, answer_text, model,
-                        retrieval_backend, chunk_count, document_ids, latency_ms, prompt_version)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
-                    (student_id, conversation_id, message_index, (question or "")[:2000], (answer_text or "")[:4000],
-                     config.CHAT_MODEL, retrieval_backend, chunk_count,
-                     json.dumps(document_ids or []), latency_ms, prompt_version))
-        new_id = cur.fetchone()["id"]
-        conn.commit(); cur.close()
-        return new_id
+        return render_template(
+            "research.html",
+            s=g.student,
+            admin_email=config.ADMIN_EMAIL,
+            active="research",
+            config_snapshot=research_service.get_config_snapshot(),
+            answer_stats=research_service.get_answer_log_stats(),
+            deadline_stats=get_deadline_confirmation_stats(),
+            unrated_sample=research_service.get_unrated_sample(),
+            feedback_gap=research_service.get_feedback_vs_accuracy_gap(),
+        )
     except Exception as e:
-        print(f"log_answer error: {e}")
-        return None
+        log_error("research.research_dashboard", e)
+        return "<h2>Something went wrong</h2><p>Please try again, or <a href='/logout'>log out</a> and back in.</p>", 500
 
 
-def record_student_feedback(conversation_id, message_index, rating):
-    """Mirrors a thumbs up/down from the existing /rate-answer route onto
-    the matching answer_logs row (matched by conversation_id +
-    message_index), so satisfaction and correctness end up on the same row
-    without ever overwriting each other. Call this from /rate-answer
-    alongside whatever it already does — it doesn't replace that route's
-    existing storage, just adds the correlation. No-ops quietly if no
-    matching row exists (e.g. logging wasn't wired in yet when that answer
-    was generated) — a missed correlation, not an error worth surfacing to
-    the student."""
-    if not config.DB_URL or rating not in ("up", "down"):
-        return
+@bp.route("/research/rate-answer", methods=["POST"])
+@admin_required
+def rate_answer():
+    """Records a reviewer's correct/incorrect/unsure judgment on one logged
+    answer. rated_by is the reviewing admin's own email (from their
+    session), not anything the client can spoof, so multiple reviewers
+    rating overlapping samples stays attributable."""
     try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("""UPDATE answer_logs SET student_feedback=%s
-                       WHERE conversation_id=%s AND message_index=%s""",
-                    (rating, conversation_id, message_index))
-        conn.commit(); cur.close()
+        data = request.get_json(silent=True) or {}
+        log_id = data.get("log_id")
+        rating = data.get("rating")
+        notes = data.get("notes", "")
+        if not log_id or rating not in ("correct", "incorrect", "unsure"):
+            return jsonify({"error": "log_id and a rating of correct/incorrect/unsure are required"}), 400
+        updated = research_service.rate_answer(log_id, rating, notes, rated_by=g.student["email"])
+        if not updated:
+            return jsonify({"error": "Answer log not found"}), 404
+        return jsonify({"ok": True})
     except Exception as e:
-        print(f"record_student_feedback error: {e}")
+        log_error("research.rate_answer", e, log_id=data.get("log_id") if isinstance(data, dict) else None)
+        return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
 
 
-def rate_answer(log_id, rating, notes, rated_by):
-    """A faculty/admin reviewer's correctness judgment on one logged answer
-    — the actual accuracy signal the review found missing (thumbs up/down
-    from students measures satisfaction, not correctness). Ownership isn't
-    checked here since this is admin-only (see admin_required in
-    blueprints/research.py); rated_by is stored so multiple reviewers rating
-    the same sample can later be compared for inter-rater agreement."""
-    if not config.DB_URL or rating not in _VALID_RATINGS:
-        return None
+@bp.route("/research/export.json")
+@admin_required
+def export_json():
+    """Raw JSON export for offline analysis — inter-rater agreement,
+    accuracy broken down by retrieval backend or course, error
+    categorization. The review's accuracy benchmark ultimately needs a
+    dataset to run statistics on, not just a dashboard to look at."""
     try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("""UPDATE answer_logs
-                       SET faculty_rating=%s, faculty_notes=%s, rated_by=%s, rated_at=NOW()
-                       WHERE id=%s RETURNING id""", (rating, notes or "", rated_by, log_id))
-        updated = cur.fetchone()
-        conn.commit(); cur.close()
-        return dict(updated) if updated else None
+        return jsonify({
+            "config_snapshot": research_service.get_config_snapshot(),
+            "answer_stats": research_service.get_answer_log_stats(),
+            "deadline_stats": get_deadline_confirmation_stats(),
+            "feedback_gap": research_service.get_feedback_vs_accuracy_gap(),
+            "rated_answers": research_service.get_rated_sample(limit=1000),
+        })
     except Exception as e:
-        print(f"rate_answer error: {e}")
-        return None
-
-
-def get_feedback_vs_accuracy_gap():
-    """Cross-tabulates student thumbs up/down against faculty correctness
-    ratings, for every answer that has BOTH — directly the comparison the
-    WINK review asked for ("research reports must distinguish perceived
-    helpfulness from faculty-rated correctness"), not just each in
-    isolation. The number to watch is thumbs_up_but_incorrect: a confident,
-    well-formatted wrong answer a student approved of anyway. Returns None
-    if nothing has both kinds of rating yet."""
-    if not config.DB_URL:
-        return None
-    try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("""SELECT student_feedback, faculty_rating, COUNT(*) as n
-                       FROM answer_logs
-                       WHERE student_feedback IS NOT NULL AND faculty_rating IS NOT NULL
-                       GROUP BY student_feedback, faculty_rating""")
-        rows = {(r["student_feedback"], r["faculty_rating"]): r["n"] for r in cur.fetchall()}
-        cur.close()
-        if not rows:
-            return None
-        total = sum(rows.values())
-        thumbs_up_but_incorrect = rows.get(("up", "incorrect"), 0)
-        return {
-            "total_with_both_ratings": total,
-            "breakdown": {f"{fb}_{fr}": n for (fb, fr), n in rows.items()},
-            "thumbs_up_but_incorrect": thumbs_up_but_incorrect,
-            "thumbs_up_but_incorrect_pct": round(thumbs_up_but_incorrect / total * 100, 1) if total else None,
-        }
-    except Exception as e:
-        print(f"get_feedback_vs_accuracy_gap error: {e}")
-        return None
-
-
-def get_config_snapshot():
-    """The retrieval/model/chunking settings in effect right now — no DB
-    needed, this is just config.py's current values, gathered in one place.
-    Store or screenshot this alongside any accuracy numbers you report:
-    without it, a later reader can't tell whether a reported error rate was
-    measured with TF-IDF or neural retrieval, or what MAX_DOC_CONTEXT_CHARS
-    was at the time."""
-    return {
-        "chat_model": config.CHAT_MODEL,
-        "embedding_model": config.EMBEDDING_MODEL,
-        "neural_embeddings_configured": bool(config.VOYAGE_API_KEY),
-        "retrieval_chunk_chars": config.RETRIEVAL_CHUNK_CHARS,
-        "retrieval_chunk_overlap_chars": config.RETRIEVAL_CHUNK_OVERLAP_CHARS,
-        "retrieval_top_n_student_docs": config.RETRIEVAL_TOP_N_STUDENT_DOCS,
-        "retrieval_top_n_global_docs": config.RETRIEVAL_TOP_N_GLOBAL_DOCS,
-        "max_doc_context_chars": config.MAX_DOC_CONTEXT_CHARS,
-        "max_global_doc_context_chars": config.MAX_GLOBAL_DOC_CONTEXT_CHARS,
-        "deadline_extraction_max_chars": config.DEADLINE_EXTRACTION_MAX_CHARS,
-        "max_chat_history_messages": config.MAX_CHAT_HISTORY_MESSAGES,
-    }
-
-
-def get_answer_log_stats(days=30):
-    """Aggregate provenance stats for the last `days` days: volume, which
-    retrieval backend actually served each answer, average latency/chunk
-    count, and — the headline number — accuracy among whatever a reviewer
-    has actually rated so far. accuracy_pct is None (not 0%) until at least
-    one answer has been rated, so an empty research page can't be
-    misread as "0% accurate"."""
-    if not config.DB_URL:
-        return None
-    try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("""SELECT COUNT(*) as n, COUNT(DISTINCT student_id) as students,
-                              AVG(latency_ms) as avg_latency, AVG(chunk_count) as avg_chunks
-                       FROM answer_logs WHERE created_at >= NOW() - (%s * INTERVAL '1 day')""",
-                    (days,))
-        base = cur.fetchone()
-
-        cur.execute("""SELECT retrieval_backend, COUNT(*) as n FROM answer_logs
-                       WHERE created_at >= NOW() - (%s * INTERVAL '1 day')
-                       GROUP BY retrieval_backend""", (days,))
-        backend_breakdown = {r["retrieval_backend"]: r["n"] for r in cur.fetchall()}
-
-        cur.execute("""SELECT faculty_rating, COUNT(*) as n FROM answer_logs
-                       WHERE faculty_rating IS NOT NULL GROUP BY faculty_rating""")
-        rating_breakdown = {r["faculty_rating"]: r["n"] for r in cur.fetchall()}
-        cur.close()
-
-        correct, incorrect = rating_breakdown.get("correct", 0), rating_breakdown.get("incorrect", 0)
-        judged = correct + incorrect  # excludes 'unsure' from the accuracy denominator
-        return {
-            "window_days": days,
-            "total_answers": base["n"] or 0,
-            "unique_students": base["students"] or 0,
-            "avg_latency_ms": round(base["avg_latency"], 0) if base["avg_latency"] else None,
-            "avg_chunk_count": round(base["avg_chunks"], 1) if base["avg_chunks"] else None,
-            "retrieval_backend_breakdown": backend_breakdown,
-            "rating_breakdown": rating_breakdown,
-            "rated_count": sum(rating_breakdown.values()),
-            "accuracy_pct": round(correct / judged * 100, 1) if judged else None,
-        }
-    except Exception as e:
-        print(f"get_answer_log_stats error: {e}")
-        return None
-
-
-def get_unrated_sample(limit=20):
-    """The most recent answers nobody has rated yet — what a reviewer sees
-    to work through on the research page. Deliberately recent-first rather
-    than random: for an early pilot, "did the last 20 real answers hold up"
-    is more actionable than a statistically ideal random sample would be at
-    this volume."""
-    if not config.DB_URL:
-        return []
-    try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("""SELECT id, student_id, question, answer_text, model, retrieval_backend,
-                              chunk_count, document_ids, latency_ms, created_at
-                       FROM answer_logs WHERE faculty_rating IS NULL
-                       ORDER BY created_at DESC LIMIT %s""", (limit,))
-        rows = [dict(r) for r in cur.fetchall()]
-        cur.close()
-        for r in rows:
-            r["document_ids"] = json.loads(r["document_ids"]) if r["document_ids"] else []
-            r["created_at"] = r["created_at"].isoformat() if r["created_at"] else None
-        return rows
-    except Exception as e:
-        print(f"get_unrated_sample error: {e}")
-        return []
-
-
-def get_rated_sample(limit=500):
-    """Every rated answer (up to `limit`, most recent first) — the actual
-    dataset behind accuracy_pct above, for offline analysis: inter-rater
-    agreement (once more than one rated_by shows up), error categorization,
-    accuracy broken down by retrieval_backend, etc. Exposed via
-    /research/export.json."""
-    if not config.DB_URL:
-        return []
-    try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("""SELECT id, student_id, question, answer_text, model, retrieval_backend,
-                              chunk_count, document_ids, latency_ms, prompt_version,
-                              faculty_rating, faculty_notes, rated_by, rated_at, created_at
-                       FROM answer_logs WHERE faculty_rating IS NOT NULL
-                       ORDER BY created_at DESC LIMIT %s""", (limit,))
-        rows = [dict(r) for r in cur.fetchall()]
-        cur.close()
-        for r in rows:
-            r["document_ids"] = json.loads(r["document_ids"]) if r["document_ids"] else []
-            r["created_at"] = r["created_at"].isoformat() if r["created_at"] else None
-            r["rated_at"] = r["rated_at"].isoformat() if r["rated_at"] else None
-        return rows
-    except Exception as e:
-        print(f"get_rated_sample error: {e}")
-        return []
+        log_error("research.export_json", e)
+        return jsonify({"error": "Something went wrong on our end. Please try again."}), 500

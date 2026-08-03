@@ -1,9 +1,9 @@
 """Event logging and the admin analytics dashboard's data queries."""
 import json
-import traceback
 from datetime import timedelta
 
 from .. import config
+from ..errors import log_error
 from ..extensions import get_db
 
 
@@ -19,8 +19,7 @@ def log_event(sid, etype, payload=None):
         )
         conn.commit(); cur.close()
     except Exception as e:
-        print(f"log_event ERROR: {e}")
-        traceback.print_exc()
+        log_error("services.analytics.log_event", e)
 
 
 def safe_payload(raw):
@@ -58,7 +57,7 @@ def get_questions_this_month(sid):
         n = cur.fetchone()["n"]; cur.close()
         return n
     except Exception as e:
-        print(f"get_questions_this_month error: {e}"); return 0
+        log_error("services.analytics.get_questions_this_month", e); return 0
 
 
 def get_wrapped_stats(sid):
@@ -114,7 +113,7 @@ def get_wrapped_stats(sid):
             "longest_streak_days": longest_streak,
         }
     except Exception as e:
-        print(f"get_wrapped_stats error: {e}"); return None
+        log_error("services.analytics.get_wrapped_stats", e); return None
 
 
 def get_student_summaries(cur):

@@ -45,6 +45,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 from .. import config
+from ..errors import log_error
 from ..extensions import voyage_client
 
 # TF-IDF only matches literal words, so a question phrased differently from
@@ -182,7 +183,7 @@ def embed_texts(texts, input_type):
         result = voyage_client.embed(texts, model=config.EMBEDDING_MODEL, input_type=input_type)
         return result.embeddings
     except Exception as e:
-        print(f"embed_texts error: {e}")
+        log_error("services.retrieval.embed_texts", e)
         return None
 
 

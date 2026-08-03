@@ -4,6 +4,7 @@ import json
 from datetime import datetime
 
 from .. import config
+from ..errors import log_error
 from ..extensions import get_db, anthropic_client
 from ..timeutil import utcnow_naive
 
@@ -65,7 +66,7 @@ def extract_deadlines(content, today=None):
                 })
         return out[:30]
     except Exception as e:
-        print(f"extract_deadlines error: {e}")
+        log_error("services.deadlines.extract_deadlines", e)
         return []
 
 
@@ -88,7 +89,7 @@ def insert_deadlines(student_id, document_id, course, items):
         conn.commit(); cur.close()
         return ids
     except Exception as e:
-        print(f"insert_deadlines error: {e}")
+        log_error("services.deadlines.insert_deadlines", e)
         return []
 
 
@@ -124,7 +125,7 @@ def set_deadline_status(deadline_id, student_id, status, title=None, due_date=No
         conn.commit(); cur.close()
         return dict(updated) if updated else None
     except Exception as e:
-        print(f"set_deadline_status error: {e}")
+        log_error("services.deadlines.set_deadline_status", e)
         return None
 
 
@@ -156,7 +157,7 @@ def get_deadline_confirmation_stats():
             "correction_rate_pct": round(corrected / reviewed * 100, 1) if reviewed else None,
         }
     except Exception as e:
-        print(f"get_deadline_confirmation_stats error: {e}")
+        log_error("services.deadlines.get_deadline_confirmation_stats", e)
         return None
 
 
@@ -183,7 +184,7 @@ def get_upcoming_deadlines(sid, days_ahead=14, confirmed_only=False):
             r["due_date"] = r["due_date"].isoformat()
         return rows
     except Exception as e:
-        print(f"get_upcoming_deadlines error: {e}"); return []
+        log_error("services.deadlines.get_upcoming_deadlines", e); return []
 
 
 def get_all_deadlines(sid):
@@ -206,7 +207,7 @@ def get_all_deadlines(sid):
             r["confirmed_at"] = r["confirmed_at"].isoformat() if r["confirmed_at"] else None
         return rows
     except Exception as e:
-        print(f"get_all_deadlines error: {e}"); return []
+        log_error("services.deadlines.get_all_deadlines", e); return []
 
 
 def build_study_plan(sid, weeks_ahead=4):

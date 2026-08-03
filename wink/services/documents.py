@@ -1,505 +1,287 @@
-"""
-Everything about turning uploaded files into text the model can use:
-extraction (including OCR for images), per-student and per-university
-context building for the chat prompt, and the document queries themselves.
-"""
-import json
-import threading
-import time
-import traceback
+import os
+import uuid
+
+from flask import Blueprint, g, jsonify, render_template, request
+from werkzeug.utils import secure_filename
 
 from .. import config
+from ..errors import log_error
 from ..extensions import get_db
-from .retrieval import chunk_text, embed_texts, rank_chunks
+from ..security import login_required, page_login_required, admin_required, file_signature_valid, rate_limited, verified_required
+from ..services.analytics import log_event
+from ..services.deadlines import extract_deadlines
+from ..services.documents import (
+    extract_text, get_docs, get_global_docs, group_docs_by_course,
+    invalidate_global_docs_cache, invalidate_student_docs_cache,
+    store_document_chunks,
+)
 
-# ── OCR ───────────────────────────────────────────────────────
-# Optional at import time: if pytesseract/Pillow or the tesseract-ocr system
-# binary aren't installed, image uploads fall back to the old placeholder
-# behavior (saved and shown in the library, but unreadable) instead of
-# crashing the app. See requirements.txt (pytesseract, Pillow) and the
-# Dockerfile (tesseract-ocr apt package) for what needs to be present for
-# OCR to actually run.
-try:
-    import pytesseract
-    from PIL import Image
-    _OCR_AVAILABLE = True
-except ImportError:
-    _OCR_AVAILABLE = False
+bp = Blueprint("documents", __name__)
 
 
-def _extract_image_text(filepath, orig_name):
-    """OCR an uploaded image. Returns extracted text, or a placeholder
-    (unchanged from the original no-OCR behavior) if OCR isn't available or
-    fails on this particular image (e.g. a photo with no readable text)."""
-    if not _OCR_AVAILABLE:
-        return f"[Image file: {orig_name}]"
+@bp.route("/documents")
+@page_login_required
+def documents_page():
     try:
-        img = Image.open(filepath)
-        text = pytesseract.image_to_string(img).strip()
-        if not text:
-            return f"[Image file: {orig_name} — no readable text found by OCR]"
-        return text
+        s = g.student
+        docs = get_docs(s["id"])
+        grouped_docs = group_docs_by_course(docs)
+        known_courses = sorted({(d.get("course") or "").strip() for d in docs
+                                 if (d.get("course") or "").strip()})
+        log_event(s["id"], "page_view", {"page": "documents"})
+        return render_template("documents.html", s=s, admin_email=config.ADMIN_EMAIL, docs=docs,
+                               grouped_docs=grouped_docs, known_courses=known_courses,
+                               active="documents", max_docs=config.MAX_DOCS_PER_STUDENT)
     except Exception as e:
-        print(f"OCR failed for {orig_name}: {e}")
-        return f"[Image file: {orig_name}]"
+        log_error("documents.documents", e)
+        return "<h2>Something went wrong</h2><p>Please try again, or <a href='/logout'>log out</a> and back in.</p>", 500
 
 
-def _zip_bomb_safe(filepath):
-    """Reads only the ZIP central directory (metadata — file names, entry
-    count, compressed/uncompressed sizes) without decompressing anything,
-    and rejects the file if it looks like a decompression bomb: too many
-    entries, too much total uncompressed data, or any single entry with an
-    implausible compression ratio. docx/pptx/xlsx are all ZIP containers,
-    so this runs for all three before python-docx/pptx/openpyxl ever try
-    to actually parse the file's real content."""
-    import zipfile
+@bp.route("/upload", methods=["POST"])
+@login_required
+@verified_required
+def upload_file():
     try:
-        with zipfile.ZipFile(filepath) as zf:
-            infos = zf.infolist()
-            if len(infos) > config.MAX_ZIP_ENTRY_COUNT:
-                print(f"zip_bomb_check: rejected, {len(infos)} entries exceeds cap")
-                return False
-            total_uncompressed = sum(i.file_size for i in infos)
-            if total_uncompressed > config.MAX_ZIP_UNCOMPRESSED_BYTES:
-                print(f"zip_bomb_check: rejected, {total_uncompressed} uncompressed bytes exceeds cap")
-                return False
-            for i in infos:
-                if i.compress_size > 0 and i.file_size / i.compress_size > config.MAX_ZIP_COMPRESSION_RATIO:
-                    print(f"zip_bomb_check: rejected, entry {i.filename!r} has a "
-                          f"{i.file_size / i.compress_size:.0f}:1 compression ratio")
-                    return False
-            return True
-    except zipfile.BadZipFile:
-        # Not a valid ZIP at all — file_signature_valid() should already
-        # have caught this at upload time, but fail closed here too rather
-        # than let a malformed file reach the real parser.
-        return False
+        s = g.student
+        wait = rate_limited(f"upload:{s['id']}", max_calls=10, window_seconds=60)
+        if wait:
+            return jsonify({"error": "Too many uploads in a row — please wait a moment.", "retry_after": wait}), 429
+        if "file" not in request.files:
+            return jsonify({"error": "No file"}), 400
+        file = request.files["file"]
+        temporary = request.form.get("temporary", "").strip().lower() == "true"
+        if not file or not file.filename:
+            return jsonify({"error": "No file selected"}), 400
+        ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
+        if ext not in config.ALLOWED_EXT:
+            return jsonify({"error": f"File type .{ext} not allowed"}), 400
+        if not file_signature_valid(file, ext):
+            return jsonify({"error": f"This file doesn't look like a valid .{ext} file — it may be corrupted or mislabeled."}), 400
 
-
-def extract_text(filepath, orig_name):
-    ext = orig_name.rsplit(".", 1)[-1].lower() if "." in orig_name else ""
-    text = ""
-    if ext in ("docx", "pptx", "xlsx") and not _zip_bomb_safe(filepath):
-        print(f"extract_text: {orig_name} failed the zip-bomb safety check, skipping extraction")
-        return ""
-    try:
-        if ext == "txt":
-            with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
-                text = f.read()
-        elif ext == "pdf":
+        # Temporary, this-conversation-only upload: extract the text and hand
+        # it straight back to the client — never written to the documents
+        # table, so it doesn't count against MAX_DOCS_PER_STUDENT and never
+        # shows up in My Documents. The client resends this content with
+        # each /chat call for the current conversation only; nothing here
+        # persists once that conversation ends.
+        if temporary:
+            tmp_name = f"{uuid.uuid4().hex[:8]}_{secure_filename(file.filename)}"
+            tmp_path = os.path.join(config.UPLOAD_FOLDER, tmp_name)
             try:
-                from pypdf import PdfReader
-                reader = PdfReader(filepath)
-                if len(reader.pages) > config.MAX_PDF_PAGES:
-                    print(f"PDF extract skipped: {len(reader.pages)} pages exceeds the {config.MAX_PDF_PAGES}-page cap")
-                    text = ""
-                else:
-                    pages = []
-                    for i, page in enumerate(reader.pages):
-                        try:
-                            t = page.extract_text()
-                            if t and t.strip():
-                                pages.append(f"[Page {i+1}]\n{t.strip()}")
-                        except Exception as pe:
-                            print(f"PDF page {i+1} error: {pe}")
-                    text = "\n\n".join(pages)
-                    print(f"PDF extracted {len(text)} chars from {len(reader.pages)} pages")
-            except Exception as e:
-                print(f"PDF extract failed: {e}"); traceback.print_exc()
-        elif ext == "docx":
-            try:
-                from docx import Document
-                doc = Document(filepath)
-                parts = []
-                for p in doc.paragraphs:
-                    if p.text.strip():
-                        parts.append(p.text.strip())
-                for table in doc.tables:
-                    for row in table.rows:
-                        cells = [c.text.strip() for c in row.cells if c.text.strip()]
-                        if cells:
-                            parts.append(" | ".join(cells))
-                text = "\n".join(parts)
-                print(f"DOCX extracted {len(text)} chars")
-            except Exception as e:
-                print(f"DOCX extract failed: {e}"); traceback.print_exc()
-        elif ext == "pptx":
-            try:
-                from pptx import Presentation
-                prs = Presentation(filepath)
-                slides = []
-                for i, slide in enumerate(prs.slides):
-                    parts = []
-                    for shape in slide.shapes:
-                        if hasattr(shape, "text") and shape.text.strip():
-                            parts.append(shape.text.strip())
-                    if parts:
-                        slides.append(f"[Slide {i+1}]\n" + "\n".join(parts))
-                text = "\n\n".join(slides)
-                print(f"PPTX extracted {len(text)} chars")
-            except Exception as e:
-                print(f"PPTX extract failed: {e}"); traceback.print_exc()
-        elif ext == "xlsx":
-            try:
-                from openpyxl import load_workbook
-                # read_only + data_only: stream rows instead of loading the
-                # whole workbook into memory, and read formula *results*
-                # rather than the formula text itself
-                wb = load_workbook(filepath, read_only=True, data_only=True)
-                sheets = []
-                for ws in wb.worksheets:
-                    lines = []
-                    for row in ws.iter_rows(values_only=True):
-                        cells = [str(c).strip() for c in row if c is not None and str(c).strip()]
-                        if cells:
-                            lines.append(" | ".join(cells))
-                        if len(lines) >= 2000:  # guard against extreme sheets
-                            lines.append("[...sheet truncated...]")
-                            break
-                    if lines:
-                        sheets.append(f"[Sheet: {ws.title}]\n" + "\n".join(lines))
-                n_sheets = len(wb.worksheets)
-                wb.close()
-                text = "\n\n".join(sheets)
-                print(f"XLSX extracted {len(text)} chars from {n_sheets} sheet(s)")
-            except Exception as e:
-                print(f"XLSX extract failed: {e}"); traceback.print_exc()
-        elif ext in ("jpg", "jpeg", "png"):
-            text = _extract_image_text(filepath, orig_name)
-        else:
-            try:
-                with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
-                    text = f.read()
-            except Exception:
-                text = ""
+                file.save(tmp_path)
+                content = extract_text(tmp_path, file.filename)
+            finally:
+                if os.path.exists(tmp_path):
+                    try: os.remove(tmp_path)
+                    except Exception: pass
+            content = content[:config.MAX_TEMP_DOC_CHARS]
+            log_event(s["id"], "temp_file_used", {"name": file.filename, "chars": len(content)})
+            return jsonify({
+                "success": True, "temporary": True,
+                "name": file.filename, "content": content,
+                "chars_extracted": len(content),
+                "no_ocr_warning": ext in config.IMAGE_EXTS_NO_OCR
+            })
+
+        course = request.form.get("course", "").strip()[:100]
+        crn = request.form.get("crn", "").strip()[:30]
+        if not course:
+            return jsonify({"error": "Please enter a course name."}), 400
+        if not crn:
+            return jsonify({"error": "Please enter a CRN#."}), 400
+        # Optional: lets a student flag an upload as a past exam/quiz/study
+        # guide rather than course material, so generate_practice_questions()
+        # (see /generate-practice below) can use it as a style example
+        # instead of a factual content source. Defaults to 'material' —
+        # every existing upload flow is unaffected unless this is sent.
+        doc_type = (request.form.get("doc_type") or "material").strip().lower()
+        if doc_type not in config.DOC_TYPES:
+            return jsonify({"error": "Invalid document type."}), 400
+
+        replaced = False
+        if config.DB_URL:
+            # Document versioning: re-uploading the same filename for the same
+            # course + CRN replaces the old copy instead of adding a new one —
+            # this is almost always "the professor updated the syllabus," not
+            # "a 21st document," and it keeps students from hitting the cap
+            # just from re-uploading a corrected file.
+            conn = get_db(); cur = conn.cursor()
+            cur.execute("""SELECT id, filename FROM documents
+                           WHERE student_id=%s AND lower(course)=lower(%s)
+                           AND crn=%s AND lower(orig_name)=lower(%s)""",
+                        (s["id"], course, crn, file.filename))
+            existing = cur.fetchone()
+            if existing:
+                old_fp = os.path.join(config.UPLOAD_FOLDER, str(s["id"]), existing["filename"])
+                if os.path.exists(old_fp):
+                    try: os.remove(old_fp)
+                    except Exception: pass
+                cur.execute("DELETE FROM documents WHERE id=%s", (existing["id"],))
+                conn.commit()
+                replaced = True
+            cur.close()
+
+        if not replaced:
+            existing_docs = get_docs(s["id"])
+            if len(existing_docs) >= config.MAX_DOCS_PER_STUDENT:
+                return jsonify({
+                    "error": f"You've reached the {config.MAX_DOCS_PER_STUDENT}-document limit. "
+                             f"Delete a document before uploading a new one."
+                }), 400
+
+        folder = os.path.join(config.UPLOAD_FOLDER, str(s["id"]))
+        os.makedirs(folder, exist_ok=True)
+        orig = file.filename
+        saved = f"{uuid.uuid4().hex[:8]}_{secure_filename(orig)}"
+        path = os.path.join(folder, saved)
+        file.save(path)
+        size = os.path.getsize(path)
+        content = extract_text(path, orig)
+        print(f"UPLOAD: {orig} → {len(content)} chars extracted")
+        new_doc_id = None
+        if config.DB_URL:
+            conn = get_db(); cur = conn.cursor()
+            cur.execute("""INSERT INTO documents
+                           (student_id,filename,orig_name,course,crn,size_bytes,content,doc_type)
+                           VALUES(%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                        (s["id"], saved, orig, course, crn, size, content, doc_type))
+            new_doc_id = cur.fetchone()["id"]
+            conn.commit(); cur.close()
+            # Chunked once here, at upload time, so /chat never has to
+            # re-chunk on every question — see build_doc_context()'s
+            # retrieval fallback in services/documents.py.
+            store_document_chunks(new_doc_id, s["id"], s.get("university"), course, orig, content)
+
+        # Deadline extraction: one small Haiku call per upload to pull out
+        # assignment/exam dates so they can show up on the dashboard and in
+        # reminder emails. Best-effort — never blocks the upload if it fails.
+        deadlines_found = 0
+        if new_doc_id and content:
+            deadlines = extract_deadlines(content)
+            if deadlines and config.DB_URL:
+                conn = get_db(); cur = conn.cursor()
+                for d in deadlines:
+                    cur.execute("""INSERT INTO deadlines(student_id,document_id,course,title,due_date)
+                                   VALUES(%s,%s,%s,%s,%s)""",
+                                (s["id"], new_doc_id, course, d["title"], d["due_date"]))
+                conn.commit(); cur.close()
+                deadlines_found = len(deadlines)
+
+        log_event(s["id"], "file_replaced" if replaced else "file_uploaded",
+                  {"name": orig, "course": course, "crn": crn, "chars": len(content), "deadlines": deadlines_found})
+        invalidate_student_docs_cache(s["id"])
+        return jsonify({
+            "success": True, "docs": get_docs(s["id"]), "chars_extracted": len(content),
+            "replaced": replaced, "deadlines_found": deadlines_found,
+            "no_ocr_warning": ext in config.IMAGE_EXTS_NO_OCR
+        })
     except Exception as e:
-        print(f"extract_text error for {orig_name}: {e}"); text = ""
-    if len(text) > 60000:
-        text = text[:60000] + "\n\n[Document truncated at 60,000 characters]"
-    return text.strip()
+        log_error("documents.upload", e)
+        return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
 
 
-# ── Per-student document cache ────────────────────────────────
-# get_docs() is called on every single /chat request (to rebuild the
-# document context sent to the model), not just page loads — the
-# highest-frequency query in the app. Short TTL cache trades a small,
-# bounded staleness window for a big cut in repeat DB load per student.
-# invalidate_student_docs_cache() clears it immediately on that worker
-# after any upload/delete for that student.
-_student_docs_cache = {}
-_student_docs_cache_lock = threading.Lock()
-
-
-def invalidate_student_docs_cache(sid):
-    """Call after any upload/delete/replace of a student's own document."""
-    with _student_docs_cache_lock:
-        _student_docs_cache.pop(sid, None)
-
-
-def get_docs(sid):
-    if not config.DB_URL:
-        return []
-    now = time.time()
-    with _student_docs_cache_lock:
-        cached = _student_docs_cache.get(sid)
-        if cached and now - cached[0] < config.STUDENT_DOCS_CACHE_TTL_SECONDS:
-            return cached[1]
+@bp.route("/delete-file", methods=["POST"])
+@login_required
+def delete_file():
     try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("SELECT * FROM documents WHERE student_id=%s ORDER BY uploaded_at DESC", (sid,))
-        docs = [dict(r) for r in cur.fetchall()]; cur.close()
-        with _student_docs_cache_lock:
-            _student_docs_cache[sid] = (now, docs)
-        return docs
+        s = g.student
+        doc_id = (request.get_json() or {}).get("doc_id")
+        if config.DB_URL and doc_id:
+            conn = get_db(); cur = conn.cursor()
+            cur.execute("SELECT filename FROM documents WHERE id=%s AND student_id=%s", (doc_id, s["id"]))
+            doc = cur.fetchone()
+            if doc:
+                fp = os.path.join(config.UPLOAD_FOLDER, str(s["id"]), doc["filename"])
+                if os.path.exists(fp): os.remove(fp)
+                cur.execute("DELETE FROM documents WHERE id=%s", (doc_id,))
+                conn.commit()
+                log_event(s["id"], "file_deleted", {"doc_id": doc_id})
+            cur.close()
+        invalidate_student_docs_cache(s["id"])
+        return jsonify({"success": True, "docs": get_docs(s["id"])})
     except Exception as e:
-        print(f"get_docs error: {e}"); return []
+        log_error("documents.delete", e)
+        return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
 
 
-def group_docs_by_course(docs):
-    """Group documents by course (and CRN, when present)."""
-    groups = {}
-    order = []
-    for d in docs:
-        course = (d.get("course") or "").strip() or "General"
-        crn = (d.get("crn") or "").strip()
-        label = f"{course} (CRN {crn})" if crn else course
-        if label not in groups:
-            groups[label] = []
-            order.append(label)
-        groups[label].append(d)
-    order.sort()
-    return [(label, groups[label]) for label in order]
+# ── General reference documents (admin-only) ────────────────
+# These apply to every student's chat automatically (see build_global_doc_context
+# and its use in /chat) but are stored with student_id=NULL, so they never show
+# up in any student's own "My Documents" list or count against their 20-doc cap.
+@bp.route("/global-documents")
+@admin_required
+def list_global_documents():
+    university = request.args.get("university", "").strip()
+    return jsonify({"docs": get_global_docs(university or None)})
 
 
-def store_document_chunks(document_id, student_id, university, course, orig_name, content):
-    """Chunks a document's extracted text and stores the chunks for
-    retrieval. Called once per upload (or re-upload/replace) — chunking
-    itself is cheap, but doing it once at upload time rather than on every
-    question keeps /chat fast. Safe to call with empty content (no-ops).
-
-    If a neural embedding backend is configured (see services/retrieval.py),
-    this also embeds every chunk in ONE batched call and stores the result
-    — so a later question only ever needs to embed the question itself,
-    not re-embed this document's chunks every time it's asked about."""
-    if not config.DB_URL or not (content or "").strip():
-        return
-    header = f"[{orig_name}] ({course})" if course else f"[{orig_name}]"
-    chunks = chunk_text(content, header=header)
-    if not chunks:
-        return
-    embeddings = embed_texts(chunks, input_type="document")  # None if unavailable — that's fine
+@bp.route("/upload-global", methods=["POST"])
+@admin_required
+def upload_global_document():
     try:
-        conn = get_db(); cur = conn.cursor()
-        for i, chunk in enumerate(chunks):
-            emb = embeddings[i] if embeddings else None
-            cur.execute("""INSERT INTO document_chunks
-                           (document_id, student_id, university, chunk_index, content, embedding)
-                           VALUES (%s, %s, %s, %s, %s, %s)""",
-                        (document_id, student_id, university or "", i, chunk,
-                         json.dumps(emb) if emb is not None else None))
-        conn.commit(); cur.close()
+        s = g.student
+        if "file" not in request.files:
+            return jsonify({"error": "No file"}), 400
+        file = request.files["file"]
+        label = request.form.get("label", "").strip()[:100] or "General"
+        university = request.form.get("university", "").strip()
+        if not university:
+            return jsonify({"error": "Please choose which university this document applies to."}), 400
+        if not file or not file.filename:
+            return jsonify({"error": "No file selected"}), 400
+        ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
+        if ext not in config.ALLOWED_EXT:
+            return jsonify({"error": f"File type .{ext} not allowed"}), 400
+        if not file_signature_valid(file, ext):
+            return jsonify({"error": f"This file doesn't look like a valid .{ext} file — it may be corrupted or mislabeled."}), 400
+
+        folder = os.path.join(config.UPLOAD_FOLDER, "global")
+        os.makedirs(folder, exist_ok=True)
+        orig = file.filename
+        saved = f"{uuid.uuid4().hex[:8]}_{secure_filename(orig)}"
+        path = os.path.join(folder, saved)
+        file.save(path)
+        size = os.path.getsize(path)
+        content = extract_text(path, orig)
+        print(f"GLOBAL UPLOAD: {orig} ({university}) → {len(content)} chars extracted")
+        if config.DB_URL:
+            conn = get_db(); cur = conn.cursor()
+            cur.execute("""INSERT INTO documents
+                           (student_id,filename,orig_name,course,crn,size_bytes,content,university)
+                           VALUES(NULL,%s,%s,%s,'',%s,%s,%s) RETURNING id""",
+                        (saved, orig, label, size, content, university))
+            new_doc_id = cur.fetchone()["id"]
+            conn.commit(); cur.close()
+            store_document_chunks(new_doc_id, None, university, label, orig, content)
+        invalidate_global_docs_cache(university)
+        log_event(s["id"], "global_file_uploaded", {"name": orig, "label": label, "university": university, "chars": len(content)})
+        return jsonify({"success": True, "docs": get_global_docs(university), "chars_extracted": len(content)})
     except Exception as e:
-        print(f"store_document_chunks error: {e}")
+        log_error("documents.global_upload", e)
+        return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
 
 
-def get_student_chunks(sid):
-    """Returns this student's chunks as a list of {"content", "embedding"}
-    dicts — "embedding" is None for any chunk that doesn't have one
-    (neural backend wasn't configured when it was uploaded, or the
-    embedding call failed at the time)."""
-    if not config.DB_URL:
-        return []
+@bp.route("/delete-global-document", methods=["POST"])
+@admin_required
+def delete_global_document():
     try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("""SELECT content, embedding FROM document_chunks
-                       WHERE student_id=%s ORDER BY document_id, chunk_index""", (sid,))
-        rows = cur.fetchall(); cur.close()
-        return [{"content": r["content"], "embedding": json.loads(r["embedding"]) if r["embedding"] else None}
-                for r in rows]
+        s = g.student
+        data = request.get_json() or {}
+        doc_id = data.get("doc_id")
+        university = (data.get("university") or "").strip()
+        if config.DB_URL and doc_id:
+            conn = get_db(); cur = conn.cursor()
+            cur.execute("SELECT filename, university FROM documents WHERE id=%s AND student_id IS NULL", (doc_id,))
+            doc = cur.fetchone()
+            if doc:
+                fp = os.path.join(config.UPLOAD_FOLDER, "global", doc["filename"])
+                if os.path.exists(fp): os.remove(fp)
+                cur.execute("DELETE FROM documents WHERE id=%s", (doc_id,))
+                conn.commit()
+                invalidate_global_docs_cache(doc["university"])
+                log_event(s["id"], "global_file_deleted", {"doc_id": doc_id})
+            cur.close()
+        return jsonify({"success": True, "docs": get_global_docs(university or None)})
     except Exception as e:
-        print(f"get_student_chunks error: {e}"); return []
-
-
-def get_global_chunks(university):
-    """Same as get_student_chunks(), for a university's global reference
-    documents."""
-    if not config.DB_URL:
-        return []
-    try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("""SELECT content, embedding FROM document_chunks
-                       WHERE student_id IS NULL AND lower(university)=lower(%s)
-                       ORDER BY document_id, chunk_index""", (university or "",))
-        rows = cur.fetchall(); cur.close()
-        return [{"content": r["content"], "embedding": json.loads(r["embedding"]) if r["embedding"] else None}
-                for r in rows]
-    except Exception as e:
-        print(f"get_global_chunks error: {e}"); return []
-
-
-def build_doc_context(docs, question=None, sid=None):
-    """Builds the document-context block for the chat prompt.
-
-    The common case — a student's uploaded material comfortably fits under
-    MAX_DOC_CONTEXT_CHARS — includes every document's content IN FULL, with
-    no truncation at all. Only once the total genuinely exceeds the budget
-    does this fall back to retrieval: rank every chunk of the student's
-    material against the actual question being asked (see
-    services/retrieval.py) and include only the most relevant ones. That's
-    a deliberate choice for a tool where answer accuracy matters most — it
-    means a student who's uploaded a lot of material still gets precise
-    answers grounded in the right passages, instead of every document
-    being silently clipped by the same blind percentage regardless of
-    whether the clipped part was the part they asked about.
-    `question` and `sid` are only needed for that fallback path; omit them
-    (e.g. when called somewhere other than an active chat turn) and the
-    function still works, just using the older even-truncation behavior
-    as a safety net if the budget is exceeded.
-    """
-    if not docs:
-        return "\n\nThe student has not uploaded any course documents yet."
-    has_content = any((d.get("content") or "").strip() for d in docs)
-    if not has_content:
-        ctx = f"\n\nThe student has {len(docs)} uploaded file(s) but no text could be extracted. "
-        ctx += "Files: " + ", ".join(d["orig_name"] for d in docs)
-        return ctx
-
-    total_chars = sum(len((d.get("content") or "")) for d in docs)
-    intro = f"\n\n{'='*60}\nSTUDENT'S UPLOADED COURSE DOCUMENTS ({len(docs)} files)\n"
-
-    if total_chars <= config.MAX_DOC_CONTEXT_CHARS:
-        # Fits in full — every document, complete, no truncation.
-        ctx = intro
-        ctx += ("Every document the student has uploaded is included below in FULL — none have "
-                "been shortened or skipped. Never tell the student to re-upload something that "
-                "appears here.\n")
-        ctx += "Answer questions using the actual content of these documents.\n"
-        ctx += "Quote specific text, deadlines, requirements directly from the documents.\n"
-        ctx += f"{'='*60}\n\n"
-        for i, d in enumerate(docs):
-            content = (d.get("content") or "").strip()
-            ctx += f"[DOCUMENT {i+1}] {d['orig_name']}\n"
-            ctx += f"Course: {d['course']} | Size: {round(d.get('size_bytes',0)/1024,1)} KB\n\n"
-            ctx += content if content else "[No text could be extracted from this file]"
-            ctx += f"\n\n{'-'*40}\n\n"
-        ctx += f"{'='*60}\n"
-        return ctx
-
-    if question and sid:
-        # Too much material to include in full — retrieve the passages
-        # most relevant to THIS question instead of blindly truncating
-        # every document by the same amount.
-        chunk_rows = get_student_chunks(sid)
-        if chunk_rows:
-            chunk_texts = [c["content"] for c in chunk_rows]
-            chunk_embeddings = [c["embedding"] for c in chunk_rows]
-            top = rank_chunks(question, chunk_texts, config.RETRIEVAL_TOP_N_STUDENT_DOCS,
-                              chunk_embeddings=chunk_embeddings)
-            ctx = intro
-            ctx += (f"The student has uploaded more material ({len(docs)} files) than fits in one "
-                    f"prompt, so below are the excerpts most relevant to their CURRENT question — "
-                    f"not the complete text of every document. Every document they've uploaded is "
-                    f"still listed by name so you know it exists; never tell them to re-upload "
-                    f"something listed here. If they ask a question that needs a document's FULL "
-                    f"text (e.g. 'summarize the whole syllabus'), say you're working from the most "
-                    f"relevant excerpts for what they've asked so far and offer to look at a "
-                    f"specific section or document if they want more of it.\n"
-                    f"Uploaded files: " + ", ".join(d["orig_name"] for d in docs) + "\n")
-            ctx += f"{'='*60}\n\n"
-            ctx += "\n\n---\n\n".join(top)
-            ctx += f"\n\n{'='*60}\n"
-            return ctx
-        # No chunks stored yet (e.g. documents uploaded before this feature
-        # existed) — fall through to the even-truncation safety net below.
-
-    # Safety net: no question/sid to retrieve against, or no chunks stored.
-    # Same even-division-with-truncation behavior this app always used.
-    ctx = intro
-    ctx += ("Every document the student has uploaded is listed below in full or in part — none "
-            "have been skipped. Never tell the student to re-upload something that appears here; "
-            "if you only see part of a long one, say you have it but only part of its content, "
-            "and offer to look at a specific section if they ask.\n")
-    ctx += "Answer questions using the actual content of these documents.\n"
-    ctx += "Quote specific text, deadlines, requirements directly from the documents.\n"
-    ctx += f"{'='*60}\n\n"
-    per_doc_budget = max(config.MAX_DOC_CONTEXT_CHARS // max(len(docs), 1), 2000)
-    for i, d in enumerate(docs):
-        content = (d.get("content") or "").strip()
-        header = f"[DOCUMENT {i+1}] {d['orig_name']}\n"
-        header += f"Course: {d['course']} | Size: {round(d.get('size_bytes',0)/1024,1)} KB\n"
-        header += f"Content ({len(content)} chars):\n"
-        if len(content) > per_doc_budget:
-            content = content[:per_doc_budget] + "\n[Shortened here to fit — ask about this document specifically for more of it.]"
-        ctx += header
-        ctx += content if content else "[No text could be extracted from this file]"
-        ctx += f"\n\n{'-'*40}\n\n"
-    ctx += f"{'='*60}\n"
-    return ctx
-
-
-# ── Global (university-wide) document cache ──────────────────
-# get_global_docs() runs on every single /chat request for every student —
-# at "hundreds of students across multiple schools" scale that's a lot of
-# repeat, identical, read-only queries for data that only changes when an
-# admin uploads/removes a reference document. A short TTL cache trades a
-# small, bounded staleness window (default 60s — see
-# GLOBAL_DOCS_CACHE_TTL_SECONDS in config.py) for a large reduction in DB
-# load. Each gunicorn worker keeps its own cache (simple, no extra
-# infrastructure like Redis needed); invalidate_global_docs_cache() clears
-# the *local* worker's entry immediately after an admin upload/delete, so
-# that worker sees the change right away — other workers pick it up within
-# the TTL.
-_global_docs_cache = {}
-_global_docs_cache_lock = threading.Lock()
-
-
-def invalidate_global_docs_cache(university=None):
-    """Call after any admin upload/delete of a general reference document."""
-    with _global_docs_cache_lock:
-        if university is None:
-            _global_docs_cache.clear()
-        else:
-            _global_docs_cache.pop((university or "").lower(), None)
-            _global_docs_cache.pop(None, None)  # the "all universities" entry
-
-
-def get_global_docs(university=None):
-    """Institution-wide reference documents visible to every student's chat
-    context (for their own university only) but never shown in any
-    student's own document list or counted against their upload cap —
-    stored as documents with student_id NULL, tagged with the target
-    university. Cached briefly per-university (see module docstring)."""
-    if not config.DB_URL:
-        return []
-    cache_key = (university or "").lower() or None
-    now = time.time()
-    with _global_docs_cache_lock:
-        cached = _global_docs_cache.get(cache_key)
-        if cached and now - cached[0] < config.GLOBAL_DOCS_CACHE_TTL_SECONDS:
-            return cached[1]
-    try:
-        conn = get_db(); cur = conn.cursor()
-        if university:
-            cur.execute("""SELECT * FROM documents WHERE student_id IS NULL
-                           AND lower(university)=lower(%s) ORDER BY uploaded_at DESC""",
-                        (university,))
-        else:
-            cur.execute("SELECT * FROM documents WHERE student_id IS NULL ORDER BY uploaded_at DESC")
-        docs = [dict(r) for r in cur.fetchall()]; cur.close()
-        with _global_docs_cache_lock:
-            _global_docs_cache[cache_key] = (now, docs)
-        return docs
-    except Exception as e:
-        print(f"get_global_docs error: {e}"); return []
-
-
-def build_global_doc_context(docs, university=None, question=None):
-    """Same hybrid approach as build_doc_context(): includes every general
-    reference document in full when it fits, and falls back to retrieving
-    the most relevant excerpts (across ALL of that university's reference
-    documents, not per-document) only once the total is too large."""
-    if not docs:
-        return "\n\nNo general reference documents have been added yet."
-    label = f" for {university}" if university else ""
-    intro = f"\n\n{'='*60}\nGENERAL REFERENCE DOCUMENTS (apply to every student{label}, not just this one)\n"
-    footer_note = ("These were uploaded by an administrator and are not visible to the student as "
-                   "their own files — don't refer to them as 'your uploaded documents' or mention "
-                   "that they were uploaded separately; just use them as background knowledge when "
-                   "relevant.\n")
-
-    total_chars = sum(len((d.get("content") or "")) for d in docs)
-    if total_chars <= config.MAX_GLOBAL_DOC_CONTEXT_CHARS:
-        ctx = intro + footer_note + f"{'='*60}\n\n"
-        for i, d in enumerate(docs):
-            content = (d.get("content") or "").strip()
-            if not content:
-                continue
-            ctx += f"[REFERENCE {i+1}] {d['orig_name']} ({d.get('course') or 'General'})\n{content}\n\n{'-'*40}\n\n"
-        ctx += f"{'='*60}\n"
-        return ctx
-
-    if question:
-        chunk_rows = get_global_chunks(university)
-        if chunk_rows:
-            chunk_texts = [c["content"] for c in chunk_rows]
-            chunk_embeddings = [c["embedding"] for c in chunk_rows]
-            top = rank_chunks(question, chunk_texts, config.RETRIEVAL_TOP_N_GLOBAL_DOCS,
-                              chunk_embeddings=chunk_embeddings)
-            ctx = intro + footer_note
-            ctx += f"{'='*60}\n\n"
-            ctx += "\n\n---\n\n".join(top)
-            ctx += f"\n\n{'='*60}\n"
-            return ctx
-
-    # Safety net: same even-truncation behavior as before.
-    ctx = intro + footer_note + f"{'='*60}\n\n"
-    per_doc_budget = max(config.MAX_GLOBAL_DOC_CONTEXT_CHARS // max(len(docs), 1), 2000)
-    for i, d in enumerate(docs):
-        content = (d.get("content") or "").strip()
-        if not content:
-            continue
-        if len(content) > per_doc_budget:
-            content = content[:per_doc_budget] + "\n[Shortened here to fit.]"
-        ctx += f"[REFERENCE {i+1}] {d['orig_name']} ({d.get('course') or 'General'})\n{content}\n\n{'-'*40}\n\n"
-    ctx += f"{'='*60}\n"
-    return ctx
+        log_error("documents.delete_global", e)
+        return jsonify({"error": "Something went wrong on our end. Please try again."}), 500

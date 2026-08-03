@@ -16,6 +16,7 @@ import json
 from datetime import timedelta
 
 from .. import config
+from ..errors import log_error
 from ..extensions import anthropic_client, get_db
 from ..timeutil import utcnow_naive
 
@@ -84,7 +85,7 @@ def generate_practice_questions(material_text, assessment_text=None, count=8):
                 })
         return out[:count]
     except Exception as e:
-        print(f"generate_practice_questions error: {e}")
+        log_error("services.practice.generate_practice_questions", e)
         return []
 
 
@@ -138,7 +139,7 @@ def store_practice_questions(student_id, course, questions):
         conn.commit(); cur.close()
         return stored
     except Exception as e:
-        print(f"store_practice_questions error: {e}")
+        log_error("services.practice.store_practice_questions", e)
         return questions
 
 
@@ -173,7 +174,7 @@ def record_attempt(student_id, question_id, correct):
             updated["next_review_date"] = updated["next_review_date"].isoformat()
         return updated
     except Exception as e:
-        print(f"record_attempt error: {e}")
+        log_error("services.practice.record_attempt", e)
         return None
 
 
@@ -201,5 +202,5 @@ def get_due_questions(student_id, course=None, limit=20):
             r["next_review_date"] = r["next_review_date"].isoformat()
         return rows
     except Exception as e:
-        print(f"get_due_questions error: {e}")
+        log_error("services.practice.get_due_questions", e)
         return []
