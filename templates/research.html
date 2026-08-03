@@ -33,6 +33,35 @@
     font-weight: 700; letter-spacing: 0.04em; padding: 4px 10px;
     border-radius: 999px; text-transform: uppercase;
   }
+  /* ── Shared app nav (same markup/classes as the rest of WINK) ── */
+  .app-nav {
+    background: var(--navy); padding: 0 32px;
+    display: flex; align-items: center; height: 60px;
+    position: sticky; top: 0; z-index: 100;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.18);
+  }
+  .nav-logo { font-size: 22px; font-weight: 900; color: #fff; letter-spacing: -1px; text-decoration: none; }
+  .nav-logo span { color: var(--orange); }
+  .nav-divider { width: 1px; height: 24px; background: rgba(255,255,255,0.2); margin: 0 20px; }
+  .nav-links { display: flex; align-items: center; gap: 4px; }
+  .nav-links a { color: rgba(255,255,255,0.65); text-decoration: none; font-size: 14px; font-weight: 500; padding: 6px 14px; border-radius: 6px; transition: all 0.15s; }
+  .nav-links a:hover { background: rgba(255,255,255,0.1); color: #fff; }
+  .nav-links a.active { background: var(--orange); color: #fff; }
+  .nav-right { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+  .nav-user { font-size: 13px; color: rgba(255,255,255,0.6); }
+  .nav-user strong { color: #fff; }
+  .btn-logout { font-size: 13px; color: rgba(255,255,255,0.6); text-decoration: none; padding: 5px 12px; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; transition: all 0.15s; }
+  .btn-logout:hover { background: rgba(255,255,255,0.1); color: #fff; }
+  .nav-toggle { display: none; background: none; border: none; color: #fff; font-size: 22px; cursor: pointer; padding: 4px 10px; margin-left: auto; }
+  @media (max-width: 860px) {
+    .app-nav { flex-wrap: wrap; height: auto; padding: 10px 16px; }
+    .nav-toggle { display: block; }
+    .nav-links, .nav-right { display: none; width: 100%; }
+    .app-nav.nav-open .nav-links { display: flex; flex-direction: column; align-items: stretch; gap: 2px; margin-top: 10px; order: 3; }
+    .app-nav.nav-open .nav-links a { padding: 10px 12px; }
+    .app-nav.nav-open .nav-right { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; margin-top: 10px; margin-left: 0; order: 4; border-top: 1px solid rgba(255,255,255,0.15); padding-top: 10px; }
+    .nav-divider { display: none; }
+  }
   main { max-width: 1100px; margin: 0 auto; padding: 24px 20px 64px; }
   .disclaimer {
     background: #fff7ec; border: 1px solid #f0c98a; color: #6b4a10;
@@ -88,6 +117,27 @@
 </style>
 </head>
 <body>
+
+<nav class="app-nav" id="app-nav">
+  <a href="/dashboard" class="nav-logo">WINK<span>.</span></a>
+  <div class="nav-divider"></div>
+  <button class="nav-toggle" onclick="toggleNav()" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="app-nav">☰</button>
+  <div class="nav-links">
+    <a href="/dashboard" class="{{ 'active' if active == 'dashboard' else '' }}">Dashboard</a>
+    <a href="/documents" class="{{ 'active' if active == 'documents' else '' }}">My Documents</a>
+    <a href="/chat-page" class="{{ 'active' if active == 'chat' else '' }}">Ask WINK</a>
+    <a href="/calendar-page" class="{{ 'active' if active == 'calendar' else '' }}">Calendar</a>
+    <a href="/practice-page" class="{{ 'active' if active == 'practice' else '' }}">Practice</a>
+    <a href="/grades-page" class="{{ 'active' if active == 'grades' else '' }}">Grades</a>
+    <a href="/wrapped-page" class="{{ 'active' if active == 'wrapped' else '' }}">Wrapped</a>
+    <a href="/analytics-page" class="{{ 'active' if active == 'analytics' else '' }}">Analytics</a>
+    <a href="/research" class="{{ 'active' if active == 'research' else '' }}">Research</a>
+  </div>
+  <div class="nav-right">
+    <div class="nav-user">Hello, <strong>{{ s.first_name }}</strong></div>
+    <a href="/logout" class="btn-logout">Log out</a>
+  </div>
+</nav>
 
 <header>
   <h1>WINK Research Dashboard</h1>
@@ -248,6 +298,13 @@
 </main>
 
 <script nonce="{{ csp_nonce() }}">
+function toggleNav() {
+  const nav = document.getElementById('app-nav');
+  const btn = document.querySelector('.nav-toggle');
+  const open = nav.classList.toggle('nav-open');
+  btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
 document.querySelectorAll('button.rate').forEach(function (btn) {
   btn.addEventListener('click', function () {
     var id = btn.getAttribute('data-id');
