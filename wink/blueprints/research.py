@@ -57,6 +57,7 @@ change):
 from flask import Blueprint, g, jsonify, render_template, request
 
 from .. import config
+from ..errors import log_error
 from ..security import admin_page_required, admin_required
 from ..services import research as research_service
 from ..services.deadlines import get_deadline_confirmation_stats
@@ -67,17 +68,21 @@ bp = Blueprint("research", __name__)
 @bp.route("/research")
 @admin_page_required
 def research_dashboard():
-    return render_template(
-        "research.html",
-        s=g.student,
-        admin_email=config.ADMIN_EMAIL,
-        active="research",
-        config_snapshot=research_service.get_config_snapshot(),
-        answer_stats=research_service.get_answer_log_stats(),
-        deadline_stats=get_deadline_confirmation_stats(),
-        unrated_sample=research_service.get_unrated_sample(),
-        feedback_gap=research_service.get_feedback_vs_accuracy_gap(),
-    )
+    try:
+        return render_template(
+            "research.html",
+            s=g.student,
+            admin_email=config.ADMIN_EMAIL,
+            active="research",
+            config_snapshot=research_service.get_config_snapshot(),
+            answer_stats=research_service.get_answer_log_stats(),
+            deadline_stats=get_deadline_confirmation_stats(),
+            unrated_sample=research_service.get_unrated_sample(),
+            feedback_gap=research_service.get_feedback_vs_accuracy_gap(),
+        )
+    except Exception as e:
+        log_error("research.research_dashboard", e)
+        return "<h2>Something went wrong</h2><p>Please try again, or <a href='/logout'>log out</a> and back in.</p>", 500
 
 
 @bp.route("/research/rate-answer", methods=["POST"])
@@ -87,16 +92,20 @@ def rate_answer():
     answer. rated_by is the reviewing admin's own email (from their
     session), not anything the client can spoof, so multiple reviewers
     rating overlapping samples stays attributable."""
-    data = request.get_json(silent=True) or {}
-    log_id = data.get("log_id")
-    rating = data.get("rating")
-    notes = data.get("notes", "")
-    if not log_id or rating not in ("correct", "incorrect", "unsure"):
-        return jsonify({"error": "log_id and a rating of correct/incorrect/unsure are required"}), 400
-    updated = research_service.rate_answer(log_id, rating, notes, rated_by=g.student["email"])
-    if not updated:
-        return jsonify({"error": "Answer log not found"}), 404
-    return jsonify({"ok": True})
+    try:
+        data = request.get_json(silent=True) or {}
+        log_id = data.get("log_id")
+        rating = data.get("rating")
+        notes = data.get("notes", "")
+        if not log_id or rating not in ("correct", "incorrect", "unsure"):
+            return jsonify({"error": "log_id and a rating of correct/incorrect/unsure are required"}), 400
+        updated = research_service.rate_answer(log_id, rating, notes, rated_by=g.student["email"])
+        if not updated:
+            return jsonify({"error": "Answer log not found"}), 404
+        return jsonify({"ok": True})
+    except Exception as e:
+        log_error("research.rate_answer", e, log_id=data.get("log_id") if isinstance(data, dict) else None)
+        return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
 
 
 @bp.route("/research/export.json")
@@ -106,10 +115,14 @@ def export_json():
     accuracy broken down by retrieval backend or course, error
     categorization. The review's accuracy benchmark ultimately needs a
     dataset to run statistics on, not just a dashboard to look at."""
-    return jsonify({
-        "config_snapshot": research_service.get_config_snapshot(),
-        "answer_stats": research_service.get_answer_log_stats(),
-        "deadline_stats": get_deadline_confirmation_stats(),
-        "feedback_gap": research_service.get_feedback_vs_accuracy_gap(),
-        "rated_answers": research_service.get_rated_sample(limit=1000),
-    })
+    try:
+        return jsonify({
+            "config_snapshot": research_service.get_config_snapshot(),
+            "answer_stats": research_service.get_answer_log_stats(),
+            "deadline_stats": get_deadline_confirmation_stats(),
+            "feedback_gap": research_service.get_feedback_vs_accuracy_gap(),
+            "rated_answers": research_service.get_rated_sample(limit=1000),
+        })
+    except Exception as e:
+        log_error("research.export_json", e)
+        return jsonify({"error": "Something went wrong on our end. Please try again."}), 500

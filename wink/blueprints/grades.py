@@ -11,11 +11,11 @@ copy from directly) — routes/behavior match what was documented at the
 time, but treat this as a fresh implementation, not a byte-for-byte
 restore.
 """
-import traceback
 
 from flask import Blueprint, g, jsonify, render_template, request
 
 from .. import config
+from ..errors import log_error
 from ..security import login_required, page_login_required, rate_limited, verified_required
 from ..services.analytics import log_event
 from ..services.documents import get_docs
@@ -35,7 +35,7 @@ def grades_page():
         return render_template("grades.html", s=s, admin_email=config.ADMIN_EMAIL,
                                active="grades", known_courses=known_courses)
     except Exception as e:
-        print(f"grades_page error: {e}"); traceback.print_exc()
+        log_error("grades.grades_page", e)
         return "<h2>Something went wrong</h2><p>Please try again, or <a href='/logout'>log out</a> and back in.</p>", 500
 
 
