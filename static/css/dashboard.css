@@ -1,0 +1,188 @@
+/* Extracted verbatim from dashboard.html's inline <style> block — same CSS, just externalized
+   so the browser can cache it instead of re-downloading it with every page load. */
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+      background: #f4f6fb;
+      color: #444455;
+      min-height: 100vh;
+    }
+    /* ── Nav ── */
+    
+
+    /* ── Shell ── */
+    .page-shell { max-width: 1100px; margin: 0 auto; padding: 36px 24px 64px; }
+
+    /* ── Welcome Banner ── */
+    .welcome-banner {
+      background: linear-gradient(135deg, #002855 0%, #003d7a 100%);
+      border-radius: 14px;
+      padding: 28px 32px;
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 28px;
+      overflow: hidden; position: relative;
+    }
+    .welcome-banner::after {
+      content: '';
+      position: absolute; right: 0; top: 0; bottom: 0; width: 40%;
+      background: radial-gradient(ellipse at right, rgba(255,130,0,0.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .welcome-text h1 {
+      font-size: 24px; font-weight: 800;
+      color: #fff; line-height: 1.2;
+    }
+    .welcome-text h1 span { color: #FF8200; }
+    .welcome-text p { font-size: 14px; color: rgba(255,255,255,0.65); margin-top: 4px; }
+    .welcome-actions { display: flex; gap: 12px; z-index: 1; }
+    .btn-cta {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 10px 20px; border-radius: 7px;
+      font-size: 14px; font-weight: 600;
+      text-decoration: none; border: none; cursor: pointer;
+      transition: all 0.18s;
+    }
+    .btn-orange { background: #FF8200; color: #fff; }
+    .btn-orange:hover { background: #e57200; transform: translateY(-1px); }
+    .btn-outline-white { background: transparent; color: #fff; border: 1.5px solid rgba(255,255,255,0.4); }
+    .btn-outline-white:hover { border-color: #fff; background: rgba(255,255,255,0.08); }
+
+    /* ── Stats ── */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px; margin-bottom: 28px;
+    }
+    .stat-card {
+      background: #fff; border-radius: 10px;
+      border: 1px solid #dde3f0;
+      border-top: 3px solid #FF8200;
+      padding: 20px;
+    }
+    .stat-value { font-size: 32px; font-weight: 800; color: #002855; }
+    .stat-label { font-size: 12px; color: #6b7a99; margin-top: 3px; text-transform: uppercase; letter-spacing: .05em; }
+    .stat-card.navy-top { border-top-color: #002855; }
+    .stat-card.stat-warn .stat-value { color: #b45309; }
+
+    /* ── Two-col Grid ── */
+    .dash-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+    .card {
+      background: #fff; border-radius: 10px;
+      border: 1px solid #dde3f0;
+      box-shadow: 0 1px 4px rgba(0,40,85,0.06);
+    }
+    .card-header {
+      padding: 18px 22px 14px;
+      border-bottom: 1px solid #eef0f6;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .card-title {
+      font-size: 15px; font-weight: 700; color: #002855;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .card-body { padding: 18px 22px; }
+
+    /* Quick action buttons */
+    .quick-actions { display: flex; flex-direction: column; gap: 10px; }
+    .action-btn {
+      display: flex; align-items: center; gap: 14px;
+      padding: 14px 16px;
+      background: #f8f9ff; border: 1px solid #eef0f6;
+      border-radius: 8px; text-decoration: none;
+      transition: all 0.15s; cursor: pointer;
+    }
+    .action-btn:hover { background: #edf0ff; border-color: #002855; transform: translateX(3px); }
+    .action-icon {
+      width: 38px; height: 38px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; flex-shrink: 0;
+    }
+    .icon-orange { background: #fff3e6; }
+    .icon-navy   { background: #e8edf5; }
+    .icon-green  { background: #f0fdf4; }
+    .action-text strong { display: block; font-size: 14px; color: #002855; }
+    .action-text span { font-size: 12px; color: #6b7a99; }
+
+    /* Recent docs list */
+    .doc-list { display: flex; flex-direction: column; gap: 8px; }
+    .doc-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 12px; border-radius: 8px;
+      background: #f8f9ff; border: 1px solid #eef0f6;
+    }
+    .doc-icon { font-size: 20px; flex-shrink: 0; }
+    .doc-name { font-size: 13px; font-weight: 600; color: #002855; }
+    .doc-meta { font-size: 11px; color: #6b7a99; margin-top: 1px; }
+    .doc-empty { font-size: 14px; color: #6b7a99; text-align: center; padding: 20px 0; }
+
+    /* Deadlines list */
+    .deadline-list { display: flex; flex-direction: column; gap: 8px; }
+    .deadline-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 12px; border-radius: 8px;
+      background: #fff3e6; border: 1px solid #ffe0b8;
+    }
+    .deadline-date {
+      flex-shrink: 0; width: 46px; text-align: center;
+      background: #FF8200; color: #fff; border-radius: 6px;
+      padding: 5px 0; font-size: 11px; font-weight: 700; line-height: 1.2;
+    }
+    .deadline-name { font-size: 13px; font-weight: 600; color: #002855; }
+    .deadline-meta { font-size: 11px; color: #6b7a99; margin-top: 1px; }
+    .deadline-empty { font-size: 14px; color: #6b7a99; text-align: center; padding: 20px 0; }
+
+    /* Profile summary */
+    .profile-row {
+      display: flex; align-items: center; gap: 14px;
+      padding: 14px 0; border-bottom: 1px solid #eef0f6;
+    }
+    .profile-row:last-child { border-bottom: none; padding-bottom: 0; }
+    .profile-label { font-size: 12px; color: #6b7a99; text-transform: uppercase; letter-spacing: .04em; flex: 0 0 110px; }
+    .profile-value { font-size: 14px; font-weight: 600; color: #002855; }
+    .profile-input {
+      font-size: 13px; font-weight: 600; color: #002855;
+      border: 1.5px solid #dde3f0; border-radius: 6px;
+      padding: 6px 10px; width: 100%; max-width: 160px;
+      font-family: inherit;
+    }
+    .profile-input:focus { outline: none; border-color: #FF8200; }
+    .badge {
+      display: inline-block; font-size: 11px; font-weight: 600;
+      padding: 3px 10px; border-radius: 999px;
+      background: #fff3e6; color: #FF8200;
+    }
+
+    @media (max-width: 900px) {
+      .stats-row { grid-template-columns: repeat(2, 1fr); }
+      .dash-grid { grid-template-columns: 1fr; }
+      .welcome-actions { flex-direction: column; }
+    }
+    /* ── Toast + confirm modal (replaces native alert/confirm) ── */
+    .wink-toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      background: #002855; color: #fff; padding: 12px 22px; border-radius: 9px;
+      font-size: 14px; font-weight: 600; box-shadow: 0 8px 28px rgba(0,0,0,0.25);
+      z-index: 9999; opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+      max-width: 90vw; text-align: center;
+    }
+    .wink-toast.show { opacity: 1; pointer-events: auto; }
+    .wink-toast.error { background: #b91c1c; }
+    .wink-modal-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,20,50,0.45);
+      z-index: 9000; align-items: center; justify-content: center; padding: 20px;
+    }
+    .wink-modal-overlay.open { display: flex; }
+    .wink-modal-card { background: #fff; border-radius: 14px; max-width: 440px; width: 100%; padding: 26px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+    .wink-modal-card h3 { font-size: 17px; color: #002855; margin-bottom: 10px; }
+    .wink-modal-card p { font-size: 14px; color: #444; margin-bottom: 18px; line-height: 1.5; }
+    .wink-modal-actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+    .wink-modal-btn { padding: 9px 18px; border-radius: 7px; font-size: 13px; font-weight: 700; cursor: pointer; border: none; }
+    .wink-modal-btn.primary { background: #FF8200; color: #fff; }
+    .wink-modal-btn.secondary { background: #eef0f6; color: #002855; }
+    .wink-modal-btn.danger { background: #b91c1c; color: #fff; }

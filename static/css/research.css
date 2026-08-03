@@ -1,0 +1,85 @@
+/* Extracted verbatim from research.html's inline <style> block — same CSS, just externalized
+   so the browser can cache it instead of re-downloading it with every page load. */
+
+  :root {
+    --navy: #002855;
+    --navy-light: #0b3d7a;
+    --orange: #FF8200;
+    --bg: #f4f6f9;
+    --card: #ffffff;
+    --border: #dde3ea;
+    --text: #1c2733;
+    --muted: #5c6b7a;
+    --good: #1e7a3d;
+    --bad: #b3261e;
+    --warn: #b3730b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  header {
+    background: var(--navy); color: #fff; padding: 20px 28px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  header h1 { margin: 0; font-size: 1.3rem; font-weight: 700; }
+  header .tag {
+    background: var(--orange); color: #1c1300; font-size: 0.72rem;
+    font-weight: 700; letter-spacing: 0.04em; padding: 4px 10px;
+    border-radius: 999px; text-transform: uppercase;
+  }
+  /* ── Shared app nav (same markup/classes as the rest of WINK) ── */
+  
+  main { max-width: 1100px; margin: 0 auto; padding: 24px 20px 64px; }
+  .disclaimer {
+    background: #fff7ec; border: 1px solid #f0c98a; color: #6b4a10;
+    border-radius: 10px; padding: 14px 16px; font-size: 0.88rem; margin-bottom: 22px;
+  }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-bottom: 26px; }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px 18px;
+  }
+  .card .label { font-size: 0.76rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 6px; }
+  .card .value { font-size: 1.6rem; font-weight: 700; color: var(--navy); }
+  .card .sub { font-size: 0.78rem; color: var(--muted); margin-top: 4px; }
+  .value.good { color: var(--good); }
+  .value.bad { color: var(--bad); }
+  .value.warn { color: var(--warn); }
+  section { margin-bottom: 30px; }
+  section h2 {
+    font-size: 1.02rem; color: var(--navy); border-bottom: 2px solid var(--orange);
+    padding-bottom: 6px; margin-bottom: 14px;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 0.86rem; background: var(--card); border-radius: 10px; overflow: hidden; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { background: #eef2f7; color: var(--navy); font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.03em; }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.72rem; font-weight: 600; }
+  .pill.detected { background: #fde9d0; color: #8a5300; }
+  .pill.tfidf { background: #e6edf5; color: var(--navy); }
+  .pill.neural { background: #e3f3e7; color: var(--good); }
+  .pill.full_context { background: #eee; color: #444; }
+  .answer-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px 16px; margin-bottom: 12px;
+  }
+  .answer-card .q { font-weight: 600; margin-bottom: 6px; }
+  .answer-card .a { color: #333; font-size: 0.88rem; white-space: pre-wrap; margin-bottom: 8px; }
+  .answer-card .meta { font-size: 0.76rem; color: var(--muted); margin-bottom: 10px; }
+  .rate-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .rate-row textarea {
+    flex: 1; min-width: 180px; font-size: 0.82rem; padding: 6px 8px;
+    border: 1px solid var(--border); border-radius: 6px; resize: vertical; min-height: 32px;
+  }
+  button.rate {
+    border: none; border-radius: 6px; padding: 7px 14px; font-size: 0.8rem;
+    font-weight: 600; cursor: pointer; color: #fff;
+  }
+  button.rate.correct { background: var(--good); }
+  button.rate.incorrect { background: var(--bad); }
+  button.rate.unsure { background: var(--warn); }
+  button.rate:disabled { opacity: 0.5; cursor: default; }
+  .empty { color: var(--muted); font-size: 0.9rem; padding: 10px 0; }
+  a.export-link { color: var(--navy-light); font-size: 0.84rem; }
+  code.small { font-size: 0.78rem; background: #eef2f7; padding: 2px 5px; border-radius: 4px; }
