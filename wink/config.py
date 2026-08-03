@@ -127,6 +127,17 @@ STUDENT_DOCS_CACHE_TTL_SECONDS = int(os.environ.get("STUDENT_DOCS_CACHE_TTL_SECO
 DB_POOL_MIN = int(os.environ.get("DB_POOL_MIN", "1"))
 DB_POOL_MAX = int(os.environ.get("DB_POOL_MAX", "20"))
 
+# ── Static asset caching ──────────────────────────────────────
+# How long a browser may cache files under /static/ (nav.css,
+# csrf-fetch.js, images) before re-checking with the server. See the
+# after_request hook in wink/__init__.py for where this is applied. Kept
+# to a day by default rather than a year, since these files don't yet
+# have a cache-busting/content-hash naming scheme — a shorter window
+# means an edit to a shared file reaches every browser within a day
+# instead of staying stuck behind a long cache on whoever already
+# fetched the old version.
+STATIC_CACHE_MAX_AGE_SECONDS = int(os.environ.get("STATIC_CACHE_MAX_AGE_SECONDS", str(60 * 60 * 24)))
+
 # ── Retrieval ─────────────────────────────────────────────────
 # See services/retrieval.py for the full explanation. Chunk size and
 # overlap are in characters, matching every other size-related constant in

@@ -15,7 +15,7 @@ import secrets
 from datetime import timedelta
 from pathlib import Path
 
-from flask import Flask, g
+from flask import Flask, g, request
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from . import config, csp_hashes, extensions
@@ -114,6 +114,23 @@ def create_app():
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "SAMEORIGIN"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        # Static assets (nav.css, csrf-fetch.js, images) are shared,
+        # unchanging-between-deploys files now that they're extracted out of
+        # the templates — cache them client-side so a returning visitor's
+        # browser skips re-downloading them entirely instead of re-fetching
+        # the same bytes on every single page load. This is the payoff of
+        # the CSS/JS/image extraction: at low traffic it saves a little
+        # bandwidth; at thousands of concurrent students it's the difference
+        # between the server answering a full request or a free 304.
+        # STATIC_CACHE_MAX_AGE_SECONDS is deliberately moderate (a day, not
+        # a year) since these files have no cache-busting/version-hash
+        # scheme yet — a shorter cache means an edit to nav.css reaches
+        # everyone within a day rather than being stuck behind a year-long
+        # cache on browsers that already fetched the old version. If/when
+        # static filenames get content-hashed (e.g. nav.a1b2c3.css), this can
+        # switch to a long "immutable" cache safely.
+        if request.path.startswith("/static/"):
+            response.headers["Cache-Control"] = f"public, max-age={config.STATIC_CACHE_MAX_AGE_SECONDS}"
         # Tells the browser to force HTTPS on every future visit for a year,
         # so a visitor who reaches the app over plain HTTP even once (a typo,
         # an old bookmark) doesn't stay downgradeable after that. Gated the
