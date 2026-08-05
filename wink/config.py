@@ -176,24 +176,28 @@ MAJORS = [
     "Social Work", "Sociology", "Spanish", "Other"
 ]
 
-# A student's preferred reply language, set via /update-profile. "" (the
-# default) means auto-detect — WINK replies in whatever language the
-# student writes their message in, message by message, which needs no
-# stored preference at all and is the right default for most students.
-# Setting one of these explicitly means "always reply in this language,
-# regardless of what language I type in" — useful for a student who wants
-# to ask questions in English but always get answers in Spanish (or vice
-# versa), which auto-detect alone can't do. Kept short and curated (like
-# CLASSIFICATIONS/MAJORS above) rather than a free-text field, both to
-# validate against and because a fixed list is what the dashboard's
-# eventual language dropdown would offer anyway.
-PREFERRED_LANGUAGES = ["", "English", "Spanish"]
+# A student's preferred reply language, set via /update-profile or at
+# registration. "" (the default / unset) means auto-detect — WINK replies
+# in whatever language the student writes their message in, message by
+# message. Setting one of these explicitly means "always reply in this
+# language, regardless of what language I type in." Blank ("") is handled
+# as its own special case wherever this list is validated (see auth.py and
+# dashboard.py) rather than being a member of the list itself, so this is
+# just the 25 offered languages, in the same order shown in the dropdowns.
+PREFERRED_LANGUAGES = [
+    "Arabic", "Chinese (Mandarin)", "English", "Filipino (Tagalog)", "French",
+    "German", "Gujarati", "Haitian Creole", "Hindi", "Italian", "Japanese",
+    "Korean", "Persian (Farsi)", "Polish", "Portuguese", "Punjabi", "Russian",
+    "Somali", "Spanish", "Swahili", "Thai", "Turkish", "Ukrainian", "Urdu",
+    "Vietnamese",
+]
 
-# See extensions.py's documents.doc_type column comment. 'material' is the
-# default for every existing upload path (backward compatible — nothing
-# about a normal upload changes unless the caller explicitly sends
-# doc_type=assessment).
-DOC_TYPES = ["material", "assessment"]
+# See extensions.py's documents.doc_type column comment. Matches the
+# Document Type dropdown on the Documents page. The old 'material'/
+# 'assessment' pair (and the practice-question style-example behavior tied
+# to 'assessment') has been retired — every value here is now just a plain
+# category label with no special downstream handling.
+DOC_TYPES = ["syllabus", "course_calendar", "assignment_instructions", "notes", "slides", "handout", "other"]
 
 # Content budgets for generate_practice_questions() — separate from the
 # chat context budgets above since this is a one-off generation call, not
