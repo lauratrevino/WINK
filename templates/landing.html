@@ -5,6 +5,36 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>WINK — What I Need to Know</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}">
+  <style nonce="{{ csp_nonce() }}">
+    /* Inline sign-in panel — kept here rather than in landing.css so this
+       change is self-contained; move into landing.css whenever convenient. */
+    .btn-secondary { cursor: pointer; font: inherit; }
+    .signin-inline {
+      margin-top: 18px;
+      max-width: 380px;
+      background: rgba(255,255,255,0.96);
+      border-radius: 12px;
+      padding: 20px 22px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+    }
+    .signin-inline-form { display: flex; flex-direction: column; gap: 10px; }
+    .signin-inline-form input {
+      padding: 10px 14px; border: 1.5px solid #dde3f0; border-radius: 8px;
+      font-size: 14px; color: #002855; outline: none;
+    }
+    .signin-inline-form input:focus { border-color: #FF8200; }
+    .signin-inline-actions { display: flex; align-items: center; gap: 12px; margin-top: 2px; }
+    .btn-text {
+      background: none; border: none; color: #6b7a99; font-size: 13px;
+      cursor: pointer; text-decoration: underline; padding: 0;
+    }
+    .signin-inline-alt { margin-top: 10px; font-size: 13px; }
+    .signin-inline-alt a { color: #002855; }
+    .signin-inline-error {
+      background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c;
+      padding: 8px 12px; border-radius: 8px; font-size: 13px; margin-bottom: 10px;
+    }
+  </style>
 </head>
 <body>
 
@@ -34,9 +64,27 @@
       </p>
 
       <!-- CTA buttons -->
-      <div class="cta-row">
+      <div class="cta-row" id="cta-row">
         <a href="/register" class="btn-primary">Create My Account</a>
-        <a href="/login" class="btn-secondary">Sign In</a>
+        <button type="button" class="btn-secondary" onclick="winkShowSignIn()">Sign In</button>
+      </div>
+
+      <!-- Inline sign-in: lets a returning student log in right here instead
+           of being sent to a separate /login screen first. -->
+      <div class="signin-inline" id="signin-inline" style="display:none;">
+        {% if error %}
+          <div class="signin-inline-error">{{ error }}</div>
+        {% endif %}
+        <form method="POST" action="/login" class="signin-inline-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="email" name="email" placeholder="yourname@school.edu" required autocomplete="username">
+          <input type="password" name="password" placeholder="Password" required autocomplete="current-password">
+          <div class="signin-inline-actions">
+            <button type="submit" class="btn-primary">Sign In &rarr;</button>
+            <button type="button" class="btn-text" onclick="winkHideSignIn()">Cancel</button>
+          </div>
+        </form>
+        <div class="signin-inline-alt"><a href="/login">Forgot password?</a></div>
       </div>
 
       <!-- Feature cards directly under buttons -->
@@ -89,6 +137,21 @@
       ACADEMIC AI
     </div>
   </footer>
+
+  <script nonce="{{ csp_nonce() }}">
+    function winkShowSignIn() {
+      document.getElementById('signin-inline').style.display = 'block';
+      document.getElementById('signin-inline').querySelector('input[type=email]').focus();
+    }
+    function winkHideSignIn() {
+      document.getElementById('signin-inline').style.display = 'none';
+    }
+    {% if error %}
+    // A failed sign-in attempt: open the panel automatically so the error
+    // is visible without the student having to click Sign In again.
+    winkShowSignIn();
+    {% endif %}
+  </script>
 
 </body>
 </html>

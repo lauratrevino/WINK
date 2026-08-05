@@ -51,17 +51,20 @@
   </div>
 
   <script src="{{ url_for('static', filename='js/csrf-fetch.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/course-colors.js') }}"></script>
 <script nonce="{{ csp_nonce() }}">
-    const COLORS = ['#002855', '#FF8200', '#166534', '#7c3aed', '#0891b2', '#be123c', '#4d7c0f', '#a16207'];
     let allDeadlines = [];
     let deadlinesByDate = {};
     let courseColors = {};
     let viewYear, viewMonth; // viewMonth is 0-indexed
 
+    // Colors now come from the shared hash in course-colors.js (see
+    // winkColorForCourse) so Documents and Calendar always agree — this
+    // just caches the lookup per page load instead of recomputing the hash
+    // on every render.
     function colorForCourse(course) {
       if (!(course in courseColors)) {
-        const idx = Object.keys(courseColors).length % COLORS.length;
-        courseColors[course] = COLORS[idx];
+        courseColors[course] = winkColorForCourse(course);
       }
       return courseColors[course];
     }

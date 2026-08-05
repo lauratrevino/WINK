@@ -100,38 +100,6 @@
         </div>
       </div>
 
-      <!-- Quick Actions -->
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title">⚡ Quick Actions</div>
-        </div>
-        <div class="card-body">
-          <div class="quick-actions">
-            <a href="/chat-page" class="action-btn">
-              <div class="action-icon icon-orange">🤖</div>
-              <div class="action-text">
-                <strong>Ask WINK Anything</strong>
-                <span>Get answers from your uploaded materials</span>
-              </div>
-            </a>
-            <a href="/documents" class="action-btn">
-              <div class="action-icon icon-navy">📁</div>
-              <div class="action-text">
-                <strong>Upload Documents</strong>
-                <span>Add syllabi, notes, and assignments</span>
-              </div>
-            </a>
-            <a href="/chat-page" class="action-btn">
-              <div class="action-icon icon-green">📅</div>
-              <div class="action-text">
-                <strong>Check Deadlines</strong>
-                <span>Ask WINK what's due this week</span>
-              </div>
-            </a>
-          </div>
-        </div>
-      </div>
-
     </div>
 
 
@@ -2568,9 +2536,13 @@
               <div class="profile-edit" style="display:none;">
                 <select id="profile-input-language" class="profile-input" style="max-width:260px;">
                   <option value="" {{ 'selected' if not s.preferred_language else '' }}>Auto-detect (matches what you type)</option>
-                  <option value="English" {{ 'selected' if s.preferred_language == 'English' else '' }}>English</option>
-                  <option value="Spanish" {{ 'selected' if s.preferred_language == 'Spanish' else '' }}>Spanish</option>
+                  {% for lang in preferred_languages %}
+                  <option value="{{ lang }}" {{ 'selected' if s.preferred_language == lang else '' }}>{{ lang }}</option>
+                  {% endfor %}
                 </select>
+                <div class="pw-hint" style="font-size:12px;color:#6b7a99;margin-top:4px;">
+                  Don't see your language? Just start typing to WINK in it — it'll match you automatically.
+                </div>
               </div>
             </div>
           </div>

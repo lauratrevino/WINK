@@ -7,6 +7,18 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/nav.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/documents.css') }}">
   <meta name="csrf-token" content="{{ csrf_token() }}">
+  <style nonce="{{ csp_nonce() }}">
+    /* Upload progress bar — kept inline for now; move into documents.css whenever convenient. */
+    .upload-progress-wrap { margin-top: 12px; }
+    .upload-progress-bar {
+      width: 100%; height: 8px; border-radius: 999px; background: #e8edf5; overflow: hidden;
+    }
+    .upload-progress-fill {
+      height: 100%; width: 0%; background: #FF8200; border-radius: 999px;
+      transition: width 0.25s ease;
+    }
+    .upload-progress-label { margin-top: 6px; font-size: 12px; color: #6b7a99; }
+  </style>
 </head>
 <body>
 
@@ -17,11 +29,13 @@
     <!-- Hero -->
     <div class="hero-card">
       <div class="hero-text">
-        <div class="hero-line-1">Build</div>
-        <div class="hero-line-2">WINK's Brain</div>
+        <div class="hero-line-1">Give WINK</div>
+        <div class="hero-line-2">Your Course Material</div>
         <p>
-          For each of your courses, upload your course syllabus, your course calendar, any course assignment instructions, or any file that you want to be included in WINK's knowledge base.
-          Upload PDF, Word (.docx/.doc), PowerPoint (.pptx), Excel (.xlsx), plain text, or image (PNG/JPG) files — up to 16 MB each.
+          Upload a syllabus, course calendar, assignment instructions, notes, slides, or hand-outs for each
+          class — the more WINK has, the more specific and accurate its answers get. WINK reads
+          PDF, Word (.docx/.doc), PowerPoint (.pptx), Excel (.xlsx), plain text, and image (PNG/JPG) files,
+          up to 16 MB each.
           <span class="limit-line{{ ' full' if docs|length >= max_docs else '' }}" id="limit-note-text">
             You can have up to {{ max_docs }} documents total. You're currently using <strong id="info-count">{{ docs|length }}</strong> of {{ max_docs }}.
           </span>
@@ -60,8 +74,13 @@
         <div class="form-group">
           <label class="field-label" for="doc-type-input">Document Type</label>
           <select id="doc-type-input">
-            <option value="material">Course material (syllabus, notes, slides)</option>
-            <option value="assessment">Past exam or quiz (used as a style example for practice questions)</option>
+            <option value="syllabus">Syllabus</option>
+            <option value="course_calendar">Course Calendar</option>
+            <option value="assignment_instructions">Assignment Instructions</option>
+            <option value="notes">Notes</option>
+            <option value="slides">Slides</option>
+            <option value="handout">Hand-Out</option>
+            <option value="other">Other</option>
           </select>
         </div>
       </div>
@@ -82,6 +101,10 @@
       </div>
 
       <button class="btn-upload" id="btn-upload" onclick="uploadFiles()">⬆ Upload File(s)</button>
+      <div id="upload-progress-wrap" class="upload-progress-wrap" style="display:none;">
+        <div class="upload-progress-bar"><div class="upload-progress-fill" id="upload-progress-fill"></div></div>
+        <div class="upload-progress-label" id="upload-progress-label"></div>
+      </div>
       <div id="upload-status"></div>
     </div>
 
@@ -146,7 +169,25 @@
   </div>
 
   <script src="{{ url_for('static', filename='js/csrf-fetch.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/course-colors.js') }}"></script>
 <script nonce="{{ csp_nonce() }}">
+    // Colors each course section to match the color that same course gets
+    // on the Calendar page (shared hash in course-colors.js). Course
+    // headers here can read "Course Name (CRN 12345)" — strip that suffix
+    // before hashing so it matches the plain course name the Calendar uses.
+    function applyCourseColors(root) {
+      (root || document).querySelectorAll('.course-section').forEach(section => {
+        const h3 = section.querySelector('.course-section-header h3');
+        if (!h3) return;
+        const courseName = h3.textContent.replace(/\s*\(CRN[^)]*\)\s*$/i, '').trim();
+        const color = winkColorForCourse(courseName);
+        section.style.borderLeft = `4px solid ${color}`;
+        section.style.paddingLeft = '12px';
+        const badge = section.querySelector('.course-count-badge');
+        if (badge) { badge.style.background = color; badge.style.color = '#fff'; }
+      });
+    }
+
     function winkToast(msg, isError = false) {
       let t = document.getElementById('wink-toast');
       if (!t) {
@@ -267,10 +308,19 @@
         return;
       }
 
+      const progressWrap = document.getElementById('upload-progress-wrap');
+      const progressFill = document.getElementById('upload-progress-fill');
+      const progressLabel = document.getElementById('upload-progress-label');
+      progressWrap.style.display = 'block';
+      progressFill.style.width = '0%';
+
       let uploaded = 0, failed = 0, skipped = 0, lastDocs = null;
+      const total = files.length;
       for (const file of files) {
         if (isAtLimit()) { skipped += (files.length - uploaded - failed); break; }
-        status.innerHTML = `<span class="status-info">⏳ Uploading ${escapeHtml(file.name)} (${uploaded + failed + 1} of ${files.length})…</span>`;
+        const current = uploaded + failed + 1;
+        status.innerHTML = `<span class="status-info">⏳ Uploading ${escapeHtml(file.name)} (${current} of ${total})…</span>`;
+        progressLabel.textContent = `${current} of ${total} — ${file.name}`;
         const fd = new FormData();
         fd.append('file', file); fd.append('course', course); fd.append('crn', crn); fd.append('doc_type', docType);
         try {
@@ -287,12 +337,15 @@
         } catch (e) {
           failed++;
         }
+        progressFill.style.width = `${Math.round(((uploaded + failed) / total) * 100)}%`;
       }
 
       let summary = `✅ Uploaded ${uploaded} file${uploaded !== 1 ? 's' : ''}.`;
       if (failed) summary += ` ${failed} failed.`;
       if (skipped) summary += ` ${skipped} skipped — you hit the ${MAX_DOCS}-document limit.`;
       status.innerHTML = `<span class="${failed || skipped ? 'status-error' : 'status-success'}">${summary}</span>`;
+      progressLabel.textContent = summary;
+      setTimeout(() => { progressWrap.style.display = 'none'; }, 1600);
 
       fileInput.value = '';
       selectedFilesList.innerHTML = '';
@@ -398,6 +451,7 @@
         html += `</tbody></table></div></div>`;
       });
       wrap.innerHTML = html;
+      applyCourseColors(wrap);
       filterDocLibrary(document.getElementById('doc-search')?.value || '');
     }
 
@@ -423,6 +477,7 @@
     }
 
     updateLimitUI();
+    applyCourseColors();
 
     // If we arrived here from a calendar deadline link (#doc-row-123),
     // scroll to that document and flash it so it's obvious which one it was.
