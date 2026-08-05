@@ -24,7 +24,8 @@ def dashboard():
         return render_template("dashboard.html", s=s, admin_email=config.ADMIN_EMAIL, docs=docs,
                                active="dashboard", max_docs=config.MAX_DOCS_PER_STUDENT,
                                upcoming_deadlines=upcoming_deadlines,
-                               questions_this_month=questions_this_month)
+                               questions_this_month=questions_this_month,
+                               preferred_languages=config.PREFERRED_LANGUAGES)
     except Exception as e:
         log_error("dashboard.dashboard", e)
         return "<h2>Something went wrong</h2><p>Please try again, or <a href='/logout'>log out</a> and back in.</p>", 500
@@ -53,7 +54,7 @@ def update_profile():
             return jsonify({"error": "All fields are required."}), 400
         if classification not in config.CLASSIFICATIONS or major not in config.MAJORS:
             return jsonify({"error": "Please choose a valid classification and major."}), 400
-        if preferred_language is not None and preferred_language not in config.PREFERRED_LANGUAGES:
+        if preferred_language is not None and preferred_language and preferred_language not in config.PREFERRED_LANGUAGES:
             return jsonify({"error": "Please choose a supported language."}), 400
         if not config.DB_URL:
             return jsonify({"error": "No database configured."}), 500

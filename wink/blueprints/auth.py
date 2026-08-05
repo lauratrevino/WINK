@@ -27,7 +27,8 @@ _DUMMY_PASSWORD_HASH = generate_password_hash(secrets.token_hex(32))
 def register():
     def err(msg):
         return render_template("register.html", error=msg,
-                               classifications=config.CLASSIFICATIONS, majors=config.MAJORS)
+                               classifications=config.CLASSIFICATIONS, majors=config.MAJORS,
+                               preferred_languages=config.PREFERRED_LANGUAGES)
     try:
         if request.method == "POST":
             if rate_limited(f"register:{request.remote_addr}", max_calls=8, window_seconds=300):
@@ -39,8 +40,13 @@ def register():
             cl = request.form.get("classification", "").strip()
             major = request.form.get("major", "").strip()
             university = request.form.get("university", "").strip()[:200]
+            # Optional — blank means "auto-detect", same as leaving it unset
+            # on the dashboard's profile editor.
+            preferred_language = request.form.get("preferred_language", "").strip()
             if not all([email, pw, fn, ln, cl, major, university]):
                 return err("All fields are required, including your university.")
+            if preferred_language and preferred_language not in config.PREFERRED_LANGUAGES:
+                return err("Please choose a valid preferred language.")
             # classification/major are meant to come from the fixed dropdown
             # lists below — someone posting directly to this endpoint (rather
             # than through the form) could otherwise submit any arbitrary
@@ -64,9 +70,9 @@ def register():
             if cur.fetchone():
                 cur.close()
                 return err("Account already exists — please log in.")
-            cur.execute("""INSERT INTO students(email,password_hash,first_name,last_name,classification,major,university)
-                           VALUES(%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
-                        (email, generate_password_hash(pw), fn, ln, cl, major, university))
+            cur.execute("""INSERT INTO students(email,password_hash,first_name,last_name,classification,major,university,preferred_language)
+                           VALUES(%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                        (email, generate_password_hash(pw), fn, ln, cl, major, university, preferred_language or None))
             new_id = cur.fetchone()["id"]
             verify_token = secrets.token_urlsafe(32)
             cur.execute("UPDATE students SET verification_token=%s WHERE id=%s", (verify_token, new_id))
@@ -80,7 +86,8 @@ def register():
                        f"You can use WINK right away either way — this just confirms we can reach you.\n\n— WINK")
             return redirect(url_for("documents.documents_page"))
         return render_template("register.html", error=None,
-                               classifications=config.CLASSIFICATIONS, majors=config.MAJORS)
+                               classifications=config.CLASSIFICATIONS, majors=config.MAJORS,
+                               preferred_languages=config.PREFERRED_LANGUAGES)
     except Exception as e:
         log_error("auth.register", e)
         return err("Something went wrong on our end. Please try again in a moment.")
