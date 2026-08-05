@@ -54,7 +54,7 @@ def practice_page():
 
 @bp.route("/chat", methods=["POST"])
 @login_required
-@verified_required
+# @verified_required  # TEMP: disabled — remove this comment and re-enable once email sending is confirmed working
 def chat():
     try:
         s = g.student
@@ -368,7 +368,7 @@ def chat():
 
 @bp.route("/generate-practice", methods=["POST"])
 @login_required
-@verified_required
+# @verified_required  # TEMP: disabled — remove this comment and re-enable once email sending is confirmed working
 def generate_practice():
     """Generates new practice questions from a course's material, optionally
     styled after a real past assessment. Material can come from the
