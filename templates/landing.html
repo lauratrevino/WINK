@@ -34,6 +34,16 @@
       background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c;
       padding: 8px 12px; border-radius: 8px; font-size: 13px; margin-bottom: 10px;
     }
+    .signin-divider {
+      max-width: 380px;
+      display: flex; align-items: center; gap: 12px;
+      margin: 18px 0;
+      color: rgba(255,255,255,0.75);
+      font-size: 13px; font-weight: 600; letter-spacing: 0.05em;
+    }
+    .signin-divider::before, .signin-divider::after {
+      content: ""; flex: 1; height: 1px; background: rgba(255,255,255,0.35);
+    }
   </style>
 </head>
 <body>
@@ -64,28 +74,7 @@
       </p>
 
       <!-- CTA buttons -->
-      <div class="cta-row" id="cta-row">
-        <a href="/register" class="btn-primary">Create My Account</a>
-      </div>
-
-      <!-- Inline sign-in: shown expanded by default so returning students
-           can log in right here without an extra click. -->
-      <div class="signin-inline" id="signin-inline">
-        {% if error %}
-          <div class="signin-inline-error">{{ error }}</div>
-        {% endif %}
-        <form method="POST" action="/login" class="signin-inline-form">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input type="email" name="email" placeholder="yourname@school.edu" required autocomplete="username">
-          <input type="password" name="password" placeholder="Password" required autocomplete="current-password">
-          <div class="signin-inline-actions">
-            <button type="submit" class="btn-primary">Sign In &rarr;</button>
-          </div>
-        </form>
-        <div class="signin-inline-alt"><a href="/login">Forgot password?</a></div>
-      </div>
-
-      <!-- Feature cards directly under buttons -->
+      <!-- Feature cards, shown before the sign-in box -->
       <div class="feature-grid">
         <div class="feature-card">
           <div class="feature-card-icon">🧠</div>
@@ -115,6 +104,29 @@
             <div class="feature-card-body">Turn any lecture or reading into flashcards, practice quizzes, or summary sheets in seconds. Includes a grade what-if analysis calculator.</div>
           </div>
         </div>
+      </div>
+
+      <!-- Inline sign-in: shown expanded by default so returning students
+           can log in right here without an extra click. -->
+      <div class="signin-inline" id="signin-inline">
+        {% if error %}
+          <div class="signin-inline-error">{{ error }}</div>
+        {% endif %}
+        <form method="POST" action="/login" class="signin-inline-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="email" name="email" placeholder="yourname@school.edu" required autocomplete="username">
+          <input type="password" name="password" placeholder="Password" required autocomplete="current-password">
+          <div class="signin-inline-actions">
+            <button type="submit" class="btn-primary">Sign In &rarr;</button>
+          </div>
+        </form>
+        <div class="signin-inline-alt"><a href="/login">Forgot password?</a></div>
+      </div>
+
+      <div class="signin-divider">OR</div>
+
+      <div class="cta-row" id="cta-row">
+        <a href="/register" class="btn-primary">Create My Account</a>
       </div>
 
     </div>
