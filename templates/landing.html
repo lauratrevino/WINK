@@ -9,21 +9,28 @@
     /* Inline sign-in panel — kept here rather than in landing.css so this
        change is self-contained; move into landing.css whenever convenient. */
     .btn-secondary { cursor: pointer; font: inherit; }
-    .signin-panel {
+    .right-column {
       position: absolute;
       bottom: 4%;
       right: 4%;
       z-index: 2;
-      width: min(320px, 88vw);
+      width: min(300px, 80vw);
+    }
+    .right-column .feature-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    .signin-panel {
+      max-width: 380px;
       background: rgba(255,255,255,0.96);
       border-radius: 14px;
-      padding: 26px 26px 22px;
-      box-shadow: 0 12px 40px rgba(0,20,50,0.35);
+      padding: 24px 24px 20px;
+      box-shadow: 0 12px 40px rgba(0,20,50,0.25);
+      margin-top: clamp(12px, 1.5vw, 20px);
     }
     .signin-panel-label {
-      font-size: 20px; font-weight: 900; color: #002855;
+      font-size: 18px; font-weight: 900; color: #002855;
       font-family: Georgia, "Times New Roman", serif;
-      margin-bottom: 16px;
+      margin-bottom: 14px;
     }
     .signin-inline-form { display: flex; flex-direction: column; gap: 10px; }
     .signin-inline-form input {
@@ -43,8 +50,20 @@
       background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c;
       padding: 8px 12px; border-radius: 8px; font-size: 13px; margin-bottom: 10px;
     }
+    /* OR divider — a solid pill rather than a plain line, so it stays
+       legible no matter what's behind it in the hero photo. */
+    .signin-divider {
+      width: fit-content;
+      background: rgba(255,255,255,0.92);
+      color: #002855;
+      font-size: 12px; font-weight: 800; letter-spacing: 0.08em;
+      padding: 5px 16px;
+      border-radius: 20px;
+      box-shadow: 0 4px 14px rgba(0,20,50,0.20);
+      margin: 14px 0;
+    }
     @media (max-width: 820px) {
-      .signin-panel {
+      .right-column {
         position: static;
         width: 92%;
         margin: 16px auto 0;
@@ -79,8 +98,33 @@
         resources. Your materials. Your coach. Available 24/7!
       </p>
 
-      <!-- CTA buttons -->
-      <!-- Feature cards, shown before the sign-in box -->
+      <div class="signin-panel" id="signin-panel">
+        <div class="signin-panel-label">Sign In</div>
+        {% if error %}
+          <div class="signin-inline-error">{{ error }}</div>
+        {% endif %}
+        <form method="POST" action="/login" class="signin-inline-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="email" name="email" placeholder="yourname@school.edu" required autocomplete="username">
+          <input type="password" name="password" placeholder="Password" required autocomplete="current-password">
+          <div class="signin-inline-actions">
+            <button type="submit" class="btn-primary">Sign In &rarr;</button>
+          </div>
+        </form>
+        <div class="signin-inline-alt"><a href="/login">Forgot password?</a></div>
+      </div>
+
+      <div class="signin-divider">OR</div>
+
+      <div class="cta-row" id="cta-row">
+        <a href="/register" class="btn-primary">Create My Account</a>
+      </div>
+
+    </div>
+
+    <!-- Right column: feature cards, anchored at the very bottom of the
+         right side. -->
+    <div class="right-column" id="right-column">
       <div class="feature-grid">
         <div class="feature-card">
           <div class="feature-card-icon">🧠</div>
@@ -111,29 +155,6 @@
           </div>
         </div>
       </div>
-
-      <div class="cta-row" id="cta-row">
-        <a href="/register" class="btn-primary">Create My Account</a>
-      </div>
-
-    </div>
-
-    <!-- Sign-in panel: anchored to the right side of the hero, vertically
-         centered, separate from the left-column marketing copy. -->
-    <div class="signin-panel" id="signin-panel">
-      <div class="signin-panel-label">Welcome Back</div>
-      {% if error %}
-        <div class="signin-inline-error">{{ error }}</div>
-      {% endif %}
-      <form method="POST" action="/login" class="signin-inline-form">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="email" name="email" placeholder="yourname@school.edu" required autocomplete="username">
-        <input type="password" name="password" placeholder="Password" required autocomplete="current-password">
-        <div class="signin-inline-actions">
-          <button type="submit" class="btn-primary">Sign In &rarr;</button>
-        </div>
-      </form>
-      <div class="signin-inline-alt"><a href="/login">Forgot password?</a></div>
     </div>
   </div>
 
