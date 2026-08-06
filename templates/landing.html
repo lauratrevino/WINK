@@ -66,12 +66,11 @@
       <!-- CTA buttons -->
       <div class="cta-row" id="cta-row">
         <a href="/register" class="btn-primary">Create My Account</a>
-        <button type="button" class="btn-secondary" onclick="winkShowSignIn()">Sign In</button>
       </div>
 
-      <!-- Inline sign-in: lets a returning student log in right here instead
-           of being sent to a separate /login screen first. -->
-      <div class="signin-inline" id="signin-inline" style="display:none;">
+      <!-- Inline sign-in: shown expanded by default so returning students
+           can log in right here without an extra click. -->
+      <div class="signin-inline" id="signin-inline">
         {% if error %}
           <div class="signin-inline-error">{{ error }}</div>
         {% endif %}
@@ -81,7 +80,6 @@
           <input type="password" name="password" placeholder="Password" required autocomplete="current-password">
           <div class="signin-inline-actions">
             <button type="submit" class="btn-primary">Sign In &rarr;</button>
-            <button type="button" class="btn-text" onclick="winkHideSignIn()">Cancel</button>
           </div>
         </form>
         <div class="signin-inline-alt"><a href="/login">Forgot password?</a></div>
@@ -90,31 +88,31 @@
       <!-- Feature cards directly under buttons -->
       <div class="feature-grid">
         <div class="feature-card">
-          <div class="feature-card-icon">📚</div>
+          <div class="feature-card-icon">🧠</div>
           <div class="feature-card-text">
-            <div class="feature-card-title">Centralize Your Study Library</div>
-            <div class="feature-card-body">Sync syllabi, lecture notes, and research into one searchable hub.</div>
-          </div>
-        </div>
-        <div class="feature-card">
-          <div class="feature-card-icon">🤖</div>
-          <div class="feature-card-text">
-            <div class="feature-card-title">Instant, In-Depth Answers</div>
-            <div class="feature-card-body">Precise answers derived directly from your uploaded files.</div>
+            <div class="feature-card-title">Sharpen Critical Thinking Skills</div>
+            <div class="feature-card-body">Prompts that show you how to reason through problems.</div>
           </div>
         </div>
         <div class="feature-card">
           <div class="feature-card-icon">📅</div>
           <div class="feature-card-text">
             <div class="feature-card-title">Intelligent Academic Calendar</div>
-            <div class="feature-card-body">Never miss a deadline. AI builds your personalized schedule.</div>
+            <div class="feature-card-body">Never miss a deadline again. WINK builds your personalized schedule.</div>
           </div>
         </div>
         <div class="feature-card">
           <div class="feature-card-icon">🎓</div>
           <div class="feature-card-text">
             <div class="feature-card-title">Navigate University Resources</div>
-            <div class="feature-card-body">Advising, mental health support, and career center at a click.</div>
+            <div class="feature-card-body">Advising, mental health support, career center, financial aid, just ask!</div>
+          </div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-card-icon">✍️</div>
+          <div class="feature-card-text">
+            <div class="feature-card-title">Create your Own Custom Study Materials & Calculate Grades</div>
+            <div class="feature-card-body">Turn any lecture or reading into flashcards, practice quizzes, or summary sheets in seconds. Includes a grade what-if analysis calculator.</div>
           </div>
         </div>
       </div>
@@ -139,17 +137,11 @@
   </footer>
 
   <script nonce="{{ csp_nonce() }}">
-    function winkShowSignIn() {
-      document.getElementById('signin-inline').style.display = 'block';
-      document.getElementById('signin-inline').querySelector('input[type=email]').focus();
-    }
-    function winkHideSignIn() {
-      document.getElementById('signin-inline').style.display = 'none';
-    }
     {% if error %}
-    // A failed sign-in attempt: open the panel automatically so the error
-    // is visible without the student having to click Sign In again.
-    winkShowSignIn();
+    // A failed sign-in attempt: scroll the (always-visible) form into view
+    // and focus the email field so the error is easy to spot and retry.
+    document.getElementById('signin-inline').scrollIntoView({ block: 'center' });
+    document.querySelector('#signin-inline input[type=email]').focus();
     {% endif %}
   </script>
 
