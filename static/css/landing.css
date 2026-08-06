@@ -8,12 +8,13 @@
     .hero {
       position: relative;
       width: 100%;
-      aspect-ratio: 1365 / 768;
+      min-height: clamp(680px, 58vw, 960px);
       background-image: url("/static/images/landing-hero.jpg");
       background-size: cover;
       background-position: center center;
       background-repeat: no-repeat;
-      overflow: hidden;
+      overflow: visible;
+      padding-bottom: 40px;
     }
 
     .hero-overlay {
@@ -88,7 +89,7 @@
       line-height: 1.7;
       max-width: 97%;
       text-shadow: 0 1px 3px rgba(255,255,255,0.9), 0 0 12px rgba(255,255,255,0.8);
-      margin-bottom: clamp(12px, 1.5vw, 20px);
+      margin-bottom: clamp(8px, 1vw, 14px);
     }
 
     /* CTA buttons */
