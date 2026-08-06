@@ -9,13 +9,21 @@
     /* Inline sign-in panel — kept here rather than in landing.css so this
        change is self-contained; move into landing.css whenever convenient. */
     .btn-secondary { cursor: pointer; font: inherit; }
-    .signin-inline {
-      margin-top: 18px;
-      max-width: 380px;
+    .signin-panel {
+      position: absolute;
+      bottom: 4%;
+      right: 4%;
+      z-index: 2;
+      width: min(320px, 88vw);
       background: rgba(255,255,255,0.96);
-      border-radius: 12px;
-      padding: 20px 22px;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+      border-radius: 14px;
+      padding: 26px 26px 22px;
+      box-shadow: 0 12px 40px rgba(0,20,50,0.35);
+    }
+    .signin-panel-label {
+      font-size: 20px; font-weight: 900; color: #002855;
+      font-family: Georgia, "Times New Roman", serif;
+      margin-bottom: 16px;
     }
     .signin-inline-form { display: flex; flex-direction: column; gap: 10px; }
     .signin-inline-form input {
@@ -24,25 +32,23 @@
     }
     .signin-inline-form input:focus { border-color: #FF8200; }
     .signin-inline-actions { display: flex; align-items: center; gap: 12px; margin-top: 2px; }
+    .signin-inline-actions .btn-primary { width: 100%; text-align: center; }
     .btn-text {
       background: none; border: none; color: #6b7a99; font-size: 13px;
       cursor: pointer; text-decoration: underline; padding: 0;
     }
-    .signin-inline-alt { margin-top: 10px; font-size: 13px; }
+    .signin-inline-alt { margin-top: 12px; font-size: 13px; text-align: center; }
     .signin-inline-alt a { color: #002855; }
     .signin-inline-error {
       background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c;
       padding: 8px 12px; border-radius: 8px; font-size: 13px; margin-bottom: 10px;
     }
-    .signin-divider {
-      max-width: 380px;
-      display: flex; align-items: center; gap: 12px;
-      margin: 18px 0;
-      color: rgba(255,255,255,0.75);
-      font-size: 13px; font-weight: 600; letter-spacing: 0.05em;
-    }
-    .signin-divider::before, .signin-divider::after {
-      content: ""; flex: 1; height: 1px; background: rgba(255,255,255,0.35);
+    @media (max-width: 820px) {
+      .signin-panel {
+        position: static;
+        width: 92%;
+        margin: 16px auto 0;
+      }
     }
   </style>
 </head>
@@ -106,29 +112,28 @@
         </div>
       </div>
 
-      <!-- Inline sign-in: shown expanded by default so returning students
-           can log in right here without an extra click. -->
-      <div class="signin-inline" id="signin-inline">
-        {% if error %}
-          <div class="signin-inline-error">{{ error }}</div>
-        {% endif %}
-        <form method="POST" action="/login" class="signin-inline-form">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input type="email" name="email" placeholder="yourname@school.edu" required autocomplete="username">
-          <input type="password" name="password" placeholder="Password" required autocomplete="current-password">
-          <div class="signin-inline-actions">
-            <button type="submit" class="btn-primary">Sign In &rarr;</button>
-          </div>
-        </form>
-        <div class="signin-inline-alt"><a href="/login">Forgot password?</a></div>
-      </div>
-
-      <div class="signin-divider">OR</div>
-
       <div class="cta-row" id="cta-row">
         <a href="/register" class="btn-primary">Create My Account</a>
       </div>
 
+    </div>
+
+    <!-- Sign-in panel: anchored to the right side of the hero, vertically
+         centered, separate from the left-column marketing copy. -->
+    <div class="signin-panel" id="signin-panel">
+      <div class="signin-panel-label">Welcome Back</div>
+      {% if error %}
+        <div class="signin-inline-error">{{ error }}</div>
+      {% endif %}
+      <form method="POST" action="/login" class="signin-inline-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="email" name="email" placeholder="yourname@school.edu" required autocomplete="username">
+        <input type="password" name="password" placeholder="Password" required autocomplete="current-password">
+        <div class="signin-inline-actions">
+          <button type="submit" class="btn-primary">Sign In &rarr;</button>
+        </div>
+      </form>
+      <div class="signin-inline-alt"><a href="/login">Forgot password?</a></div>
     </div>
   </div>
 
@@ -152,8 +157,8 @@
     {% if error %}
     // A failed sign-in attempt: scroll the (always-visible) form into view
     // and focus the email field so the error is easy to spot and retry.
-    document.getElementById('signin-inline').scrollIntoView({ block: 'center' });
-    document.querySelector('#signin-inline input[type=email]').focus();
+    document.getElementById('signin-panel').scrollIntoView({ block: 'center' });
+    document.querySelector('#signin-panel input[type=email]').focus();
     {% endif %}
   </script>
 
