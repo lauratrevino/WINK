@@ -42,6 +42,8 @@
         image's natural height alone wouldn't fit the sign-in content —
         harmless on desktop/tablet since the image renders far taller than
         this anyway */
+      max-width: 900px;
+      margin: 0 auto;
       padding-bottom: 0;
       overflow: hidden;
       background-image: none; /* the photo is now the <img> below, not a CSS background */
@@ -87,11 +89,11 @@
       }
     }
     .signin-panel {
-      max-width: 400px;
+      max-width: 340px;
       background: rgba(255,255,255,0.96);
       border: 2px solid #002855;
       border-radius: 14px;
-      padding: 30px 28px 24px;
+      padding: 16px 18px 12px;
       box-shadow: 0 12px 40px rgba(0,20,50,0.25);
       margin: 0;
     }
@@ -120,14 +122,14 @@
       }
     }
     .signin-panel-label {
-      font-size: 20px; font-weight: 900; color: #002855;
+      font-size: 16px; font-weight: 900; color: #002855;
       font-family: Georgia, "Times New Roman", serif;
-      margin-bottom: 14px;
+      margin-bottom: 8px;
     }
-    .signin-inline-form { display: flex; flex-direction: column; gap: 12px; }
+    .signin-inline-form { display: flex; flex-direction: column; gap: 7px; }
     .signin-inline-form input {
-      padding: 13px 16px; border: 1.5px solid #dde3f0; border-radius: 8px;
-      font-size: 15px; color: #002855; outline: none;
+      padding: 9px 12px; border: 1.5px solid #dde3f0; border-radius: 8px;
+      font-size: 13px; color: #002855; outline: none;
       background: #ffffff;
     }
     .signin-inline-form input:focus { border-color: #FF8200; }
