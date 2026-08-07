@@ -12,13 +12,15 @@
     .hero-text .cta-row {
       justify-content: center;
     }
-    /* Feature card strip — now its own full-width band below the hero
-       (previously absolutely positioned over the hero photo). */
+    /* Feature card strip — overlaid on the bottom of the hero photo (inside
+       .hero, positioned absolute) so it sits right under the sign-in box
+       instead of in its own band below the image. */
     .card-bar {
-      width: 100%;
-      box-sizing: border-box;
-      padding: 28px 3.5% 32px;
-      background: #f4f6fb;
+      position: absolute;
+      left: 3.5%;
+      right: 3.5%;
+      bottom: 2.5%;
+      z-index: 2;
     }
     .card-bar .feature-grid {
       grid-template-columns: repeat(4, 1fr);
@@ -26,6 +28,11 @@
       margin: 0 auto;
     }
     @media (max-width: 820px) {
+      .card-bar {
+        position: static;
+        margin: 16px auto 0;
+        width: 92%;
+      }
       .card-bar .feature-grid {
         grid-template-columns: 1fr;
       }
@@ -202,38 +209,38 @@
       </div>
 
     </div>
-  </div>
 
-  <!-- Feature card row: its own full-width band below the hero, not
-       overlaid on the hero photo. -->
-  <div class="card-bar" id="card-bar">
-    <div class="feature-grid">
-      <div class="feature-card">
-        <div class="feature-card-icon">🧠</div>
-        <div class="feature-card-text">
-          <div class="feature-card-title">Sharpen Critical Thinking Skills</div>
-          <div class="feature-card-body">Prompts that show you how to reason through problems.</div>
+    <!-- Feature card row: overlaid on the bottom of the hero photo, right
+         under the sign-in box, instead of sitting in its own band below. -->
+    <div class="card-bar" id="card-bar">
+      <div class="feature-grid">
+        <div class="feature-card">
+          <div class="feature-card-icon">🧠</div>
+          <div class="feature-card-text">
+            <div class="feature-card-title">Sharpen Critical Thinking Skills</div>
+            <div class="feature-card-body">Prompts that show you how to reason through problems.</div>
+          </div>
         </div>
-      </div>
-      <div class="feature-card">
-        <div class="feature-card-icon">📅</div>
-        <div class="feature-card-text">
-          <div class="feature-card-title">Intelligent Academic Calendar</div>
-          <div class="feature-card-body">Never miss a deadline again. WINK builds your personalized schedule.</div>
+        <div class="feature-card">
+          <div class="feature-card-icon">📅</div>
+          <div class="feature-card-text">
+            <div class="feature-card-title">Intelligent Academic Calendar</div>
+            <div class="feature-card-body">Never miss a deadline again. WINK builds your personalized schedule.</div>
+          </div>
         </div>
-      </div>
-      <div class="feature-card">
-        <div class="feature-card-icon">🎓</div>
-        <div class="feature-card-text">
-          <div class="feature-card-title">Navigate University Resources</div>
-          <div class="feature-card-body">Advising, mental health support, career center, financial aid, just ask!</div>
+        <div class="feature-card">
+          <div class="feature-card-icon">🎓</div>
+          <div class="feature-card-text">
+            <div class="feature-card-title">Navigate University Resources</div>
+            <div class="feature-card-body">Advising, mental health support, career center, financial aid, just ask!</div>
+          </div>
         </div>
-      </div>
-      <div class="feature-card">
-        <div class="feature-card-icon">✍️</div>
-        <div class="feature-card-text">
-          <div class="feature-card-title">Create Your Own Study Materials and Grade Calculator</div>
-          <div class="feature-card-body">Make flashcards, practice quizzes, or study guides. Includes a grade what if analysis calculator!</div>
+        <div class="feature-card">
+          <div class="feature-card-icon">✍️</div>
+          <div class="feature-card-text">
+            <div class="feature-card-title">Create Your Own Study Materials and Grade Calculator</div>
+            <div class="feature-card-body">Make flashcards, practice quizzes, or study guides. Includes a grade what if analysis calculator!</div>
+          </div>
         </div>
       </div>
     </div>
