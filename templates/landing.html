@@ -12,15 +12,11 @@
     .hero-text .cta-row {
       justify-content: center;
     }
-    /* Feature card strip — overlaid on the bottom of the hero photo (inside
-       .hero, positioned absolute) so it sits right under the sign-in box
-       instead of in its own band below the image. */
+    /* Feature card strip — lives inside .hero-text now (see below) rather
+       than being independently absolute-positioned, so it can never
+       overlap the sign-in content above it: see the .hero-text comment. */
     .card-bar {
-      position: absolute;
-      left: 3.5%;
-      right: 3.5%;
-      bottom: 0;
-      z-index: 2;
+      width: 100%;
     }
     .card-bar .feature-grid {
       grid-template-columns: repeat(4, 1fr);
@@ -28,11 +24,6 @@
       margin: 0 auto;
     }
     @media (max-width: 820px) {
-      .card-bar {
-        position: static;
-        margin: 16px auto 0;
-        width: 92%;
-      }
       .card-bar .feature-grid {
         grid-template-columns: 1fr;
       }
@@ -64,8 +55,36 @@
        isn't bottlenecked by its container — previously this was 47%, which
        on narrower screens capped the panel's width below the max-width set
        on .signin-panel itself, so widening the panel alone did nothing. */
+    /* .hero-text now spans the FULL hero (not just a 47%/60% left column)
+       and is a flex column with justify-content: space-between: the
+       headline/sign-in content is wrapped in .hero-text-inner (which keeps
+       the original narrower measure), and .card-bar is the flex item after
+       it. space-between guarantees the card row sits at the very bottom of
+       .hero-text with zero possibility of overlapping the content above it
+       — no pixel-height guessing needed, unlike the previous absolute-
+       positioned .card-bar, which had no way to know how tall the sign-in
+       box would render and could collide with it. */
     .hero-text {
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      width: auto;
+      padding: 4% 3.5% 0;
+      box-sizing: border-box;
+      justify-content: space-between;
+    }
+    .hero-text-inner {
       width: 60%;
+      max-width: 640px;
+      display: flex;
+      flex-direction: column;
+    }
+    @media (max-width: 820px) {
+      .hero-text-inner {
+        width: 100%;
+        max-width: none;
+      }
     }
     .signin-panel {
       max-width: 400px;
@@ -162,6 +181,7 @@
     <div class="hero-overlay"></div>
 
     <div class="hero-text">
+      <div class="hero-text-inner">
 
       <!-- 1. READY WHEN YOU ARE -->
       <div class="hero-headline-1">Ready When You Are.</div>
@@ -208,10 +228,11 @@
         </div>
       </div>
 
-    </div>
+      </div>
 
-    <!-- Feature card row: overlaid on the bottom of the hero photo, right
-         under the sign-in box, instead of sitting in its own band below. -->
+    <!-- Feature card row: last item in the .hero-text flex column, pinned
+         to the bottom by justify-content: space-between above — this is
+         what actually guarantees it never overlaps the sign-in content. -->
     <div class="card-bar" id="card-bar">
       <div class="feature-grid">
         <div class="feature-card">
@@ -224,7 +245,7 @@
         <div class="feature-card">
           <div class="feature-card-icon">✍️</div>
           <div class="feature-card-text">
-            <div class="feature-card-title">Create Study Materials/Grade Calculator</div>
+            <div class="feature-card-title">Study Materials/Grade Calculator</div>
             <div class="feature-card-body">Makes flashcards, practice quizzes, or study guides. Includes custom grade calculator.</div>
           </div>
         </div>
@@ -244,6 +265,8 @@
         </div>
       </div>
     </div>
+
+  </div>
   </div>
 
   <footer class="landing-footer">
