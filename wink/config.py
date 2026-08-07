@@ -34,7 +34,7 @@ IMAGE_EXTS_NO_OCR = {"png", "jpg", "jpeg"}
 
 DB_URL = os.environ.get("DATABASE_URL", "")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "lhall@utep.edu").lower()
+ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "lhall@utep.edu").strip().lower()
 # Temporary diagnostic — prints the exact value this running process loaded
 # for ADMIN_EMAIL at startup. Wrapped in repr() so leading/trailing
 # whitespace from a copy-paste into Render's env var UI (a common silent
