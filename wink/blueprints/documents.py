@@ -1,7 +1,8 @@
 import os
 import uuid
 
-from flask import Blueprint, g, jsonify, render_template, request
+from flask import Blueprint, abort, g, jsonify, render_template, request, send_file
+from werkzeug.exceptions import HTTPException
 from werkzeug.utils import secure_filename
 
 from .. import config
@@ -35,6 +36,39 @@ def documents_page():
     except Exception as e:
         log_error("documents.documents", e)
         return "<h2>Something went wrong</h2><p>Please try again, or <a href='/logout'>log out</a> and back in.</p>", 500
+
+
+@bp.route("/documents/<int:doc_id>/file")
+@login_required
+def download_file(doc_id):
+    """Serves the actual uploaded file behind a filename link on the
+    Documents page. Scoped to student_id=%s in the lookup so one student
+    can never reach another student's file just by guessing a doc_id —
+    a 404 either way, same as a nonexistent id, so it doesn't even reveal
+    whether that id belongs to someone else.
+    as_attachment=False lets the browser decide how to handle it: PDFs and
+    images open inline in the new tab, while types it can't render (docx,
+    pptx, xlsx) fall back to a normal download — covering both "open" and
+    "download" without needing two separate links."""
+    try:
+        s = g.student
+        if not config.DB_URL:
+            abort(404)
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("SELECT filename, orig_name FROM documents WHERE id=%s AND student_id=%s", (doc_id, s["id"]))
+        doc = cur.fetchone()
+        cur.close()
+        if not doc:
+            abort(404)
+        fp = os.path.join(config.UPLOAD_FOLDER, str(s["id"]), doc["filename"])
+        if not os.path.exists(fp):
+            abort(404)
+        return send_file(fp, as_attachment=False, download_name=doc["orig_name"])
+    except HTTPException:
+        raise
+    except Exception as e:
+        log_error("documents.download_file", e)
+        abort(500)
 
 
 @bp.route("/upload", methods=["POST"])
