@@ -81,22 +81,14 @@
         max-width: none;
       }
     }
-    /* Shrink everything overlaid on the (now much shorter) hero photo so
-       it actually fits within it, instead of being clipped by
-       overflow:hidden — this was the real cause of "can't see the bottom
-       of the sign-in box": the box was taller than the shrunk hero, and
-       its bottom was getting silently clipped off. */
-    .hero-headline-1, .hero-headline-2 {
-      font-size: 20px !important;
-      margin-bottom: 0 !important;
-    }
-    .wordmark { font-size: 22px; margin-bottom: 0; }
-    .wordmark-sub { font-size: 12px; margin-bottom: 6px; }
-    .hero-copy {
-      font-size: 11px !important;
-      line-height: 1.35 !important;
-      margin-bottom: 6px !important;
-    }
+    /* Sign-in box (and its inputs/buttons) stay shrunk below so they fit
+       within the shrunk hero photo without being clipped — but the
+       headline/wordmark/body-copy text goes back to its normal size from
+       landing.css, just with tighter margins so it still leaves the
+       sign-in box room to breathe. */
+    .hero-headline-2 { margin-bottom: 4px; }
+    .wordmark-sub { margin-bottom: 8px; }
+    .hero-copy { margin-bottom: 8px; }
     .signin-panel {
       max-width: 300px;
       background: rgba(255,255,255,0.96);
