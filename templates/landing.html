@@ -30,26 +30,68 @@
         grid-template-columns: 1fr;
       }
     }
-    /* Pull the card-bar up flush against the bottom of the hero. Zeroing
-       padding-bottom alone wasn't enough — the hero's own min-height (set in
-       landing.css) reserves far more vertical space than the sign-in content
-       actually needs on most screens, leaving a gap of empty hero photo
-       above the card row. Shrinking that min-height closes the gap. Since
-       hero-overlay and hero-text are both position:absolute, min-height is
-       the only thing giving .hero any height at all, so it can't be removed
-       entirely — just brought closer to the content's real height. */
+    /* Hero photo, rebuilt as a real <img> instead of a CSS background.
+       Reasoning: with a background-image + a fixed/clamped min-height, the
+       browser has to crop the photo (background-size:cover) to fill that
+       box — shrinking the min-height to close the gap above the card row
+       cropped more of the photo than intended. An <img> at width:100%;
+       height:auto renders at its natural aspect ratio with zero cropping,
+       and .hero's height becomes exactly that image's rendered height — so
+       the card row that follows sits flush against the bottom of the photo
+       with no gap, and the photo displays in full, uncropped. */
     .hero {
+      min-height: 460px; /* safety floor only, for narrow screens where the
+        image's natural height alone wouldn't fit the sign-in content —
+        harmless on desktop/tablet since the image renders far taller than
+        this anyway */
       padding-bottom: 0;
-      min-height: clamp(520px, 44vw, 720px);
+      overflow: hidden;
+      background-image: none; /* the photo is now the <img> below, not a CSS background */
+    }
+    .hero-bg-img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+    /* Give the sign-in column more room so the wider sign-in box below
+       isn't bottlenecked by its container — previously this was 47%, which
+       on narrower screens capped the panel's width below the max-width set
+       on .signin-panel itself, so widening the panel alone did nothing. */
+    .hero-text {
+      width: 60%;
     }
     .signin-panel {
-      max-width: 560px;
+      max-width: 400px;
       background: rgba(255,255,255,0.96);
       border: 2px solid #002855;
       border-radius: 14px;
       padding: 20px 22px 16px;
       box-shadow: 0 12px 40px rgba(0,20,50,0.25);
+      margin: 0;
+    }
+    /* Sign-in box + OR + Create Account, side by side. */
+    .signin-row {
+      display: flex;
+      align-items: center;
+      gap: 18px;
       margin: clamp(8px, 1vw, 14px) auto 0;
+      width: 100%;
+    }
+    .signin-side {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+    .signin-side .cta-row { margin-bottom: 0; }
+    @media (max-width: 700px) {
+      .signin-row {
+        flex-direction: column;
+      }
+      .signin-panel {
+        max-width: 560px;
+        width: 100%;
+      }
     }
     .signin-panel-label {
       font-size: 17px; font-weight: 900; color: #002855;
@@ -109,6 +151,7 @@
 <body>
 
   <div class="hero">
+    <img class="hero-bg-img" src="{{ url_for('static', filename='images/landing-hero.jpg') }}" alt="">
     <div class="hero-overlay"></div>
 
     <div class="hero-text">
@@ -133,26 +176,29 @@
         resources. Your materials. Your coach. Available 24/7!
       </p>
 
-      <div class="signin-panel" id="signin-panel">
-        <div class="signin-panel-label">Sign In</div>
-        {% if error %}
-          <div class="signin-inline-error">{{ error }}</div>
-        {% endif %}
-        <form method="POST" action="/login" class="signin-inline-form">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input type="email" name="email" placeholder="yourname@school.edu" required autocomplete="username">
-          <input type="password" name="password" placeholder="Password" required autocomplete="current-password">
-          <div class="signin-inline-actions">
-            <button type="submit" class="btn-primary">Sign In &rarr;</button>
+      <div class="signin-row" id="signin-row">
+        <div class="signin-panel" id="signin-panel">
+          <div class="signin-panel-label">Sign In</div>
+          {% if error %}
+            <div class="signin-inline-error">{{ error }}</div>
+          {% endif %}
+          <form method="POST" action="/login" class="signin-inline-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="email" name="email" placeholder="yourname@school.edu" required autocomplete="username">
+            <input type="password" name="password" placeholder="Password" required autocomplete="current-password">
+            <div class="signin-inline-actions">
+              <button type="submit" class="btn-primary">Sign In &rarr;</button>
+            </div>
+          </form>
+          <div class="signin-inline-alt"><a href="/login">Forgot password?</a></div>
+        </div>
+
+        <div class="signin-side">
+          <div class="signin-divider">OR</div>
+          <div class="cta-row" id="cta-row">
+            <a href="/register" class="btn-primary">Create My Account</a>
           </div>
-        </form>
-        <div class="signin-inline-alt"><a href="/login">Forgot password?</a></div>
-      </div>
-
-      <div class="signin-divider">OR</div>
-
-      <div class="cta-row" id="cta-row">
-        <a href="/register" class="btn-primary">Create My Account</a>
+        </div>
       </div>
 
     </div>
