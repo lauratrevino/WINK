@@ -161,6 +161,15 @@ def verify_email(token):
         return current_app.response_class("Something went wrong on our end. Please try again.", mimetype="text/plain"), 500
 
 
+@bp.route("/verification-status")
+@login_required
+def verification_status():
+    """Lightweight check the dashboard polls on tab focus so a student who
+    verifies their email in another tab (via the emailed link) sees the
+    badge update automatically, instead of needing to know to refresh."""
+    return jsonify({"email_verified": bool(g.student.get("email_verified"))})
+
+
 @bp.route("/resend-verification", methods=["POST"])
 @login_required
 def resend_verification():
