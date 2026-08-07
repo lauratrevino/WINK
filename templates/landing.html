@@ -12,16 +12,24 @@
     .hero-text .cta-row {
       justify-content: center;
     }
-    /* Feature card strip — lives inside .hero-text now (see below) rather
-       than being independently absolute-positioned, so it can never
-       overlap the sign-in content above it: see the .hero-text comment. */
+    /* Feature card strip — a plain band in normal document flow directly
+       below the hero, not overlaid on the photo. Earlier this lived inside
+       .hero pinned to the bottom via flexbox, which guaranteed no overlap
+       with the sign-in box — but it also meant the cards were only as
+       visible as the hero was tall, and once the hero got short (see the
+       max-width cap below) there wasn't room left and they got clipped
+       entirely by .hero's overflow:hidden. Normal flow has no such
+       failure mode: the cards always render, right after wherever the
+       hero ends, at whatever height they need. */
     .card-bar {
       width: 100%;
+      max-width: 900px;
+      margin: 0 auto;
+      box-sizing: border-box;
+      padding: 20px 3.5% 0;
     }
     .card-bar .feature-grid {
       grid-template-columns: repeat(4, 1fr);
-      max-width: 1280px;
-      margin: 0 auto;
     }
     @media (max-width: 820px) {
       .card-bar .feature-grid {
@@ -31,17 +39,14 @@
     /* Hero photo, rebuilt as a real <img> instead of a CSS background.
        Reasoning: with a background-image + a fixed/clamped min-height, the
        browser has to crop the photo (background-size:cover) to fill that
-       box — shrinking the min-height to close the gap above the card row
-       cropped more of the photo than intended. An <img> at width:100%;
-       height:auto renders at its natural aspect ratio with zero cropping,
-       and .hero's height becomes exactly that image's rendered height — so
-       the card row that follows sits flush against the bottom of the photo
-       with no gap, and the photo displays in full, uncropped. */
+       box. An <img> at width:100%; height:auto renders at its natural
+       aspect ratio with zero cropping — .hero's height becomes exactly
+       that image's rendered height. Capping .hero's max-width shrinks the
+       whole photo (and everything overlaid on it) proportionally, still
+       fully uncropped, just smaller — rather than fighting over a fixed
+       pixel height. */
     .hero {
-      min-height: 460px; /* safety floor only, for narrow screens where the
-        image's natural height alone wouldn't fit the sign-in content —
-        harmless on desktop/tablet since the image renders far taller than
-        this anyway */
+      min-height: 0;
       max-width: 900px;
       margin: 0 auto;
       padding-bottom: 0;
@@ -57,24 +62,12 @@
        isn't bottlenecked by its container — previously this was 47%, which
        on narrower screens capped the panel's width below the max-width set
        on .signin-panel itself, so widening the panel alone did nothing. */
-    /* .hero-text now spans the FULL hero (not just a 47%/60% left column)
-       and is a flex column with justify-content: space-between: the
-       headline/sign-in content is wrapped in .hero-text-inner (which keeps
-       the original narrower measure), and .card-bar is the flex item after
-       it. space-between guarantees the card row sits at the very bottom of
-       .hero-text with zero possibility of overlapping the content above it
-       — no pixel-height guessing needed, unlike the previous absolute-
-       positioned .card-bar, which had no way to know how tall the sign-in
-       box would render and could collide with it. */
     .hero-text {
-      top: 0;
+      width: auto;
       left: 0;
       right: 0;
-      bottom: 0;
-      width: auto;
-      padding: 4% 3.5% 0;
+      padding: 4% 3.5% 4%;
       box-sizing: border-box;
-      justify-content: space-between;
     }
     .hero-text-inner {
       width: 60%;
@@ -232,43 +225,43 @@
 
       </div>
 
-    <!-- Feature card row: last item in the .hero-text flex column, pinned
-         to the bottom by justify-content: space-between above — this is
-         what actually guarantees it never overlaps the sign-in content. -->
-    <div class="card-bar" id="card-bar">
-      <div class="feature-grid">
-        <div class="feature-card">
-          <div class="feature-card-icon">🧠</div>
-          <div class="feature-card-text">
-            <div class="feature-card-title">Sharpen Critical Thinking Skills</div>
-            <div class="feature-card-body">Prompts that show you how to reason through problems.</div>
-          </div>
+    </div>
+  </div>
+
+  <!-- Feature card row: normal block right after the hero, not overlaid on
+       the photo — always renders in full regardless of how tall/short the
+       hero itself ends up being. -->
+  <div class="card-bar" id="card-bar">
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="feature-card-icon">🧠</div>
+        <div class="feature-card-text">
+          <div class="feature-card-title">Sharpen Critical Thinking Skills</div>
+          <div class="feature-card-body">Prompts that show you how to reason through problems.</div>
         </div>
-        <div class="feature-card">
-          <div class="feature-card-icon">✍️</div>
-          <div class="feature-card-text">
-            <div class="feature-card-title">Study Materials/Grade Calculator</div>
-            <div class="feature-card-body">Makes flashcards, practice quizzes, or study guides. Includes custom grade calculator.</div>
-          </div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-card-icon">✍️</div>
+        <div class="feature-card-text">
+          <div class="feature-card-title">Study Materials/Grade Calculator</div>
+          <div class="feature-card-body">Makes flashcards, practice quizzes, or study guides. Includes custom grade calculator.</div>
         </div>
-        <div class="feature-card">
-          <div class="feature-card-icon">🎓</div>
-          <div class="feature-card-text">
-            <div class="feature-card-title">Navigate University Resources</div>
-            <div class="feature-card-body">Advising, mental health support, career center, financial aid, just ask!</div>
-          </div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-card-icon">🎓</div>
+        <div class="feature-card-text">
+          <div class="feature-card-title">Navigate University Resources</div>
+          <div class="feature-card-body">Advising, mental health support, career center, financial aid, just ask!</div>
         </div>
-        <div class="feature-card">
-          <div class="feature-card-icon">📅</div>
-          <div class="feature-card-text">
-            <div class="feature-card-title">Intelligent Academic Calendar</div>
-            <div class="feature-card-body">Never miss a deadline again. WINK builds your personalized schedule.</div>
-          </div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-card-icon">📅</div>
+        <div class="feature-card-text">
+          <div class="feature-card-title">Intelligent Academic Calendar</div>
+          <div class="feature-card-body">Never miss a deadline again. WINK builds your personalized schedule.</div>
         </div>
       </div>
     </div>
-
-  </div>
   </div>
 
   <footer class="landing-footer">
