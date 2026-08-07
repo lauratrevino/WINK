@@ -26,7 +26,7 @@
       max-width: 900px;
       margin: 0 auto;
       box-sizing: border-box;
-      padding: 20px 3.5% 0;
+      padding: 0 3.5% 0;
     }
     .card-bar .feature-grid {
       grid-template-columns: repeat(4, 1fr);
@@ -66,7 +66,7 @@
       width: auto;
       left: 0;
       right: 0;
-      padding: 4% 3.5% 4%;
+      padding: 2.5% 3.5% 2%;
       box-sizing: border-box;
     }
     .hero-text-inner {
@@ -81,12 +81,28 @@
         max-width: none;
       }
     }
+    /* Shrink everything overlaid on the (now much shorter) hero photo so
+       it actually fits within it, instead of being clipped by
+       overflow:hidden — this was the real cause of "can't see the bottom
+       of the sign-in box": the box was taller than the shrunk hero, and
+       its bottom was getting silently clipped off. */
+    .hero-headline-1, .hero-headline-2 {
+      font-size: 20px !important;
+      margin-bottom: 0 !important;
+    }
+    .wordmark { font-size: 22px; margin-bottom: 0; }
+    .wordmark-sub { font-size: 12px; margin-bottom: 6px; }
+    .hero-copy {
+      font-size: 11px !important;
+      line-height: 1.35 !important;
+      margin-bottom: 6px !important;
+    }
     .signin-panel {
-      max-width: 340px;
+      max-width: 300px;
       background: rgba(255,255,255,0.96);
       border: 2px solid #002855;
-      border-radius: 14px;
-      padding: 16px 18px 12px;
+      border-radius: 10px;
+      padding: 10px 14px 8px;
       box-shadow: 0 12px 40px rgba(0,20,50,0.25);
       margin: 0;
     }
@@ -115,14 +131,14 @@
       }
     }
     .signin-panel-label {
-      font-size: 16px; font-weight: 900; color: #002855;
+      font-size: 13px; font-weight: 900; color: #002855;
       font-family: Georgia, "Times New Roman", serif;
-      margin-bottom: 8px;
+      margin-bottom: 5px;
     }
-    .signin-inline-form { display: flex; flex-direction: column; gap: 7px; }
+    .signin-inline-form { display: flex; flex-direction: column; gap: 5px; }
     .signin-inline-form input {
-      padding: 9px 12px; border: 1.5px solid #dde3f0; border-radius: 8px;
-      font-size: 13px; color: #002855; outline: none;
+      padding: 6px 10px; border: 1.5px solid #dde3f0; border-radius: 6px;
+      font-size: 11px; color: #002855; outline: none;
       background: #ffffff;
     }
     .signin-inline-form input:focus { border-color: #FF8200; }
@@ -139,6 +155,10 @@
     }
     .signin-inline-actions { display: flex; align-items: center; gap: 12px; margin-top: 2px; }
     .signin-inline-actions .btn-primary { width: 100%; text-align: center; }
+    .signin-row .btn-primary {
+      font-size: 11px !important;
+      padding: 7px 14px !important;
+    }
     /* Create My Account button — same border treatment as the Sign In box,
        scoped to .cta-row so the Sign In button (also .btn-primary) is untouched. */
     .cta-row .btn-primary {
@@ -148,7 +168,7 @@
       background: none; border: none; color: #6b7a99; font-size: 13px;
       cursor: pointer; text-decoration: underline; padding: 0;
     }
-    .signin-inline-alt { margin-top: 12px; font-size: 13px; text-align: center; }
+    .signin-inline-alt { margin-top: 6px; font-size: 10px; text-align: center; }
     .signin-inline-alt a { color: #002855; }
     .signin-inline-error {
       background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c;
@@ -160,12 +180,12 @@
       width: fit-content;
       background: rgba(255,255,255,0.92);
       color: #002855;
-      font-size: 12px; font-weight: 800; letter-spacing: 0.08em;
-      padding: 5px 16px;
+      font-size: 10px; font-weight: 800; letter-spacing: 0.08em;
+      padding: 4px 12px;
       border: 2px solid #002855;
       border-radius: 20px;
       box-shadow: 0 4px 14px rgba(0,20,50,0.20);
-      margin: 10px auto;
+      margin: 6px auto;
     }
   </style>
 </head>
