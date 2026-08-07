@@ -30,8 +30,13 @@
         grid-template-columns: 1fr;
       }
     }
+    /* Pull the card-bar up flush against the bottom of the hero — the hero
+       image itself reserves 40px of padding below its content in landing.css. */
+    .hero {
+      padding-bottom: 0;
+    }
     .signin-panel {
-      max-width: 380px;
+      max-width: 480px;
       background: rgba(255,255,255,0.96);
       border: 2px solid #002855;
       border-radius: 14px;
@@ -64,6 +69,11 @@
     }
     .signin-inline-actions { display: flex; align-items: center; gap: 12px; margin-top: 2px; }
     .signin-inline-actions .btn-primary { width: 100%; text-align: center; }
+    /* Create My Account button — same border treatment as the Sign In box,
+       scoped to .cta-row so the Sign In button (also .btn-primary) is untouched. */
+    .cta-row .btn-primary {
+      border: 2px solid #002855;
+    }
     .btn-text {
       background: none; border: none; color: #6b7a99; font-size: 13px;
       cursor: pointer; text-decoration: underline; padding: 0;
