@@ -157,12 +157,14 @@
               <div class="profile-label">Email</div>
               <div class="profile-value">
                 {{ s.email }}
+                <span id="email-verify-status">
                 {% if s.email_verified %}
                   <span class="badge" style="background:#dcfce7;color:#166534;margin-left:8px;">✓ Verified</span>
                 {% else %}
                   <span class="badge" style="background:#fef2f2;color:#b91c1c;margin-left:8px;">Not verified</span>
                   <button onclick="resendVerification(this)" style="background:none;border:none;color:#FF8200;font-size:12px;font-weight:600;cursor:pointer;text-decoration:underline;margin-left:8px;padding:0;">Resend email</button>
                 {% endif %}
+                </span>
               </div>
             </div>
           </div>
@@ -2662,6 +2664,33 @@
         btn.textContent = original; btn.disabled = false;
       }
     }
+
+    // A student typically clicks the verification link from an email
+    // client in a NEW tab, leaving this dashboard tab open and unaware
+    // anything changed. Re-checking status when this tab regains focus
+    // (switching back after clicking the link) catches that automatically,
+    // so nobody needs to know to hit refresh.
+    (function watchVerificationStatus() {
+      const statusEl = document.getElementById('email-verify-status');
+      if (!statusEl || statusEl.querySelector('.badge')?.textContent.includes('Verified')) return;
+      async function checkStatus() {
+        try {
+          const res = await fetch('/verification-status');
+          const data = await res.json();
+          if (data.email_verified) {
+            statusEl.innerHTML = '<span class="badge" style="background:#dcfce7;color:#166534;margin-left:8px;">✓ Verified</span>';
+            winkToast('Your email is now verified!');
+            document.removeEventListener('visibilitychange', onVisible);
+            window.removeEventListener('focus', onVisible);
+          }
+        } catch (e) { /* silent — just try again on the next focus/visibility event */ }
+      }
+      function onVisible() {
+        if (document.visibilityState === 'visible') checkStatus();
+      }
+      document.addEventListener('visibilitychange', onVisible);
+      window.addEventListener('focus', onVisible);
+    })();
 
     async function saveProfileEdit() {
       const first_name = document.getElementById('profile-input-first').value.trim();
