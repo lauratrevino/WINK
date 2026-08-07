@@ -65,6 +65,13 @@ SMTP_USER = os.environ.get("SMTP_USER", "")
 SMTP_PASS = os.environ.get("SMTP_PASS", "")
 FROM_EMAIL = os.environ.get("FROM_EMAIL", SMTP_USER or "wink@utep.edu")
 EMAIL_CONFIGURED = bool(SMTP_HOST and SMTP_USER and SMTP_PASS)
+# Temporary diagnostic, same reasoning as the ADMIN_EMAIL print above — shows
+# exactly what this process loaded for the SMTP settings at startup, so a
+# blank/missing value or stray whitespace is visible in the deploy log
+# immediately instead of only showing up as a silent failed send later.
+# SMTP_PASS is intentionally NOT printed, even masked, since Render logs
+# aren't a safe place to leave a credential recoverable.
+print(f"CONFIG: EMAIL_CONFIGURED={EMAIL_CONFIGURED} SMTP_HOST={SMTP_HOST!r} SMTP_USER={SMTP_USER!r} SMTP_PORT={SMTP_PORT!r}", flush=True)
 # Shared secret that an external scheduler (Render cron job, GitHub Action,
 # etc.) must pass to trigger deadline reminder emails, so the endpoint can't
 # be used by a random visitor to spam every student.
