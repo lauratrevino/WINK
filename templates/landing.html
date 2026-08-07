@@ -12,22 +12,20 @@
     .hero-text .cta-row {
       justify-content: center;
     }
+    /* Feature card strip — now its own full-width band below the hero
+       (previously absolutely positioned over the hero photo). */
     .card-bar {
-      position: absolute;
-      bottom: 3%;
-      left: 3.5%;
-      right: 3.5%;
-      z-index: 2;
+      width: 100%;
+      box-sizing: border-box;
+      padding: 28px 3.5% 32px;
+      background: #f4f6fb;
     }
     .card-bar .feature-grid {
       grid-template-columns: repeat(4, 1fr);
+      max-width: 1280px;
+      margin: 0 auto;
     }
     @media (max-width: 820px) {
-      .card-bar {
-        position: static;
-        width: 92%;
-        margin: 16px auto 0;
-      }
       .card-bar .feature-grid {
         grid-template-columns: 1fr;
       }
@@ -140,38 +138,38 @@
       </div>
 
     </div>
+  </div>
 
-    <!-- Card bar: feature cards, spanning the full width of the bottom of
-         the hero. -->
-    <div class="card-bar" id="card-bar">
-      <div class="feature-grid">
-        <div class="feature-card">
-          <div class="feature-card-icon">🧠</div>
-          <div class="feature-card-text">
-            <div class="feature-card-title">Sharpen Critical Thinking Skills</div>
-            <div class="feature-card-body">Prompts that show you how to reason through problems.</div>
-          </div>
+  <!-- Feature card row: its own full-width band below the hero, not
+       overlaid on the hero photo. -->
+  <div class="card-bar" id="card-bar">
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="feature-card-icon">🧠</div>
+        <div class="feature-card-text">
+          <div class="feature-card-title">Sharpen Critical Thinking Skills</div>
+          <div class="feature-card-body">Prompts that show you how to reason through problems.</div>
         </div>
-        <div class="feature-card">
-          <div class="feature-card-icon">📅</div>
-          <div class="feature-card-text">
-            <div class="feature-card-title">Intelligent Academic Calendar</div>
-            <div class="feature-card-body">Never miss a deadline again. WINK builds your personalized schedule.</div>
-          </div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-card-icon">📅</div>
+        <div class="feature-card-text">
+          <div class="feature-card-title">Intelligent Academic Calendar</div>
+          <div class="feature-card-body">Never miss a deadline again. WINK builds your personalized schedule.</div>
         </div>
-        <div class="feature-card">
-          <div class="feature-card-icon">🎓</div>
-          <div class="feature-card-text">
-            <div class="feature-card-title">Navigate University Resources</div>
-            <div class="feature-card-body">Advising, mental health support, career center, financial aid, just ask!</div>
-          </div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-card-icon">🎓</div>
+        <div class="feature-card-text">
+          <div class="feature-card-title">Navigate University Resources</div>
+          <div class="feature-card-body">Advising, mental health support, career center, financial aid, just ask!</div>
         </div>
-        <div class="feature-card">
-          <div class="feature-card-icon">✍️</div>
-          <div class="feature-card-text">
-            <div class="feature-card-title">Create your Own Custom Study Materials & Calculate Grades</div>
-            <div class="feature-card-body">Turn any lecture or reading into flashcards, practice quizzes, or summary sheets in seconds. Includes a grade what-if analysis calculator.</div>
-          </div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-card-icon">✍️</div>
+        <div class="feature-card-text">
+          <div class="feature-card-title">Create your Own Custom Study Materials & Calculate Grades</div>
+          <div class="feature-card-body">Turn materials into flashcards, practice quizzes, or study guides. Includes a grade what if analysis calculator!</div>
         </div>
       </div>
     </div>

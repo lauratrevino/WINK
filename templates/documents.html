@@ -18,6 +18,37 @@
       transition: width 0.25s ease;
     }
     .upload-progress-label { margin-top: 6px; font-size: 12px; color: #6b7a99; }
+    /* Download progress bar — same treatment as the upload one above, shown
+       next to the upload button while a file download is in flight. */
+    .download-progress-wrap { margin-top: 12px; }
+    .download-progress-bar {
+      width: 100%; height: 8px; border-radius: 999px; background: #e8edf5; overflow: hidden;
+    }
+    .download-progress-fill {
+      height: 100%; width: 0%; background: #002855; border-radius: 999px;
+      transition: width 0.25s ease;
+    }
+    .download-progress-label { margin-top: 6px; font-size: 12px; color: #6b7a99; }
+    /* Download button next to Delete in each document row. */
+    .btn-download {
+      background: #eef2fb; color: #002855; border: 1.5px solid #dde3f0;
+      border-radius: 8px; padding: 6px 12px; font-size: 13px; font-weight: 700;
+      cursor: pointer; margin-right: 6px;
+    }
+    .btn-download:hover { background: #dde7fb; border-color: #002855; }
+    /* Filenames are now links (open/download the actual file) — keep them
+       looking like the plain text they replaced rather than default blue/
+       underlined link styling, with just a hover cue that they're clickable. */
+    .doc-name-text {
+      color: inherit;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .doc-name-text:hover,
+    .doc-name-text:focus-visible {
+      text-decoration: underline;
+      color: #FF8200;
+    }
   </style>
 </head>
 <body>
@@ -105,6 +136,10 @@
         <div class="upload-progress-bar"><div class="upload-progress-fill" id="upload-progress-fill"></div></div>
         <div class="upload-progress-label" id="upload-progress-label"></div>
       </div>
+      <div id="download-progress-wrap" class="download-progress-wrap" style="display:none;">
+        <div class="download-progress-bar"><div class="download-progress-fill" id="download-progress-fill"></div></div>
+        <div class="download-progress-label" id="download-progress-label"></div>
+      </div>
       <div id="upload-status"></div>
     </div>
 
@@ -143,12 +178,15 @@
                           <path d="M14 2v6h6" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
                         </svg>
                       </span>
-                      <span class="doc-name-text">{{ doc.orig_name }}</span>
+                      <a class="doc-name-text" href="{{ url_for('documents.download_file', doc_id=doc.id) }}" target="_blank" rel="noopener">{{ doc.orig_name }}</a>
                     </div>
                   </td>
                   <td>{{ (doc.size_bytes / 1024)|round(1) }} KB</td>
                   <td>{{ doc.uploaded_at.strftime('%b %d, %Y') if doc.uploaded_at else '—' }}</td>
-                  <td><button class="btn-delete" data-doc-id="{{ doc.id }}">Delete</button></td>
+                  <td>
+                    <button class="btn-download" data-doc-url="{{ url_for('documents.download_file', doc_id=doc.id) }}" data-doc-name="{{ doc.orig_name }}">⬇ Download</button>
+                    <button class="btn-delete" data-doc-id="{{ doc.id }}">Delete</button>
+                  </td>
                 </tr>
                 {% endfor %}
               </tbody>
@@ -378,6 +416,61 @@
       if (btn && btn.dataset.docId) deleteDoc(parseInt(btn.dataset.docId, 10));
     });
 
+    // Delegated listener for every download button — same reasoning as the
+    // delete listener above: covers server-rendered and JS-rendered rows alike.
+    document.addEventListener('click', function(e) {
+      const btn = e.target.closest('.btn-download');
+      if (btn && btn.dataset.docUrl) downloadDoc(btn.dataset.docUrl, btn.dataset.docName || 'document');
+    });
+
+    async function downloadDoc(url, filename) {
+      const wrap = document.getElementById('download-progress-wrap');
+      const fill = document.getElementById('download-progress-fill');
+      const label = document.getElementById('download-progress-label');
+      wrap.style.display = 'block';
+      fill.style.width = '0%';
+      label.textContent = `Downloading ${filename}…`;
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('Download failed');
+        const totalStr = res.headers.get('Content-Length');
+        const total = totalStr ? parseInt(totalStr, 10) : 0;
+        const reader = res.body.getReader();
+        const chunks = [];
+        let received = 0;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+          received += value.length;
+          if (total) {
+            const pct = Math.round((received / total) * 100);
+            fill.style.width = `${pct}%`;
+            label.textContent = `Downloading ${filename}… ${pct}%`;
+          } else {
+            fill.style.width = '100%';
+            label.textContent = `Downloading ${filename}… ${(received / 1024).toFixed(0)} KB`;
+          }
+        }
+        const blob = new Blob(chunks);
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(blobUrl);
+        fill.style.width = '100%';
+        label.textContent = `Downloaded ${filename}.`;
+      } catch (e) {
+        label.textContent = `Could not download ${filename}.`;
+        winkToast('Download failed — please try again.', true);
+      } finally {
+        setTimeout(() => { wrap.style.display = 'none'; }, 1600);
+      }
+    }
+
     async function deleteDoc(id) {
       const ok = await winkConfirm({
         title: 'Delete this document?',
@@ -457,10 +550,13 @@
             ? new Date(d.uploaded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
             : '—';
           html += `<tr id="doc-row-${d.id}">
-            <td><div class="doc-name-cell"><span class="doc-file-icon">${fileIcon(d.orig_name)}</span><span class="doc-name-text">${escapeHtml(d.orig_name)}</span></div></td>
+            <td><div class="doc-name-cell"><span class="doc-file-icon">${fileIcon(d.orig_name)}</span><a class="doc-name-text" href="/documents/${d.id}/file" target="_blank" rel="noopener">${escapeHtml(d.orig_name)}</a></div></td>
             <td>${(d.size_bytes/1024).toFixed(1)} KB</td>
             <td>${uploadedDate}</td>
-            <td><button class="btn-delete" data-doc-id="${d.id}" aria-label="Delete ${escapeHtml(d.orig_name)}">Delete</button></td>
+            <td>
+              <button class="btn-download" data-doc-url="/documents/${d.id}/file" data-doc-name="${escapeHtml(d.orig_name)}" aria-label="Download ${escapeHtml(d.orig_name)}">⬇ Download</button>
+              <button class="btn-delete" data-doc-id="${d.id}" aria-label="Delete ${escapeHtml(d.orig_name)}">Delete</button>
+            </td>
           </tr>`;
         });
         html += `</tbody></table></div></div>`;

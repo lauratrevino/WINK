@@ -7,6 +7,31 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/nav.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/analytics.css') }}">
   <meta name="csrf-token" content="{{ csrf_token() }}">
+  <style nonce="{{ csp_nonce() }}">
+    /* Shrink the top stat cards so all five stay on one row instead of
+       wrapping — kept inline for now; move into analytics.css whenever convenient. */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+    }
+    .stats-row .stat-card {
+      padding: 12px 8px;
+      min-width: 0;
+    }
+    .stats-row .stat-value { font-size: 22px; }
+    .stats-row .stat-label { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    @media (max-width: 720px) {
+      .stats-row { gap: 6px; }
+      .stats-row .stat-card { padding: 8px 4px; }
+      .stats-row .stat-value { font-size: 16px; }
+      .stats-row .stat-label { font-size: 9px; }
+    }
+    /* "Active" badge for students who aren't suspended — the status column
+       previously showed nothing but a Suspend button for active students,
+       so there was no visual "this student is currently active" state. */
+    .badge-active { background: #ecfdf5; color: #047857; }
+  </style>
 </head>
 <body>
 
@@ -2690,7 +2715,8 @@
               <td>${s.uploads}</td>
               <td>
                 ${s.is_active
-                  ? `<button class="tab-btn student-toggle-btn" style="padding:4px 10px;font-size:11px;" data-id="${s.id}" data-active="true">Suspend</button>`
+                  ? `<span class="badge badge-active">Active</span>
+                     <button class="tab-btn student-toggle-btn" style="padding:4px 10px;font-size:11px;margin-left:6px;" data-id="${s.id}" data-active="true">Suspend</button>`
                   : `<span class="badge" style="background:#fef2f2;color:#b91c1c;">Suspended</span>
                      <button class="tab-btn student-toggle-btn" style="padding:4px 10px;font-size:11px;margin-left:6px;" data-id="${s.id}" data-active="false">Reactivate</button>`}
               </td>
