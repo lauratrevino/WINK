@@ -59,11 +59,11 @@ DEBUG_SHOW_RESET_LINKS = os.environ.get("DEBUG_SHOW_RESET_LINKS", "false").lower
 # interface), Gmail (with an app password), etc. — set these four env vars
 # and password reset + deadline reminder emails start actually sending
 # instead of only being logged.
-SMTP_HOST = os.environ.get("SMTP_HOST", "")
+SMTP_HOST = os.environ.get("SMTP_HOST", "").strip()
 SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
-SMTP_USER = os.environ.get("SMTP_USER", "")
-SMTP_PASS = os.environ.get("SMTP_PASS", "")
-FROM_EMAIL = os.environ.get("FROM_EMAIL", SMTP_USER or "wink@utep.edu")
+SMTP_USER = os.environ.get("SMTP_USER", "").strip()
+SMTP_PASS = os.environ.get("SMTP_PASS", "").strip()
+FROM_EMAIL = os.environ.get("FROM_EMAIL", SMTP_USER or "wink@utep.edu").strip()
 EMAIL_CONFIGURED = bool(SMTP_HOST and SMTP_USER and SMTP_PASS)
 # Temporary diagnostic, same reasoning as the ADMIN_EMAIL print above — shows
 # exactly what this process loaded for the SMTP settings at startup, so a
