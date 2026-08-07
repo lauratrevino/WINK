@@ -138,12 +138,10 @@
                   <td>
                     <div class="doc-name-cell">
                       <span class="doc-file-icon">
-                        {% if doc.orig_name.endswith('.pdf') %}📕
-                        {% elif doc.orig_name.endswith('.docx') or doc.orig_name.endswith('.doc') %}📘
-                        {% elif doc.orig_name.endswith('.pptx') %}📙
-                        {% elif doc.orig_name.endswith('.xlsx') %}📗
-                        {% elif doc.orig_name.endswith('.txt') %}📃
-                        {% else %}📄{% endif %}
+                        <svg class="doc-file-icon-svg" viewBox="0 0 24 24" width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M6 2a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6H6z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                          <path d="M14 2v6h6" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                        </svg>
                       </span>
                       <span class="doc-name-text">{{ doc.orig_name }}</span>
                     </div>
@@ -183,8 +181,24 @@
         const color = winkColorForCourse(courseName);
         section.style.borderLeft = `4px solid ${color}`;
         section.style.paddingLeft = '12px';
+        h3.style.color = color;
         const badge = section.querySelector('.course-count-badge');
         if (badge) { badge.style.background = color; badge.style.color = '#fff'; }
+        // Every file icon in this course's table now matches the course's
+        // color (a tinted background + the SVG's own stroke), replacing the
+        // old file-type-based coloring — so at a glance, icon color tells
+        // you which course a document belongs to, not what kind of file it is.
+        section.querySelectorAll('.doc-file-icon').forEach(icon => {
+          icon.style.color = color;
+          icon.style.background = `${color}1f`;
+          icon.style.display = 'inline-flex';
+          icon.style.alignItems = 'center';
+          icon.style.justifyContent = 'center';
+          icon.style.width = '26px';
+          icon.style.height = '26px';
+          icon.style.borderRadius = '6px';
+          icon.style.flexShrink = '0';
+        });
       });
     }
 
@@ -387,13 +401,14 @@
       }
     }
 
+    const DOC_FILE_ICON_SVG = '<svg class="doc-file-icon-svg" viewBox="0 0 24 24" width="16" height="16" fill="none" xmlns="http://www.w3.org/2000/svg">'
+      + '<path d="M6 2a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6H6z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>'
+      + '<path d="M14 2v6h6" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>';
+
     function fileIcon(name) {
-      if (name.endsWith('.pdf')) return '📕';
-      if (name.endsWith('.docx') || name.endsWith('.doc')) return '📘';
-      if (name.endsWith('.pptx')) return '📙';
-      if (name.endsWith('.xlsx')) return '📗';
-      if (name.endsWith('.txt')) return '📃';
-      return '📄';
+      // Icon shape is the same for every file — color comes from the
+      // course (applied in applyCourseColors), not the file type anymore.
+      return DOC_FILE_ICON_SVG;
     }
 
     function escapeHtml(text) {

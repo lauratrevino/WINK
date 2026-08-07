@@ -71,13 +71,18 @@
 
     function pad(n) { return String(n).padStart(2, '0'); }
 
-    // Sets background-color via the DOM style property (never restricted by
-    // CSP, unlike the style="..." HTML attribute) for any element rendered
-    // with a data-bg placeholder instead of an inline style string.
+    // Sets background-color (and, if present, text color) via the DOM style
+    // property (never restricted by CSP, unlike the style="..." HTML
+    // attribute) for any element rendered with data-bg / data-fg
+    // placeholders instead of an inline style string.
     function applyPendingBackgrounds(root) {
       root.querySelectorAll('[data-bg]').forEach(el => {
         el.style.background = el.dataset.bg;
         el.removeAttribute('data-bg');
+      });
+      root.querySelectorAll('[data-fg]').forEach(el => {
+        el.style.color = el.dataset.fg;
+        el.removeAttribute('data-fg');
       });
     }
 
@@ -100,7 +105,7 @@
       const courses = Object.keys(courseColors);
       if (courses.length === 0) { legend.innerHTML = ''; return; }
       legend.innerHTML = courses.map(c =>
-        `<div class="legend-item"><span class="legend-dot" data-bg="${courseColors[c]}"></span>${escapeHtml(c)}</div>`
+        `<div class="legend-item"><span class="legend-dot" data-bg="${courseColors[c]}"></span><span data-fg="${courseColors[c]}" style="font-weight:700;">${escapeHtml(c)}</span></div>`
       ).join('');
       applyPendingBackgrounds(legend);
     }
@@ -136,9 +141,10 @@
       wrap.innerHTML = cells.map(cell => {
         const items = cell.dateStr ? (deadlinesByDate[cell.dateStr] || []) : [];
         const isToday = cell.dateStr === todayStr;
-        const chips = items.slice(0, 3).map(it =>
-          `<div class="cal-chip" data-bg="${colorForCourse(it.course)}" title="${escapeHtml(it.title)}">${escapeHtml(it.title)}</div>`
-        ).join('');
+        const chips = items.slice(0, 3).map(it => {
+          const bg = colorForCourse(it.course);
+          return `<div class="cal-chip" data-bg="${bg}" data-fg="${winkTextColorForBg(bg)}" title="${escapeHtml(it.title)}">${escapeHtml(it.title)}</div>`;
+        }).join('');
         const more = items.length > 3 ? `<div class="cal-more">+${items.length - 3} more</div>` : '';
         const classes = ['cal-day'];
         if (cell.otherMonth) classes.push('other-month');
@@ -198,7 +204,7 @@
             <span class="day-item-dot" data-bg="${colorForCourse(it.course)}"></span>
             <div style="flex:1; min-width:0;">
               <div class="day-item-title">${escapeHtml(it.title)}</div>
-              <div class="day-item-course">${escapeHtml(it.course)}</div>
+              <div class="day-item-course" data-fg="${colorForCourse(it.course)}" style="font-weight:700;">${escapeHtml(it.course)}</div>
               <span class="day-item-status ${status}">${statusLabel}</span>
               ${snippet}
               ${it.document_id ? `<a href="/documents#doc-row-${it.document_id}" class="day-item-doc-link">📄 ${escapeHtml(it.document_name || 'View source document')}</a>` : ''}
