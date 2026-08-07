@@ -40,7 +40,7 @@ ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "lhall@utep.edu").lower()
 # whitespace from a copy-paste into Render's env var UI (a common silent
 # cause of "the admin check just doesn't match") is visible instead of
 # invisible. Safe to remove once admin access is confirmed working again.
-print(f"CONFIG: ADMIN_EMAIL loaded as {ADMIN_EMAIL!r}")
+print(f"CONFIG: ADMIN_EMAIL loaded as {ADMIN_EMAIL!r}", flush=True)
 MAX_DOCS_PER_STUDENT = 20
 # No whitespace/control characters anywhere in the address, and must end in
 # .edu — deliberately simple rather than a fully RFC-5322-compliant pattern,
