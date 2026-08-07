@@ -30,13 +30,20 @@
         grid-template-columns: 1fr;
       }
     }
-    /* Pull the card-bar up flush against the bottom of the hero — the hero
-       image itself reserves 40px of padding below its content in landing.css. */
+    /* Pull the card-bar up flush against the bottom of the hero. Zeroing
+       padding-bottom alone wasn't enough — the hero's own min-height (set in
+       landing.css) reserves far more vertical space than the sign-in content
+       actually needs on most screens, leaving a gap of empty hero photo
+       above the card row. Shrinking that min-height closes the gap. Since
+       hero-overlay and hero-text are both position:absolute, min-height is
+       the only thing giving .hero any height at all, so it can't be removed
+       entirely — just brought closer to the content's real height. */
     .hero {
       padding-bottom: 0;
+      min-height: clamp(520px, 44vw, 720px);
     }
     .signin-panel {
-      max-width: 480px;
+      max-width: 560px;
       background: rgba(255,255,255,0.96);
       border: 2px solid #002855;
       border-radius: 14px;
@@ -92,6 +99,7 @@
       color: #002855;
       font-size: 12px; font-weight: 800; letter-spacing: 0.08em;
       padding: 5px 16px;
+      border: 2px solid #002855;
       border-radius: 20px;
       box-shadow: 0 4px 14px rgba(0,20,50,0.20);
       margin: 10px auto;
