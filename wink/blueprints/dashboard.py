@@ -5,7 +5,7 @@ from .. import config
 from ..errors import log_error
 from ..extensions import get_db
 from ..security import login_required, page_login_required
-from ..services.analytics import log_event, get_questions_this_month, get_wrapped_stats
+from ..services.analytics import log_event, get_questions_this_month
 from ..services.course_colors import ensure_course_colors
 from ..services.deadlines import get_upcoming_deadlines
 from ..services.documents import get_docs
@@ -86,27 +86,3 @@ def update_profile():
     except Exception as e:
         log_error("dashboard.update_profile", e)
         return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
-
-
-@bp.route("/wrapped-page")
-@page_login_required
-def wrapped_page():
-    """WINK Wrapped — a Spotify-Wrapped-style end-of-semester recap, built
-    entirely from real activity already being logged for other purposes.
-    The one purely-for-fun feature in the app; everything else here aims
-    to be useful, this one just aims to be enjoyed."""
-    try:
-        s = g.student
-        log_event(s["id"], "page_view", {"page": "wrapped"})
-        return render_template("wrapped.html", s=s, admin_email=config.ADMIN_EMAIL, active="wrapped")
-    except Exception as e:
-        log_error("dashboard.wrapped_page", e)
-        return "<h2>Something went wrong</h2><p>Please try again, or <a href='/logout'>log out</a> and back in.</p>", 500
-
-
-@bp.route("/wrapped-data")
-@login_required
-def wrapped_data():
-    s = g.student
-    stats = get_wrapped_stats(s["id"])
-    return jsonify(stats or {})

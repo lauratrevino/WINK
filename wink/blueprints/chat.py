@@ -14,7 +14,9 @@ from ..security import login_required, page_login_required, rate_limited, verifi
 from ..services.analytics import log_event, parse_conversation_messages
 from ..services.deadlines import build_deadlines_context
 from ..services.documents import build_doc_context, build_global_doc_context, get_docs, get_global_docs
-from ..services.practice import generate_practice_questions, get_due_questions, record_attempt, store_practice_questions
+from ..services.practice import (generate_practice_questions, generate_practice_summary,
+                                  get_due_questions, grade_quiz_answer, record_attempt,
+                                  store_practice_questions)
 from ..services.research import log_answer, record_student_feedback
 from ..timeutil import utcnow_naive
 
@@ -44,9 +46,16 @@ def practice_page():
         s = g.student
         docs = get_docs(s["id"])
         known_courses = sorted({(d.get("course") or "").strip() for d in docs if (d.get("course") or "").strip()})
+        # Which courses have at least one document tagged as an assessment —
+        # lets the page warn upfront if "Assessment Quiz" is picked for a
+        # course without one, instead of only finding out after a failed
+        # generate request (see /generate-practice's assessment_quiz check).
+        assessment_courses = sorted({(d.get("course") or "").strip() for d in docs
+                                      if d.get("doc_type") == "assessment" and (d.get("course") or "").strip()})
         log_event(s["id"], "page_view", {"page": "practice"})
         return render_template("practice.html", s=s, admin_email=config.ADMIN_EMAIL,
-                               active="practice", known_courses=known_courses)
+                               active="practice", known_courses=known_courses,
+                               assessment_courses=assessment_courses)
     except Exception as e:
         log_error("chat.practice_page", e)
         return "<h2>Something went wrong</h2><p>Please try again, or <a href='/logout'>log out</a> and back in.</p>", 500
@@ -370,16 +379,22 @@ def chat():
 @login_required
 # @verified_required  # TEMP: disabled — remove this comment and re-enable once email sending is confirmed working
 def generate_practice():
-    """Generates new practice questions from a course's material, optionally
+    """Generates new practice content from a course's material, optionally
     styled after a real past assessment. Material can come from the
     student's permanently uploaded documents for that course, a
     temporarily-uploaded handout (see /upload's `temporary` flag — extract
     it there first, then pass the returned content here as `temp_material`;
     nothing about the original handout is ever saved), or both combined.
-    A style-reference assessment currently always comes from a permanent
-    upload tagged doc_type='assessment' — see services/practice.py for why
-    that boundary matters (never a source of facts for the generated
-    questions, only format/difficulty)."""
+
+    `qtype` (default "review") selects the format — see
+    services/practice.py's generate_practice_questions() docstring for what
+    each one means. "summary" is a special case: it isn't a reviewable
+    question set at all, so it skips storage entirely and returns
+    {"summary": "..."} instead of {"questions": [...]}. "assessment_quiz"
+    requires the student to have a document for this course tagged
+    doc_type='assessment' — checked here before generating, so the error
+    is specific ("upload a past exam first") rather than a generic
+    "no material found"."""
     try:
         s = g.student
         if not config.ANTHROPIC_API_KEY:
@@ -394,6 +409,9 @@ def generate_practice():
         data = request.get_json() or {}
         course = (data.get("course") or "").strip()
         count = data.get("count", 8)
+        qtype = (data.get("qtype") or "review").strip()
+        if qtype not in ("flashcard", "review", "quiz", "assessment_quiz", "summary"):
+            return jsonify({"error": "Unrecognized question type."}), 400
         # A handout uploaded via /upload with temporary=true, extracted
         # there and handed back to the client — never saved to the
         # documents table, and not saved here either; only the practice
@@ -416,16 +434,27 @@ def generate_practice():
                                       f"or attach a handout for this session, to generate questions from."}), 400
         assessment_text = "\n\n---\n\n".join((d.get("content") or "").strip() for d in assessment_docs if d.get("content")) or None
 
-        questions = generate_practice_questions(material_text, assessment_text, count=count)
-        questions = store_practice_questions(s["id"], course, questions)
+        if qtype == "assessment_quiz" and not assessment_text:
+            return jsonify({"error": f"Assessment Quiz needs a past exam or quiz uploaded for {course} and "
+                                      f"tagged as an assessment on the Documents page — upload one first."}), 400
+
+        if qtype == "summary":
+            summary = generate_practice_summary(material_text, course)
+            log_event(s["id"], "practice_summary_generated", {"course": course})
+            if not summary:
+                return jsonify({"error": "Couldn't generate a summary from that material — please try again."}), 500
+            return jsonify({"summary": summary})
+
+        questions = generate_practice_questions(material_text, assessment_text, count=count, qtype=qtype)
+        questions = store_practice_questions(s["id"], course, questions, qtype=qtype)
         log_event(s["id"], "practice_questions_generated", {
-            "course": course, "count": len(questions),
+            "course": course, "count": len(questions), "qtype": qtype,
             "used_assessment_style": bool(assessment_text),
             "used_temp_material": bool(temp_material),
         })
         if not questions:
             return jsonify({"error": "Couldn't generate practice questions from that material — please try again."}), 500
-        return jsonify({"questions": questions, "based_on_assessment_style": bool(assessment_text)})
+        return jsonify({"questions": questions, "qtype": qtype, "based_on_assessment_style": bool(assessment_text)})
     except Exception as e:
         log_error("chat.generate_practice", e)
         return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
@@ -461,6 +490,54 @@ def practice_review():
     s = g.student
     course = request.args.get("course")
     return jsonify({"questions": get_due_questions(s["id"], course=course)})
+
+
+@bp.route("/grade-quiz-answer", methods=["POST"])
+@login_required
+def grade_quiz_answer_route():
+    """Grades one multiple-choice Practice Quiz / Assessment Quiz answer —
+    objective (no model call), since the correct option was already fixed
+    at generation time. See services/practice.py's grade_quiz_answer()."""
+    try:
+        s = g.student
+        data = request.get_json() or {}
+        question_id = data.get("question_id")
+        selected_index = data.get("selected_index")
+        if question_id is None or not isinstance(selected_index, int):
+            return jsonify({"error": "question_id and selected_index are required"}), 400
+        result = grade_quiz_answer(s["id"], question_id, selected_index)
+        if not result:
+            return jsonify({"error": "Question not found, or isn't a multiple-choice question."}), 404
+        return jsonify(result)
+    except Exception as e:
+        log_error("chat.grade_quiz_answer_route", e)
+        return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
+
+
+@bp.route("/run-migration-practice-quiz")
+def run_migration_practice_quiz():
+    """One-time setup route — adds the columns services/practice.py needs
+    for multiple-choice Practice Quiz / Assessment Quiz support (qtype,
+    options, correct_index) to the existing practice_questions table.
+    Safe to hit more than once (ADD COLUMN IF NOT EXISTS). Visit once after
+    deploying, with ?key=<CRON_SECRET> (same secret used elsewhere — find
+    it in Render's Environment tab), then this route can be deleted. See
+    calendar.py's /run-migration-course-colors for the same pattern."""
+    if not config.CRON_SECRET or request.args.get("key") != config.CRON_SECRET:
+        return jsonify({"error": "Not authorized"}), 403
+    if not config.DB_URL:
+        return jsonify({"error": "No database"}), 500
+    try:
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("ALTER TABLE practice_questions ADD COLUMN IF NOT EXISTS qtype TEXT NOT NULL DEFAULT 'review'")
+        cur.execute("ALTER TABLE practice_questions ADD COLUMN IF NOT EXISTS options TEXT")
+        cur.execute("ALTER TABLE practice_questions ADD COLUMN IF NOT EXISTS correct_index INTEGER")
+        conn.commit()
+        cur.close()
+        return jsonify({"success": True, "message": "practice_questions is ready for quiz support."})
+    except Exception as e:
+        log_error("chat.run_migration_practice_quiz", e)
+        return jsonify({"error": str(e)}), 500
 
 
 @bp.route("/rate-answer", methods=["POST"])
