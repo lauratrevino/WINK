@@ -138,6 +138,7 @@ def get_student_summaries(cur):
             FROM documents WHERE student_id IS NOT NULL GROUP BY student_id
         )
         SELECT s.id, s.first_name, s.last_name, s.email, s.classification, s.major,
+               COALESCE(NULLIF(s.university,''), 'Not set') as university,
                to_char(s.created_at, 'Mon DD YYYY') as joined,
                COALESCE(ec.sessions, 0) as sessions,
                COALESCE(ec.questions, 0) as questions,
