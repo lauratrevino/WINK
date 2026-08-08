@@ -54,3 +54,21 @@ function winkColorForCourse(courseName) {
   const index = winkHashString(normalized) % WINK_COURSE_COLOR_PALETTE.length;
   return WINK_COURSE_COLOR_PALETTE[index];
 }
+
+/**
+ * Returns '#ffffff' or '#111827' — whichever reads better as text/icon
+ * color placed on top of the given background hex color. Uses the standard
+ * relative-luminance formula so this works correctly for any color in the
+ * palette (or any future addition to it) without needing a hand-picked
+ * text color per swatch.
+ */
+function winkTextColorForBg(hexColor) {
+  const hex = String(hexColor || '').replace('#', '');
+  if (hex.length !== 6) return '#111827';
+  const r = parseInt(hex.slice(0, 2), 16) / 255;
+  const g = parseInt(hex.slice(2, 4), 16) / 255;
+  const b = parseInt(hex.slice(4, 6), 16) / 255;
+  const linear = (c) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+  const luminance = 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b);
+  return luminance > 0.5 ? '#111827' : '#ffffff';
+}
