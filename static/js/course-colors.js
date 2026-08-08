@@ -1,13 +1,21 @@
 /**
  * Shared course-color utility.
  *
- * Both the Calendar and Documents pages need to show the same course in the
- * same color — this is the single source of truth for that mapping so they
- * can never drift apart. Deliberately a pure hash (course name -> color)
- * rather than colors assigned in registration order: a hash needs no shared
- * server-side state, works identically whether it's called from the
- * Calendar page or the Documents page, and gives the same course the same
- * color today as it will next semester.
+ * Documents, Calendar, and Dashboard all need to show the same course in
+ * the same color, that color needs to stay the same across sessions, AND
+ * no two of a student's active courses can ever share a color. That's more
+ * than a stateless function (hash or list-position) can promise on its
+ * own — a hash can collide, and list-position reshuffles every time a
+ * course is added or removed. So the actual assignment now lives in the
+ * database (see services/course_colors.py): a color is assigned once, the
+ * first time a course is seen, and freed for reuse only when that course's
+ * last document is deleted. Every page passes down that same
+ * server-computed {course: color} map (`courseColors` below) — this file
+ * just looks the course up in it.
+ *
+ * The hash function is kept only as a last-resort fallback for a course
+ * that somehow isn't in the map yet (e.g. a stale page that hasn't
+ * reloaded since a new course was added) — not as the primary mechanism.
  */
 
 // A fixed palette of visually distinct colors, chosen to read clearly
@@ -47,10 +55,23 @@ function winkHashString(str) {
  * Returns a hex color string for a given course name. Case/whitespace are
  * normalized first so "CS 2302", "cs 2302", and " CS 2302 " all land on the
  * same color instead of being treated as different courses.
+ *
+ * `courseColorMap` (optional but expected): the {course: color} object each
+ * page renders server-side from services/course_colors.py — pass it in and
+ * this is a straight, guaranteed-consistent lookup. Only falls back to the
+ * hash below if the course genuinely isn't in the map (shouldn't normally
+ * happen — every course the server knows about gets an entry).
  */
-function winkColorForCourse(courseName) {
+function winkColorForCourse(courseName, courseColorMap) {
   const normalized = String(courseName || '').trim().toLowerCase();
   if (!normalized) return WINK_COURSE_COLOR_PALETTE[0];
+  if (courseColorMap && typeof courseColorMap === 'object') {
+    for (const key of Object.keys(courseColorMap)) {
+      if (String(key || '').trim().toLowerCase() === normalized) {
+        return courseColorMap[key];
+      }
+    }
+  }
   const index = winkHashString(normalized) % WINK_COURSE_COLOR_PALETTE.length;
   return WINK_COURSE_COLOR_PALETTE[index];
 }
