@@ -8,27 +8,55 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/documents.css') }}">
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <style nonce="{{ csp_nonce() }}">
-    /* Upload progress bar — kept inline for now; move into documents.css whenever convenient. */
-    .upload-progress-wrap { margin-top: 12px; }
-    .upload-progress-bar {
-      width: 100%; height: 8px; border-radius: 999px; background: #e8edf5; overflow: hidden;
+    /* Animated progress bars (upload + download) — a moving diagonal-stripe
+       fill plus a soft pulsing glow while active, and a quick "pop" flash
+       when a transfer finishes, instead of a flat static bar. */
+    @keyframes wink-progress-stripes {
+      from { background-position: 0 0; }
+      to   { background-position: 40px 0; }
     }
-    .upload-progress-fill {
-      height: 100%; width: 0%; background: #FF8200; border-radius: 999px;
-      transition: width 0.25s ease;
+    @keyframes wink-progress-glow {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(255, 130, 0, 0.35); }
+      50%      { box-shadow: 0 0 10px 2px rgba(255, 130, 0, 0.35); }
     }
-    .upload-progress-label { margin-top: 6px; font-size: 12px; color: #6b7a99; }
-    /* Download progress bar — same treatment as the upload one above, shown
-       next to the upload button while a file download is in flight. */
-    .download-progress-wrap { margin-top: 12px; }
-    .download-progress-bar {
-      width: 100%; height: 8px; border-radius: 999px; background: #e8edf5; overflow: hidden;
+    @keyframes wink-progress-glow-navy {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(0, 40, 85, 0.35); }
+      50%      { box-shadow: 0 0 10px 2px rgba(0, 40, 85, 0.35); }
     }
-    .download-progress-fill {
-      height: 100%; width: 0%; background: #002855; border-radius: 999px;
-      transition: width 0.25s ease;
+    @keyframes wink-progress-pop {
+      0%   { transform: scale(1); }
+      40%  { transform: scale(1.03); }
+      100% { transform: scale(1); }
     }
-    .download-progress-label { margin-top: 6px; font-size: 12px; color: #6b7a99; }
+    .upload-progress-wrap, .download-progress-wrap { margin-top: 12px; }
+    .upload-progress-bar, .download-progress-bar {
+      width: 100%; height: 10px; border-radius: 999px; background: #e8edf5;
+      overflow: hidden; position: relative;
+    }
+    .upload-progress-fill, .download-progress-fill {
+      height: 100%; width: 0%; border-radius: 999px;
+      transition: width 0.3s ease;
+      background-image: repeating-linear-gradient(
+        135deg,
+        rgba(255,255,255,0.28) 0px, rgba(255,255,255,0.28) 10px,
+        transparent 10px, transparent 20px
+      );
+      background-size: 40px 100%;
+      animation: wink-progress-stripes 0.9s linear infinite, wink-progress-glow 1.6s ease-in-out infinite;
+    }
+    .upload-progress-fill { background-color: #FF8200; }
+    .download-progress-fill { background-color: #002855; animation-name: wink-progress-stripes, wink-progress-glow-navy; }
+    .upload-progress-fill.is-done, .download-progress-fill.is-done {
+      animation: wink-progress-pop 0.4s ease;
+      background-image: none;
+    }
+    .upload-progress-label, .download-progress-label {
+      margin-top: 6px; font-size: 12px; color: #6b7a99;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .upload-progress-label .pct, .download-progress-label .pct {
+      font-weight: 700; color: #002855; font-variant-numeric: tabular-nums;
+    }
     /* Download button next to Delete in each document row. */
     .btn-download {
       background: #eef2fb; color: #002855; border: 1.5px solid #dde3f0;
@@ -378,7 +406,8 @@
         if (isAtLimit()) { skipped += (files.length - uploaded - failed); break; }
         const current = uploaded + failed + 1;
         status.innerHTML = `<span class="status-info">⏳ Uploading ${escapeHtml(file.name)} (${current} of ${total})…</span>`;
-        progressLabel.textContent = `${current} of ${total} — ${file.name}`;
+        const pctSoFar = Math.round(((uploaded + failed) / total) * 100);
+        progressLabel.innerHTML = `${escapeHtml(file.name)} (${current} of ${total}) <span class="pct">${pctSoFar}%</span>`;
         const fd = new FormData();
         fd.append('file', file); fd.append('course', course); fd.append('crn', crn); fd.append('doc_type', docType);
         try {
@@ -395,15 +424,17 @@
         } catch (e) {
           failed++;
         }
-        progressFill.style.width = `${Math.round(((uploaded + failed) / total) * 100)}%`;
+        const pct = Math.round(((uploaded + failed) / total) * 100);
+        progressFill.style.width = `${pct}%`;
       }
 
       let summary = `✅ Uploaded ${uploaded} file${uploaded !== 1 ? 's' : ''}.`;
       if (failed) summary += ` ${failed} failed.`;
       if (skipped) summary += ` ${skipped} skipped — you hit the ${MAX_DOCS}-document limit.`;
       status.innerHTML = `<span class="${failed || skipped ? 'status-error' : 'status-success'}">${summary}</span>`;
-      progressLabel.textContent = summary;
-      setTimeout(() => { progressWrap.style.display = 'none'; }, 1600);
+      progressLabel.innerHTML = `${summary} <span class="pct">100%</span>`;
+      progressFill.classList.add('is-done');
+      setTimeout(() => { progressWrap.style.display = 'none'; progressFill.classList.remove('is-done'); }, 1600);
 
       fileInput.value = '';
       selectedFilesList.innerHTML = '';
@@ -435,7 +466,8 @@
       const label = document.getElementById('download-progress-label');
       wrap.style.display = 'block';
       fill.style.width = '0%';
-      label.textContent = `Downloading ${filename}…`;
+      fill.classList.remove('is-done');
+      label.innerHTML = `Downloading ${escapeHtml(filename)}… <span class="pct">0%</span>`;
       try {
         const res = await fetch(url);
         if (!res.ok) throw new Error('Download failed');
@@ -452,10 +484,10 @@
           if (total) {
             const pct = Math.round((received / total) * 100);
             fill.style.width = `${pct}%`;
-            label.textContent = `Downloading ${filename}… ${pct}%`;
+            label.innerHTML = `Downloading ${escapeHtml(filename)}… <span class="pct">${pct}%</span>`;
           } else {
             fill.style.width = '100%';
-            label.textContent = `Downloading ${filename}… ${(received / 1024).toFixed(0)} KB`;
+            label.innerHTML = `Downloading ${escapeHtml(filename)}… <span class="pct">${(received / 1024).toFixed(0)} KB</span>`;
           }
         }
         const blob = new Blob(chunks);
@@ -468,12 +500,13 @@
         a.remove();
         URL.revokeObjectURL(blobUrl);
         fill.style.width = '100%';
-        label.textContent = `Downloaded ${filename}.`;
+        fill.classList.add('is-done');
+        label.innerHTML = `✅ Downloaded ${escapeHtml(filename)}. <span class="pct">100%</span>`;
       } catch (e) {
         label.textContent = `Could not download ${filename}.`;
         winkToast('Download failed — please try again.', true);
       } finally {
-        setTimeout(() => { wrap.style.display = 'none'; }, 1600);
+        setTimeout(() => { wrap.style.display = 'none'; fill.classList.remove('is-done'); }, 1600);
       }
     }
 

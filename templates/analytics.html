@@ -31,6 +31,17 @@
        previously showed nothing but a Suspend button for active students,
        so there was no visual "this student is currently active" state. */
     .badge-active { background: #ecfdf5; color: #047857; }
+    /* Click-to-sort column headers on the Students table. */
+    th.sortable {
+      cursor: pointer; user-select: none; white-space: nowrap;
+      position: relative; padding-right: 18px;
+    }
+    th.sortable:hover { color: #FF8200; }
+    th.sortable::after {
+      content: '↕'; position: absolute; right: 4px; opacity: 0.35; font-size: 11px;
+    }
+    th.sortable.sort-asc::after { content: '↑'; opacity: 1; color: #FF8200; }
+    th.sortable.sort-desc::after { content: '↓'; opacity: 1; color: #FF8200; }
   </style>
 </head>
 <body>
@@ -75,8 +86,19 @@
         <div class="card-header"><h2>Enrolled Students</h2><span id="student-count" style="font-size:13px;color:#6b7a99;"></span></div>
         <div style="overflow-x:auto;">
           <table>
-            <thead><tr><th>Name</th><th>Email</th><th>Classification</th><th>Major</th><th>Joined</th><th>Sessions</th><th>Questions</th><th>Uploads</th><th>Status</th></tr></thead>
-            <tbody id="students-tbody"><tr><td colspan="9" style="text-align:center;padding:32px;color:#6b7a99;">Loading…</td></tr></tbody>
+            <thead><tr>
+              <th class="sortable" data-sort="name" data-type="str">Name</th>
+              <th class="sortable" data-sort="email" data-type="str">Email</th>
+              <th class="sortable" data-sort="university" data-type="str">University</th>
+              <th class="sortable" data-sort="classification" data-type="str">Classification</th>
+              <th class="sortable" data-sort="major" data-type="str">Major</th>
+              <th class="sortable" data-sort="joined" data-type="date">Joined</th>
+              <th class="sortable" data-sort="sessions" data-type="num">Sessions</th>
+              <th class="sortable" data-sort="questions" data-type="num">Questions</th>
+              <th class="sortable" data-sort="uploads" data-type="num">Uploads</th>
+              <th class="sortable" data-sort="status" data-type="str">Status</th>
+            </tr></thead>
+            <tbody id="students-tbody"><tr><td colspan="10" style="text-align:center;padding:32px;color:#6b7a99;">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -2677,6 +2699,93 @@
       file_deleted: '🗑'
     };
 
+    // Sorting state for the Students table — kept separate from
+    // analyticsData so re-sorting doesn't require a re-fetch, and so
+    // toggleStudentActive()'s refresh preserves whatever sort was active.
+    let currentStudents = [];
+    let sortState = { field: null, dir: 'asc' };
+
+    function applySort(students) {
+      if (!sortState.field) return students;
+      const { field, dir } = sortState;
+      const th = document.querySelector(`th[data-sort="${field}"]`);
+      const type = th ? th.dataset.type : 'str';
+      const getVal = (s) => {
+        if (field === 'name') return `${s.first_name || ''} ${s.last_name || ''}`.trim().toLowerCase();
+        if (field === 'status') return s.is_active ? 'active' : 'suspended';
+        const v = s[field];
+        if (type === 'str') return String(v || '').toLowerCase();
+        if (type === 'num') return Number(v) || 0;
+        if (type === 'date') return new Date(v || 0).getTime() || 0;
+        return v;
+      };
+      const sorted = [...students].sort((a, b) => {
+        const av = getVal(a), bv = getVal(b);
+        if (av < bv) return dir === 'asc' ? -1 : 1;
+        if (av > bv) return dir === 'asc' ? 1 : -1;
+        return 0;
+      });
+      return sorted;
+    }
+
+    function renderStudentsTable(students) {
+      document.getElementById('student-count').textContent = students.length + ' students';
+      const tbody = document.getElementById('students-tbody');
+      if (students.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:32px;color:#6b7a99;">No students yet.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = students.map(s => `
+        <tr>
+          <td><strong>${escapeHtml(s.first_name)} ${escapeHtml(s.last_name)}</strong></td>
+          <td style="color:#6b7a99;">${escapeHtml(s.email)}</td>
+          <td>${escapeHtml(s.university)}</td>
+          <td><span class="badge badge-navy">${escapeHtml(s.classification)}</span></td>
+          <td>${escapeHtml(s.major)}</td>
+          <td style="color:#6b7a99;">${escapeHtml(s.joined)}</td>
+          <td>${s.sessions}</td>
+          <td><span class="badge badge-orange">${s.questions}</span></td>
+          <td>${s.uploads}</td>
+          <td>
+            ${s.is_active
+              ? `<span class="badge badge-active">Active</span>
+                 <button class="tab-btn student-toggle-btn" style="padding:4px 10px;font-size:11px;margin-left:6px;" data-id="${s.id}" data-active="true">Suspend</button>`
+              : `<span class="badge" style="background:#fef2f2;color:#b91c1c;">Suspended</span>
+                 <button class="tab-btn student-toggle-btn" style="padding:4px 10px;font-size:11px;margin-left:6px;" data-id="${s.id}" data-active="false">Reactivate</button>`}
+          </td>
+        </tr>`).join('');
+      // Names are attached via dataset + addEventListener rather than baked into an
+      // inline onclick string — untrusted text inside an inline event-handler
+      // attribute is unsafe even when HTML-escaped, since the browser HTML-decodes
+      // the attribute before handing it to the JS engine, undoing the escaping.
+      tbody.querySelectorAll('.student-toggle-btn').forEach((btn, idx) => {
+        const student = students[idx];
+        btn.addEventListener('click', () => {
+          toggleStudentActive(
+            parseInt(btn.dataset.id, 10),
+            `${student.first_name} ${student.last_name}`,
+            btn.dataset.active === 'true'
+          );
+        });
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      document.querySelectorAll('th.sortable').forEach(th => {
+        th.addEventListener('click', () => {
+          const field = th.dataset.sort;
+          if (sortState.field === field) {
+            sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
+          } else {
+            sortState = { field, dir: 'asc' };
+          }
+          document.querySelectorAll('th.sortable').forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
+          th.classList.add(sortState.dir === 'asc' ? 'sort-asc' : 'sort-desc');
+          renderStudentsTable(applySort(currentStudents));
+        });
+      });
+    });
+
     async function loadData() {
       try {
         const res = await fetch('/analytics-data-full');
@@ -2698,44 +2807,8 @@
         sr.innerHTML = vals.map((v,i) => `<div class="stat-card ${tops[i]}"><div class="stat-value">${v}</div><div class="stat-label">${labels[i]}</div></div>`).join('');
 
         // Students table
-        document.getElementById('student-count').textContent = d.students.length + ' students';
-        const tbody = document.getElementById('students-tbody');
-        if (d.students.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:32px;color:#6b7a99;">No students yet.</td></tr>';
-        } else {
-          tbody.innerHTML = d.students.map(s => `
-            <tr>
-              <td><strong>${escapeHtml(s.first_name)} ${escapeHtml(s.last_name)}</strong></td>
-              <td style="color:#6b7a99;">${escapeHtml(s.email)}</td>
-              <td><span class="badge badge-navy">${escapeHtml(s.classification)}</span></td>
-              <td>${escapeHtml(s.major)}</td>
-              <td style="color:#6b7a99;">${escapeHtml(s.joined)}</td>
-              <td>${s.sessions}</td>
-              <td><span class="badge badge-orange">${s.questions}</span></td>
-              <td>${s.uploads}</td>
-              <td>
-                ${s.is_active
-                  ? `<span class="badge badge-active">Active</span>
-                     <button class="tab-btn student-toggle-btn" style="padding:4px 10px;font-size:11px;margin-left:6px;" data-id="${s.id}" data-active="true">Suspend</button>`
-                  : `<span class="badge" style="background:#fef2f2;color:#b91c1c;">Suspended</span>
-                     <button class="tab-btn student-toggle-btn" style="padding:4px 10px;font-size:11px;margin-left:6px;" data-id="${s.id}" data-active="false">Reactivate</button>`}
-              </td>
-            </tr>`).join('');
-          // Names are attached via dataset + addEventListener rather than baked into an
-          // inline onclick string — untrusted text inside an inline event-handler
-          // attribute is unsafe even when HTML-escaped, since the browser HTML-decodes
-          // the attribute before handing it to the JS engine, undoing the escaping.
-          tbody.querySelectorAll('.student-toggle-btn').forEach((btn, idx) => {
-            const student = d.students[idx];
-            btn.addEventListener('click', () => {
-              toggleStudentActive(
-                parseInt(btn.dataset.id, 10),
-                `${student.first_name} ${student.last_name}`,
-                btn.dataset.active === 'true'
-              );
-            });
-          });
-        }
+        currentStudents = d.students;
+        renderStudentsTable(applySort(currentStudents));
 
         // Activity feed
         const feed = document.getElementById('event-feed');

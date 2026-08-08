@@ -21,11 +21,14 @@
     <div class="card">
       <h2>1. Pick a course</h2>
       <div class="course-row">
-        <input type="text" id="course-input" list="known-courses" placeholder="e.g. MIS 3350" aria-label="Course">
-        <datalist id="known-courses">
-          {% for c in known_courses %}<option value="{{ c }}"></option>{% endfor %}
-        </datalist>
-        <button class="btn btn-primary" id="extract-btn" onclick="extractWeights()">Pull weights from my syllabus</button>
+        <select id="course-input" aria-label="Course">
+          {% if known_courses %}
+            {% for c in known_courses %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          {% else %}
+            <option value="" disabled selected>No courses uploaded yet</option>
+          {% endif %}
+        </select>
+        <button class="btn btn-primary" id="extract-btn" onclick="extractWeights()" {% if not known_courses %}disabled{% endif %}>Pull weights from my syllabus</button>
       </div>
       <div class="extract-note">Uses whatever you've uploaded for this course on the Documents page — upload a syllabus there first if nothing comes back.</div>
       <div class="extract-msg" id="extract-msg"></div>
