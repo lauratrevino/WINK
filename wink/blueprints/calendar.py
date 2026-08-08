@@ -7,6 +7,7 @@ from ..errors import log_error
 from ..extensions import csrf, get_db
 from ..security import login_required, page_login_required, rate_limited
 from ..services.analytics import log_event
+from ..services.course_colors import ensure_course_colors
 from ..services.deadlines import build_study_plan, detect_deadline_conflicts, extract_deadlines, get_all_deadlines, get_upcoming_deadlines, insert_deadlines, set_deadline_status
 from ..services.documents import get_docs
 from ..services.email import send_email
@@ -32,8 +33,17 @@ def deadlines():
 @page_login_required
 def calendar_page():
     s = g.student
+    # Same course->color mapping Documents and Dashboard use — see
+    # services/course_colors.py. Read-only here for any course that
+    # already has a color; ensure_course_colors() only assigns new ones,
+    # never reassigns, so this is safe to call on every page load.
+    docs = get_docs(s["id"])
+    course_names = sorted({(d.get("course") or "").strip() for d in docs
+                            if (d.get("course") or "").strip()}, key=str.lower)
+    course_colors = ensure_course_colors(s["id"], course_names)
     log_event(s["id"], "page_view", {"page": "calendar"})
-    return render_template("calendar.html", s=s, admin_email=config.ADMIN_EMAIL, active="calendar")
+    return render_template("calendar.html", s=s, admin_email=config.ADMIN_EMAIL,
+                           active="calendar", course_colors=course_colors)
 
 
 @bp.route("/calendar-data")
@@ -161,6 +171,41 @@ def reprocess_deadlines():
     except Exception as e:
         log_error("calendar.reprocess_deadlines", e)
         return jsonify({"error": "Something went wrong on our end."}), 500
+
+
+@bp.route("/run-migration-course-colors")
+def run_migration_course_colors():
+    """One-time setup route — creates the course_colors table used by
+    services/course_colors.py for persistent, guaranteed-unique course
+    color assignment. Safe to hit more than once (CREATE TABLE IF NOT
+    EXISTS). Visit once after deploying, with ?key=<CRON_SECRET> (same
+    secret used by /send-deadline-reminders — find it in Render's
+    Environment tab for this service), then this route can be deleted."""
+    if not config.CRON_SECRET or request.args.get("key") != config.CRON_SECRET:
+        return jsonify({"error": "Not authorized"}), 403
+    if not config.DB_URL:
+        return jsonify({"error": "No database"}), 500
+    try:
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS course_colors (
+                id SERIAL PRIMARY KEY,
+                student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+                course_normalized TEXT NOT NULL,
+                course_display TEXT NOT NULL,
+                color TEXT NOT NULL,
+                assigned_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                UNIQUE (student_id, course_normalized),
+                UNIQUE (student_id, color)
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_course_colors_student ON course_colors(student_id)")
+        conn.commit()
+        cur.close()
+        return jsonify({"success": True, "message": "course_colors table is ready."})
+    except Exception as e:
+        log_error("calendar.run_migration_course_colors", e)
+        return jsonify({"error": str(e)}), 500
 
 
 @bp.route("/send-deadline-reminders", methods=["POST"])

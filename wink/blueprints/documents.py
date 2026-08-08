@@ -10,6 +10,7 @@ from ..errors import log_error
 from ..extensions import get_db
 from ..security import login_required, page_login_required, admin_required, file_signature_valid, rate_limited, verified_required
 from ..services.analytics import log_event
+from ..services.course_colors import ensure_course_colors, release_color_if_course_gone
 from ..services.deadlines import extract_deadlines, insert_deadlines
 from ..services.documents import (
     extract_text, get_docs, get_global_docs, group_docs_by_course,
@@ -27,11 +28,19 @@ def documents_page():
         s = g.student
         docs = get_docs(s["id"])
         grouped_docs = group_docs_by_course(docs)
-        known_courses = sorted({(d.get("course") or "").strip() for d in docs
-                                 if (d.get("course") or "").strip()})
+        # Persistent per-student course -> color mapping (see
+        # services/course_colors.py) — same course always gets the same
+        # color across sessions, and a deleted course's color becomes
+        # available again for a future new course. Shared by Documents,
+        # Calendar, and Dashboard so a course never looks different-colored
+        # depending which page you're on.
+        course_names = sorted({(d.get("course") or "").strip() for d in docs
+                                if (d.get("course") or "").strip()}, key=str.lower)
+        course_colors = ensure_course_colors(s["id"], course_names)
         log_event(s["id"], "page_view", {"page": "documents"})
         return render_template("documents.html", s=s, admin_email=config.ADMIN_EMAIL, docs=docs,
-                               grouped_docs=grouped_docs, known_courses=known_courses,
+                               grouped_docs=grouped_docs, known_courses=course_names,
+                               course_colors=course_colors,
                                active="documents", max_docs=config.MAX_DOCS_PER_STUDENT)
     except Exception as e:
         log_error("documents.documents", e)
@@ -217,7 +226,7 @@ def delete_file():
         doc_id = (request.get_json() or {}).get("doc_id")
         if config.DB_URL and doc_id:
             conn = get_db(); cur = conn.cursor()
-            cur.execute("SELECT filename FROM documents WHERE id=%s AND student_id=%s", (doc_id, s["id"]))
+            cur.execute("SELECT filename, course FROM documents WHERE id=%s AND student_id=%s", (doc_id, s["id"]))
             doc = cur.fetchone()
             if doc:
                 fp = os.path.join(config.UPLOAD_FOLDER, str(s["id"]), doc["filename"])
@@ -225,6 +234,10 @@ def delete_file():
                 cur.execute("DELETE FROM documents WHERE id=%s", (doc_id,))
                 conn.commit()
                 log_event(s["id"], "file_deleted", {"doc_id": doc_id})
+                # If that was the last document for this course, free up its
+                # color so a future new course can use it — no-op if the
+                # course still has other documents.
+                release_color_if_course_gone(s["id"], doc["course"])
             cur.close()
         invalidate_student_docs_cache(s["id"])
         return jsonify({"success": True, "docs": get_docs(s["id"])})

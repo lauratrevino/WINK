@@ -6,6 +6,7 @@ from ..errors import log_error
 from ..extensions import get_db
 from ..security import login_required, page_login_required
 from ..services.analytics import log_event, get_questions_this_month, get_wrapped_stats
+from ..services.course_colors import ensure_course_colors
 from ..services.deadlines import get_upcoming_deadlines
 from ..services.documents import get_docs
 
@@ -18,6 +19,11 @@ def dashboard():
     try:
         s = g.student
         docs = get_docs(s["id"])
+        # Same course->color mapping Documents and Calendar use — see
+        # services/course_colors.py.
+        course_names = sorted({(d.get("course") or "").strip() for d in docs
+                                if (d.get("course") or "").strip()}, key=str.lower)
+        course_colors = ensure_course_colors(s["id"], course_names)
         upcoming_deadlines = get_upcoming_deadlines(s["id"], days_ahead=7)
         questions_this_month = get_questions_this_month(s["id"])
         log_event(s["id"], "page_view", {"page": "dashboard"})
@@ -25,7 +31,8 @@ def dashboard():
                                active="dashboard", max_docs=config.MAX_DOCS_PER_STUDENT,
                                upcoming_deadlines=upcoming_deadlines,
                                questions_this_month=questions_this_month,
-                               preferred_languages=config.PREFERRED_LANGUAGES)
+                               preferred_languages=config.PREFERRED_LANGUAGES,
+                               course_colors=course_colors)
     except Exception as e:
         log_error("dashboard.dashboard", e)
         return "<h2>Something went wrong</h2><p>Please try again, or <a href='/logout'>log out</a> and back in.</p>", 500
