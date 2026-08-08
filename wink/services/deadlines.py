@@ -1,12 +1,49 @@
 """Deadline extraction (one small model call per upload) and the queries
 that back the dashboard, calendar page, and chat context."""
 import json
+import re
 from datetime import datetime
 
 from .. import config
 from ..errors import log_error
 from ..extensions import get_db, anthropic_client
 from ..timeutil import utcnow_naive
+
+
+def _strip_json_fence(raw):
+    """Pull the JSON array out of the model's response, tolerating a
+    ```json ... ``` fence with text before/after it (the old
+    `raw.strip("`")` approach only strips backticks that sit at the very
+    start/end of the whole string, so any trailing prose after the closing
+    fence left it untouched and fed json.loads() a mix of JSON + prose —
+    the "Extra data" errors in production)."""
+    m = re.search(r"```(?:json)?\s*(.*?)\s*```", raw, re.DOTALL)
+    if m:
+        return m.group(1).strip()
+    if raw.startswith("```"):
+        raw = raw.split("\n", 1)[-1] if "\n" in raw else raw
+        raw = raw.rstrip("`").rstrip()
+    return raw
+
+
+def _parse_deadline_json(raw):
+    """Parse the extracted JSON array, salvaging whatever complete objects
+    it can if the response was cut off mid-array (hitting max_tokens on a
+    long document) instead of throwing away every deadline found so far —
+    the "Unterminated string" errors in production came from a full Fall
+    calendar's worth of deadlines getting truncated before the closing
+    bracket, which the old code treated as a total failure."""
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        pass
+    last_brace = raw.rfind("}")
+    if last_brace == -1:
+        return []
+    try:
+        return json.loads(raw[:last_brace + 1] + "]")
+    except json.JSONDecodeError:
+        return []
 
 
 def extract_deadlines(content, today=None):
@@ -30,7 +67,12 @@ def extract_deadlines(content, today=None):
     try:
         resp = anthropic_client.messages.create(
             model=config.CHAT_MODEL,
-            max_tokens=1200,
+            # Was 1200 — a full course calendar can easily have 20-30
+            # deadlines, each with a title, date, and up-to-200-char source
+            # snippet, which routinely exceeded this and got the response
+            # truncated mid-JSON (see _parse_deadline_json's fallback below
+            # for what happens if that still occurs).
+            max_tokens=4096,
             system=(
                 "Extract assignment, exam, and other academic deadlines from the "
                 "document text the user provides. Respond with ONLY a JSON array "
@@ -47,9 +89,8 @@ def extract_deadlines(content, today=None):
             messages=[{"role": "user", "content": content[:config.DEADLINE_EXTRACTION_MAX_CHARS]}],
         )
         raw = "".join(b.text for b in resp.content if getattr(b, "type", None) == "text").strip()
-        if raw.startswith("```"):
-            raw = raw.strip("`").split("\n", 1)[-1] if "\n" in raw else raw.strip("`")
-        items = json.loads(raw)
+        raw = _strip_json_fence(raw)
+        items = _parse_deadline_json(raw)
         out = []
         for it in items if isinstance(items, list) else []:
             title = str(it.get("title", "")).strip()[:200]
