@@ -53,6 +53,12 @@
   <script src="{{ url_for('static', filename='js/csrf-fetch.js') }}"></script>
   <script src="{{ url_for('static', filename='js/course-colors.js') }}"></script>
 <script nonce="{{ csp_nonce() }}">
+    // Server-assigned {course: color} map (see services/course_colors.py) —
+    // same course always gets the same color across sessions, shared with
+    // Documents and Dashboard, and a deleted course's color becomes
+    // available again for a future new course.
+    const WINK_COURSE_COLORS = {{ course_colors | tojson }};
+
     let allDeadlines = [];
     let deadlinesByDate = {};
     let courseColors = {};
@@ -64,7 +70,7 @@
     // on every render.
     function colorForCourse(course) {
       if (!(course in courseColors)) {
-        courseColors[course] = winkColorForCourse(course);
+        courseColors[course] = winkColorForCourse(course, WINK_COURSE_COLORS);
       }
       return courseColors[course];
     }

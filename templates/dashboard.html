@@ -2559,7 +2559,14 @@
   </div>
 
   <script src="{{ url_for('static', filename='js/csrf-fetch.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/course-colors.js') }}"></script>
 <script nonce="{{ csp_nonce() }}">
+    // Server-assigned {course: color} map (see services/course_colors.py) —
+    // same course always gets the same color across sessions, shared with
+    // Documents and Calendar, and a deleted course's color becomes
+    // available again for a future new course.
+    const WINK_COURSE_COLORS = {{ course_colors | tojson }};
+
     function filterUniversityOptions(term, selectId) {
       const select = document.getElementById(selectId);
       const q = term.trim().toLowerCase();
@@ -2755,15 +2762,16 @@
         const card = document.getElementById('conflict-card');
         const body = document.getElementById('conflict-body');
         body.innerHTML = conflicts.map(cluster => {
-          const items = cluster.map(item =>
-            `<div class="deadline-item" style="grid-template-columns:auto 1fr;">
+          const items = cluster.map(item => {
+            const color = winkColorForCourse(item.course, WINK_COURSE_COLORS);
+            return `<div class="deadline-item" style="grid-template-columns:auto 1fr;border-left:4px solid ${color};padding-left:8px;">
                <div class="deadline-date">${escapeHtml((item.due_date || '').slice(5, 10))}</div>
                <div>
                  <div class="deadline-name">${escapeHtml(item.title)}</div>
-                 <div class="deadline-meta">${escapeHtml(item.course)}</div>
+                 <div class="deadline-meta" style="color:${color};font-weight:600;">${escapeHtml(item.course)}</div>
                </div>
-             </div>`
-          ).join('');
+             </div>`;
+          }).join('');
           return `<div style="margin-bottom:14px;">
                     <div style="font-size:13px;font-weight:700;color:#002855;margin-bottom:6px;">
                       ${cluster.length} things due close together:

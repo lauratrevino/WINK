@@ -207,16 +207,22 @@
   <script src="{{ url_for('static', filename='js/csrf-fetch.js') }}"></script>
   <script src="{{ url_for('static', filename='js/course-colors.js') }}"></script>
 <script nonce="{{ csp_nonce() }}">
+    // Server-assigned {course: color} map (see services/course_colors.py) —
+    // same course always gets the same color across sessions, shared with
+    // Calendar and Dashboard, and a deleted course's color becomes
+    // available again for a future new course.
+    const WINK_COURSE_COLORS = {{ course_colors | tojson }};
+
     // Colors each course section to match the color that same course gets
-    // on the Calendar page (shared hash in course-colors.js). Course
-    // headers here can read "Course Name (CRN 12345)" — strip that suffix
-    // before hashing so it matches the plain course name the Calendar uses.
+    // on the Calendar and Dashboard pages (shared logic in course-colors.js).
+    // Course headers here can read "Course Name (CRN 12345)" — strip that
+    // suffix first so it matches the plain course name the other pages use.
     function applyCourseColors(root) {
       (root || document).querySelectorAll('.course-section').forEach(section => {
         const h3 = section.querySelector('.course-section-header h3');
         if (!h3) return;
         const courseName = h3.textContent.replace(/\s*\(CRN[^)]*\)\s*$/i, '').trim();
-        const color = winkColorForCourse(courseName);
+        const color = winkColorForCourse(courseName, WINK_COURSE_COLORS);
         section.style.borderLeft = `4px solid ${color}`;
         section.style.paddingLeft = '12px';
         h3.style.color = color;
