@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WINK User Guide</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/nav.css') }}">
+  <style nonce="{{ csp_nonce() }}">
+    :root{--navy:#002855;--navy2:#0b477e;--orange:#FF8200;--cream:#fff7ec;--ink:#26364f;--muted:#6b7a99;--line:#dde3f0;--bg:#f4f6fb}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
+    .manual-shell{max-width:1180px;margin:0 auto;padding:28px 22px 60px}
+    .manual-hero{position:relative;overflow:hidden;min-height:0;height:auto;border-radius:22px;background:linear-gradient(120deg,#fff 0%,#fff8ef 48%,#eef5fb 100%);border:2px solid var(--orange);box-shadow:0 14px 38px rgba(0,40,85,.14);display:grid;grid-template-columns:1.1fr .9fr;align-items:center}
+    .hero-copy{padding:20px 42px;position:relative;z-index:2}.eyebrow{font-size:11px;font-weight:900;letter-spacing:.15em;color:var(--orange);margin-bottom:7px}.hero-copy h1{margin:0;color:var(--navy);font-size:42px;line-height:1.04;letter-spacing:-1px}.hero-copy .hello{font-size:20px;font-weight:800;color:var(--navy);margin:12px 0 7px}.hero-copy p{margin:0;color:#53627b;line-height:1.6;max-width:620px}.hero-wink{height:100%;min-height:0;background-image:linear-gradient(90deg,rgba(255,255,255,.92),rgba(255,255,255,0) 30%),url("{{ url_for('static', filename='images/landing-hero.jpg') }}");background-size:cover;background-position:73% center}
+    .search-wrap{position:sticky;top:10px;z-index:50;margin:10px auto 14px;max-width:980px;padding:0 18px}.search-box{background:#fff;border:2px solid var(--navy);border-radius:16px;box-shadow:0 10px 28px rgba(0,40,85,.18);padding:12px 15px;display:flex;align-items:center;gap:10px}.search-icon{font-size:20px}.search-box input{border:0;outline:0;width:100%;font-size:16px;color:var(--navy);background:transparent}.search-box input::placeholder{color:#8b98ad}.search-clear{border:0;background:#eef2f8;color:var(--navy);font-weight:800;border-radius:9px;padding:7px 10px;cursor:pointer;display:none}
+    .quick-nav{display:flex;gap:9px;flex-wrap:wrap;justify-content:center;margin:0 0 24px}.quick-nav a{text-decoration:none;color:var(--navy);background:#fff;border:1px solid var(--line);border-radius:999px;padding:8px 12px;font-size:12px;font-weight:800;box-shadow:0 2px 6px rgba(0,40,85,.05)}.quick-nav a:hover{border-color:var(--orange);color:#c75e00}
+    .result-note{text-align:center;color:var(--muted);font-size:12px;margin:-9px 0 18px;display:none}
+    .guide-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}.guide-card{background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 3px 12px rgba(0,40,85,.06);overflow:hidden;scroll-margin-top:100px}.guide-card.hidden{display:none}.card-head{padding:18px 20px 14px;border-top:5px solid var(--orange);display:flex;gap:12px;align-items:flex-start}.card-icon{width:42px;height:42px;border-radius:11px;background:var(--cream);display:flex;align-items:center;justify-content:center;font-size:21px;flex:0 0 42px}.card-head h2{margin:0;color:var(--navy);font-size:19px}.card-head p{margin:3px 0 0;font-size:12px;color:var(--muted)}.card-body{padding:0 20px 20px}.card-body h3{color:var(--navy);font-size:14px;margin:16px 0 6px}.card-body p,.card-body li{font-size:13px;line-height:1.55}.card-body ul{margin:7px 0 0;padding-left:20px}.card-body li{margin:5px 0}.tip{background:#fff7ec;border-left:4px solid var(--orange);border-radius:8px;padding:10px 12px;margin-top:13px;font-size:12.5px;line-height:1.5}.note{background:#f3f7fb;border-left:4px solid var(--navy2);border-radius:8px;padding:10px 12px;margin-top:13px;font-size:12.5px;line-height:1.5}
+    .full{grid-column:1/-1}.feature-mini-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:11px}.feature-mini{border:1px solid #e4e9f1;background:#fafbfe;border-radius:10px;padding:10px}.feature-mini strong{display:block;color:var(--navy);font-size:12px;margin-bottom:3px}.feature-mini span{font-size:11.5px;color:#5d6b82;line-height:1.4}
+    .language-cloud{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}.language-cloud span{font-size:11px;font-weight:700;color:var(--navy);background:#eef5fb;border:1px solid #dce7f2;border-radius:999px;padding:5px 8px}
+    .search-hit{background:#fff1c9;border-radius:3px;padding:0 2px}.no-results{display:none;background:#fff;border:2px dashed #cfd8e6;border-radius:15px;padding:32px;text-align:center;color:var(--muted);grid-column:1/-1}.no-results strong{display:block;color:var(--navy);font-size:18px;margin-bottom:5px}
+    .manual-footer{text-align:center;margin-top:28px;color:#77869c;font-size:11.5px}.back-top{display:inline-block;margin-top:12px;text-decoration:none;color:var(--orange);font-weight:800}
+    @media(max-width:860px){.manual-hero{grid-template-columns:1fr;height:auto}.hero-wink{min-height:250px;background-position:75% center}.hero-copy{padding:30px}.hero-copy h1{font-size:34px}.guide-grid{grid-template-columns:1fr}.full{grid-column:auto}.feature-mini-grid{grid-template-columns:1fr 1fr}.search-wrap{top:5px}}
+    @media(max-width:520px){.manual-shell{padding:14px 12px 40px}.hero-copy{padding:24px}.hero-copy h1{font-size:30px}.feature-mini-grid{grid-template-columns:1fr}.search-wrap{padding:0 6px;margin:-18px 0 18px}.quick-nav{justify-content:flex-start}}
+
+    .manual-hero { height:auto !important; min-height:0 !important; position:relative !important; }
+    .hero-copy { width:58% !important; padding:20px 42px 18px !important; }
+    .hero-wink { position:absolute !important; top:0 !important; right:0 !important; bottom:0 !important; width:42% !important; height:auto !important; min-height:0 !important; }
+    .search-wrap { margin:12px 0 0 !important; padding:0 !important; }
+    .quick-nav { margin:8px 0 24px !important; }
+    @media(max-width:860px) {
+      .hero-copy { width:100% !important; }
+      .hero-wink { display:none !important; }
+    }
+</style>
+</head>
+<body>
+  {% include "_nav.html" %}
+  <main class="manual-shell" id="top">
+    <section class="manual-hero">
+      <div class="hero-copy">
+        <div class="eyebrow">THE WINK USER GUIDE</div>
+        <h1>Need help? I’ve got you. 🧡</h1>
+        <div class="hello">Hi! I’m WINK.</div>
+        <p>You do not have to memorize anything. Search below, choose a topic, or browse the guide whenever you need a little help finding your way around WINK.</p>
+        <div class="search-wrap">
+          <div class="search-box">
+            <span class="search-icon">🔎</span>
+            <input id="manual-search" type="search" placeholder="Search the WINK manual… try ‘language,’ ‘upload syllabus,’ ‘grade,’ or ‘microphone’" autocomplete="off" aria-label="Search the WINK user guide">
+            <button type="button" class="search-clear" id="search-clear">Clear</button>
+          </div>
+        </div>
+      </div>
+      <div class="hero-wink" role="img" aria-label="WINK, your AI academic coach"></div>
+    </section>
+
+    <nav class="quick-nav" aria-label="User guide topics">
+      <a href="#getting-started">Start Here</a><a href="#dashboard">Dashboard</a><a href="#documents">Documents</a><a href="#chat">Ask WINK</a><a href="#calendar">Calendar</a><a href="#practice">Practice</a><a href="#grades">Grades</a><a href="#progress">My Progress</a><a href="#language">Languages</a><a href="#profile">Profile</a><a href="#troubleshooting">Help</a>
+    </nav>
+    <div class="result-note" id="result-note"></div>
+
+    <section class="guide-grid" id="guide-grid">
+      <article class="guide-card" id="getting-started" data-keywords="getting started register account login sign in forgot password email verification first time">
+        <div class="card-head"><div class="card-icon">👋</div><div><h2>Start Here</h2><p>Your first few minutes with WINK</p></div></div>
+        <div class="card-body">
+          <h3>Create your account</h3><p>Enter your name, university, school email, classification, major, and password. Read and accept the WINK Terms of Agreement before finishing registration.</p>
+          <h3>Sign in</h3><p>Use your email and password from the WINK landing page. If you forget your password, choose <strong>Forgot password?</strong> and follow the reset instructions.</p>
+          <div class="tip"><strong>Best first move:</strong> Upload your syllabi and course calendars. The more accurate course material WINK has, the more useful your answers, deadlines, study tools, and grade information can be.</div>
+        </div>
+      </article>
+
+      <article class="guide-card" id="dashboard" data-keywords="dashboard today schedule what's due due deadlines quick actions busy stretch profile courses overview">
+        <div class="card-head"><div class="card-icon">🏠</div><div><h2>Dashboard</h2><p>Your semester at a glance</p></div></div>
+        <div class="card-body"><p>Your Dashboard is your home base. Use it to see what is due, what is happening today, jump to major WINK tools, and check your profile.</p>
+          <div class="feature-mini-grid"><div class="feature-mini"><strong>What’s Due</strong><span>See upcoming academic work WINK has found.</span></div><div class="feature-mini"><strong>Today</strong><span>See the schedule and items that matter today.</span></div><div class="feature-mini"><strong>Busy Stretch Ahead</strong><span>When WINK detects a real cluster of deadlines, it can flag the busy period for you.</span></div></div>
+        </div>
+      </article>
+
+      <article class="guide-card full" id="documents" data-keywords="documents academic materials upload syllabus calendar assignment notes slides handout pdf word powerpoint excel image png jpg crn file search download delete current files">
+        <div class="card-head"><div class="card-icon">📚</div><div><h2>My Documents</h2><p>This is how WINK learns your courses</p></div></div>
+        <div class="card-body"><p>Upload the materials WINK should use when answering course-specific questions. Add the course name and CRN, choose the document type, then select your file.</p>
+          <div class="feature-mini-grid"><div class="feature-mini"><strong>Supported files</strong><span>PDF, Word, PowerPoint, Excel, text, PNG and JPG files.</span></div><div class="feature-mini"><strong>Organized by course</strong><span>Your document library groups your files by class and lets you search by course or filename.</span></div><div class="feature-mini"><strong>Manage your files</strong><span>Open, download, or delete uploaded documents whenever needed.</span></div></div>
+          <div class="tip"><strong>Keep files current.</strong> If your instructor changes a due date, policy, assignment, or calendar, upload the new version. WINK can only work from what you give it.</div>
+        </div>
+      </article>
+
+      <article class="guide-card full" id="chat" data-keywords="ask wink chat ai coach questions microphone voice speech read aloud text size recent chats new chat upload temporary permanent export share feedback thumbs up down web campus resources study plan summarize syllabus">
+        <div class="card-head"><div class="card-icon">💬</div><div><h2>Ask WINK</h2><p>Your AI academic coach</p></div></div>
+        <div class="card-body"><p>Ask WINK questions about your courses, deadlines, assignments, study needs, or campus resources. WINK uses your uploaded course material first when it is relevant.</p>
+          <div class="feature-mini-grid"><div class="feature-mini"><strong>🎤 Speak your question</strong><span>Use the microphone button when your browser supports speech recognition.</span></div><div class="feature-mini"><strong>🔊 Read answers aloud</strong><span>Use read-aloud to have the latest WINK answer spoken to you.</span></div><div class="feature-mini"><strong>🔠 Adjust text size</strong><span>Chat includes text-size controls for easier reading.</span></div><div class="feature-mini"><strong>＋ Upload from Chat</strong><span>Add a file permanently to My Documents or use a file only for that conversation.</span></div><div class="feature-mini"><strong>Recent Chats</strong><span>Reopen recent conversations or start fresh with + New Chat.</span></div><div class="feature-mini"><strong>👍 Feedback</strong><span>Rate WINK answers with thumbs up or thumbs down so the system can be evaluated and improved.</span></div></div>
+          <h3>Try asking:</h3><ul><li>“What do I have due next week?”</li><li>“Summarize my syllabi.”</li><li>“What should I study for my upcoming exam?”</li><li>“Help me build a study plan for this week.”</li><li>“Where can I get tutoring?”</li></ul>
+          <div class="note"><strong>Check important information.</strong> AI can make mistakes. Verify deadlines, grading policies, and important requirements against your instructor or official course materials.</div>
+        </div>
+      </article>
+
+      <article class="guide-card" id="calendar" data-keywords="calendar deadlines due date confirm correct dismiss detected ai personal item recurring series complete check mark color course month day">
+        <div class="card-head"><div class="card-icon">📅</div><div><h2>Calendar</h2><p>Turn course material into an academic plan</p></div></div>
+        <div class="card-body"><p>WINK can display deadlines found in your course materials. Course colors help you see which class each item belongs to.</p><ul><li><strong>Confirm</strong> an AI-detected deadline that is correct.</li><li><strong>Correct</strong> the title or date if WINK found the right item but got something wrong.</li><li><strong>Dismiss</strong> something that is not actually a deadline.</li><li><strong>Mark items complete</strong> as you finish them.</li><li>Add and edit your own personal calendar items, including recurring items when available.</li></ul></div>
+      </article>
+
+      <article class="guide-card" id="practice" data-keywords="practice review flashcards questions quiz practice quiz assessment quiz summary handout spaced repetition due review generate study">
+        <div class="card-head"><div class="card-icon">🧠</div><div><h2>Practice & Review</h2><p>Turn your course material into study tools</p></div></div>
+        <div class="card-body"><p>Choose a course and let WINK generate study material from what you uploaded.</p><ul><li>Flashcards</li><li>Review questions</li><li>Practice quizzes with automatic grading and explanations</li><li>Study summaries</li><li>Assessment-style quizzes when supported by your uploaded materials</li></ul><div class="tip">You can attach a handout just for one practice session without permanently saving that handout to your account. Previously answered questions can also return later for review.</div></div>
+      </article>
+
+      <article class="guide-card" id="grades" data-keywords="grades grade calculator grading weights syllabus current grade target grade what do i need categories scores course">
+        <div class="card-head"><div class="card-icon">🧮</div><div><h2>Grade Calculator</h2><p>See where you stand and what you need</p></div></div>
+        <div class="card-body"><p>Pick a course and ask WINK to pull the grading breakdown from an uploaded syllabus. Enter your scores to calculate your current grade and explore what you need on remaining work to reach a target grade.</p><div class="tip">If WINK cannot find the grading weights, you can add or adjust the grading categories yourself.</div></div>
+      </article>
+
+      <article class="guide-card" id="progress" data-keywords="my progress progress organization planning help seeking engagement practice growth over time active days on time completed wink noticed habits">
+        <div class="card-head"><div class="card-icon">📈</div><div><h2>My Progress</h2><p>See the habits you are building</p></div></div>
+        <div class="card-body"><p>My Progress turns your WINK activity into an easy-to-read picture of your academic habits. It is designed to show your own behavior over time, not give you a grade or a “success score.”</p><ul><li>Active days and questions asked</li><li>Tracked work completed and on-time completion when WINK has enough information</li><li>Organization and planning activity</li><li>Help-seeking and practice activity</li><li>Week-by-week growth patterns</li><li><strong>WINK noticed…</strong> observations about changes in your habits</li></ul></div>
+      </article>
+
+      <article class="guide-card full" id="language" data-keywords="language languages spanish english multilingual preferred reply auto detect automatic typing translate arabic chinese tagalog french german gujarati haitian creole hindi italian japanese korean farsi polish portuguese punjabi russian somali swahili thai turkish ukrainian urdu vietnamese">
+        <div class="card-head"><div class="card-icon">🌎</div><div><h2>Talk to WINK in Your Language</h2><p>WINK can match the language you use in Chat</p></div></div>
+        <div class="card-body"><p><strong>WINK auto-detects the language you type in.</strong> Just type your message to WINK in your language and WINK will try to answer in that same language — you can even switch languages from one message to the next, and WINK will follow along.</p>
+          <div class="language-cloud"><span>Arabic</span><span>Chinese (Mandarin)</span><span>English</span><span>Filipino (Tagalog)</span><span>French</span><span>German</span><span>Gujarati</span><span>Haitian Creole</span><span>Hindi</span><span>Italian</span><span>Japanese</span><span>Korean</span><span>Persian (Farsi)</span><span>Polish</span><span>Portuguese</span><span>Punjabi</span><span>Russian</span><span>Somali</span><span>Spanish</span><span>Swahili</span><span>Thai</span><span>Turkish</span><span>Ukrainian</span><span>Urdu</span><span>Vietnamese</span></div>
+          <div class="note"><strong>Good to know:</strong> Language auto-detection controls WINK’s Chat replies only. It does not translate the buttons, menus, or other pages in the WINK interface.</div>
+        </div>
+      </article>
+
+      <article class="guide-card" id="profile" data-keywords="profile edit name classification major university preferred language email verify verification account dashboard">
+        <div class="card-head"><div class="card-icon">👤</div><div><h2>Profile & Account</h2><p>Keep your WINK information current</p></div></div>
+        <div class="card-body"><p>Your Dashboard profile lets you review and edit information such as your name, classification, major, university, and preferred reply language. You may also see email-verification controls if your address still needs to be confirmed.</p></div>
+      </article>
+
+      <article class="guide-card" id="privacy" data-keywords="privacy research data terms agreement collected questions responses uploads interactions anonymized dr trevino">
+        <div class="card-head"><div class="card-icon">🔐</div><div><h2>Privacy & Research</h2><p>Know what WINK records</p></div></div>
+        <div class="card-body"><p>WINK is being evaluated as a research project. The registration agreement explains the information collected, including account/profile information, course information, uploaded materials, questions and messages, WINK responses, and usage/interaction information.</p><div class="tip">Read the current Privacy Policy and Terms of Agreement inside WINK for the official description of collection, research use, and anonymization.</div></div>
+      </article>
+
+      <article class="guide-card full" id="troubleshooting" data-keywords="help troubleshooting problem not working wrong answer upload failed password reset browser refresh current file language microphone mic read aloud">
+        <div class="card-head"><div class="card-icon">🛟</div><div><h2>Quick Troubleshooting</h2><p>Try these before declaring WINK possessed 👻</p></div></div>
+        <div class="card-body"><div class="feature-mini-grid"><div class="feature-mini"><strong>WINK gave an old deadline</strong><span>Check whether the newest syllabus/calendar is uploaded. Replace outdated course material.</span></div><div class="feature-mini"><strong>WINK cannot find course information</strong><span>Make sure the correct course file is in My Documents and that the course/CRN information is correct.</span></div><div class="feature-mini"><strong>Microphone is missing</strong><span>Your browser may not support speech recognition or microphone permission may be blocked.</span></div><div class="feature-mini"><strong>Wrong reply language</strong><span>Check Preferred reply language in your Dashboard profile, or choose Auto-detect.</span></div><div class="feature-mini"><strong>Forgot password</strong><span>Return to the landing page and use Forgot password? under Sign In.</span></div><div class="feature-mini"><strong>Something looks stuck</strong><span>Refresh the page and try again. If the problem continues, report exactly what you clicked and what happened.</span></div></div></div>
+      </article>
+
+      <div class="no-results" id="no-results"><strong>Hmm… I couldn’t find that. 🤔</strong>Try another word such as “calendar,” “language,” “upload,” “grade,” “password,” or “microphone.”</div>
+    </section>
+
+    <footer class="manual-footer">WINK — What I Need to Know · Your AI Academic Coach<br><a class="back-top" href="#top">↑ Back to top</a></footer>
+  </main>
+
+  <script nonce="{{ csp_nonce() }}">
+    (function(){
+      const input=document.getElementById('manual-search');
+      const cards=Array.from(document.querySelectorAll('.guide-card'));
+      const clear=document.getElementById('search-clear');
+      const note=document.getElementById('result-note');
+      const none=document.getElementById('no-results');
+      function normalize(s){return (s||'').toLowerCase().replace(/[^a-z0-9\u00c0-\u024f\u0600-\u06ff\u0400-\u04ff\s]/g,' ')}
+      function run(){
+        const q=normalize(input.value).trim(); let shown=0;
+        cards.forEach(card=>{
+          const hay=normalize((card.dataset.keywords||'')+' '+card.textContent);
+          const match=!q || q.split(/\s+/).every(term=>hay.includes(term));
+          card.classList.toggle('hidden',!match); if(match) shown++;
+        });
+        clear.style.display=q?'block':'none';
+        note.style.display=q?'block':'none';
+        note.textContent=q ? `${shown} section${shown===1?'':'s'} found for “${input.value.trim()}”` : '';
+        none.style.display=(q && shown===0)?'block':'none';
+      }
+      input.addEventListener('input',run);
+      clear.addEventListener('click',()=>{input.value='';run();input.focus();});
+      document.querySelectorAll('.quick-nav a').forEach(a=>a.addEventListener('click',()=>{if(input.value){input.value='';run();}}));
+    })();
+  </script>
+</body>
+</html>

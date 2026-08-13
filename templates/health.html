@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>System Health — WINK</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/nav.css') }}">
+<style nonce="{{ csp_nonce() }}">
+  :root {
+    --navy: #002855; --navy-deep: #001833; --orange: #FF8200;
+    --light-bg: #f4f6fb; --muted: #6b7a99; --border: #dde3f0; --gray-text: #2d3548;
+    --green: #16a34a; --green-soft: #ecfdf3;
+    --amber: #b45309; --amber-soft: #fffaeb;
+    --red: #b91c1c; --red-soft: #fef2f2;
+    --slate: #64748b; --slate-soft: #f4f6fb;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+    background: var(--light-bg); color: var(--gray-text); min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page-shell { max-width: 900px; margin: 0 auto; padding: 32px 24px 64px; }
+
+  .health-header { margin-bottom: 22px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .health-header h1 { font-size: 26px; font-weight: 800; color: var(--navy); letter-spacing: -0.3px; }
+  .health-header p { font-size: 13px; color: var(--muted); margin-top: 4px; }
+
+  .overall-pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 13px; font-weight: 700; padding: 8px 16px; border-radius: 999px;
+  }
+  .overall-pill.ok { background: var(--green-soft); color: var(--green); }
+  .overall-pill.warn { background: var(--amber-soft); color: var(--amber); }
+  .overall-pill.down { background: var(--red-soft); color: var(--red); }
+  .overall-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+
+  .refresh-btn {
+    font-size: 12.5px; font-weight: 700; color: var(--navy);
+    background: #fff; border: 1px solid var(--border); border-radius: 7px;
+    padding: 7px 14px; cursor: pointer; font-family: inherit;
+  }
+  .refresh-btn:hover { border-color: var(--navy); }
+
+  .check-card {
+    background: #fff; border-radius: 10px; border: 1px solid var(--border);
+    padding: 14px 18px; margin-bottom: 10px;
+    display: flex; align-items: flex-start; gap: 12px;
+    border-left: 4px solid var(--slate);
+  }
+  .check-card.ok { border-left-color: var(--green); }
+  .check-card.warn { border-left-color: var(--amber); }
+  .check-card.down { border-left-color: var(--red); }
+  .check-card.not_configured { border-left-color: var(--slate); }
+
+  .status-badge {
+    flex-shrink: 0; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em;
+    padding: 4px 9px; border-radius: 999px; margin-top: 2px; white-space: nowrap;
+  }
+  .status-badge.ok { background: var(--green-soft); color: var(--green); }
+  .status-badge.warn { background: var(--amber-soft); color: var(--amber); }
+  .status-badge.down { background: var(--red-soft); color: var(--red); }
+  .status-badge.not_configured { background: var(--slate-soft); color: var(--slate); }
+
+  .check-name { font-size: 14px; font-weight: 700; color: var(--navy); }
+  .check-detail { font-size: 12.5px; color: var(--muted); margin-top: 3px; line-height: 1.5; }
+
+  .health-note {
+    font-size: 12px; color: var(--muted); margin-top: 20px; line-height: 1.6;
+    border-top: 1px solid var(--border); padding-top: 16px;
+  }
+  .loading-state { text-align: center; padding: 40px 0; color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+{% include "_nav.html" %}
+<main class="page-shell">
+  <div class="health-header">
+    <div>
+      <h1>System Health</h1>
+      <p>Admin-only status for each service WINK depends on.</p>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div class="overall-pill" id="overall-pill" style="display:none;">
+        <span class="overall-dot"></span>
+        <span id="overall-label">Checking…</span>
+      </div>
+      <button type="button" class="refresh-btn" id="refresh-btn">Refresh</button>
+    </div>
+  </div>
+
+  <div id="checks-container">
+    <div class="loading-state">Checking each service…</div>
+  </div>
+
+  <p class="health-note">
+    These checks confirm a service is <em>configured and reachable</em> — the Anthropic check in particular
+    doesn't make a live billed call, so it won't catch an out-of-credit account until a real chat request fails.
+    Chat failures are now logged with a category (AI_CREDIT, AI_RATE_LIMIT, AI_TIMEOUT, AI_PROVIDER_DOWN) —
+    check application logs for those if students report WINK not answering.
+  </p>
+</main>
+
+<script nonce="{{ csp_nonce() }}">
+const STATUS_LABEL = { ok: 'All Systems OK', warn: 'Needs Attention', down: 'Service Down' };
+
+async function loadHealth() {
+  const container = document.getElementById('checks-container');
+  const pill = document.getElementById('overall-pill');
+  const label = document.getElementById('overall-label');
+  container.innerHTML = '<div class="loading-state">Checking each service…</div>';
+  try {
+    const res = await fetch('/health-data');
+    const data = await res.json();
+    if (data.error) {
+      container.innerHTML = `<div class="loading-state">${data.error}</div>`;
+      return;
+    }
+    pill.style.display = 'inline-flex';
+    pill.className = `overall-pill ${data.overall}`;
+    label.textContent = STATUS_LABEL[data.overall] || data.overall;
+
+    container.innerHTML = data.checks.map(c => `
+      <div class="check-card ${c.status}">
+        <span class="status-badge ${c.status}">${c.status.replace('_', ' ')}</span>
+        <div>
+          <div class="check-name">${c.name}</div>
+          <div class="check-detail">${c.detail}</div>
+        </div>
+      </div>`).join('');
+  } catch (e) {
+    container.innerHTML = '<div class="loading-state">Couldn\'t load health data — please refresh.</div>';
+  }
+}
+
+document.getElementById('refresh-btn').addEventListener('click', loadHealth);
+loadHealth();
+</script>
+</body>
+</html>

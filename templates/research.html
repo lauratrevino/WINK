@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WINK — Research Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/nav.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/research.css') }}">
+</head>
+<body>
+
+{% include "_nav.html" %}
+
+<header>
+  <h1>WINK Research Dashboard</h1>
+  <span class="tag">Admin only</span>
+</header>
+
+<main>
+  <div class="disclaimer">
+    This page reports what the system has actually logged and what a reviewer has actually rated —
+    not an estimate of accuracy. <strong>accuracy_pct</strong> below reflects only the answers someone has
+    scored so far; treat every other number here as a starting point for a fuller accuracy benchmark,
+    not a finished conclusion.
+  </div>
+
+  <section>
+    <h2>Reproducibility snapshot</h2>
+    <p class="empty" style="margin-top:-6px;">Record this alongside any accuracy number you report — it's
+      what changed between "then" and "now" if a later result looks different.</p>
+    <table>
+      <tbody>
+        <tr><th>Chat model</th><td><code class="small">{{ config_snapshot.chat_model }}</code></td></tr>
+        <tr><th>Embedding model</th><td><code class="small">{{ config_snapshot.embedding_model }}</code>
+          — neural embeddings {{ "configured" if config_snapshot.neural_embeddings_configured else "NOT configured (TF-IDF only)" }}</td></tr>
+        <tr><th>Retrieval chunk size / overlap</th><td>{{ config_snapshot.retrieval_chunk_chars }} / {{ config_snapshot.retrieval_chunk_overlap_chars }} chars</td></tr>
+        <tr><th>Top-N chunks (student / global)</th><td>{{ config_snapshot.retrieval_top_n_student_docs }} / {{ config_snapshot.retrieval_top_n_global_docs }}</td></tr>
+        <tr><th>Doc context budget (student / global)</th><td>{{ config_snapshot.max_doc_context_chars }} / {{ config_snapshot.max_global_doc_context_chars }} chars</td></tr>
+        <tr><th>Deadline extraction budget</th><td>{{ config_snapshot.deadline_extraction_max_chars }} chars</td></tr>
+        <tr><th>Chat history window</th><td>{{ config_snapshot.max_chat_history_messages }} messages</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Answer provenance {% if answer_stats %}(last {{ answer_stats.window_days }} days){% endif %}</h2>
+    {% if answer_stats %}
+    <div class="grid">
+      <div class="card">
+        <div class="label">Logged answers</div>
+        <div class="value">{{ answer_stats.total_answers }}</div>
+        <div class="sub">{{ answer_stats.unique_students }} unique students</div>
+      </div>
+      <div class="card">
+        <div class="label">Reviewer-rated so far</div>
+        <div class="value">{{ answer_stats.rated_count }}</div>
+        <div class="sub">of {{ answer_stats.total_answers }} logged</div>
+      </div>
+      <div class="card">
+        <div class="label">Accuracy (rated only)</div>
+        <div class="value {{ 'good' if answer_stats.accuracy_pct and answer_stats.accuracy_pct >= 80 else ('bad' if answer_stats.accuracy_pct is not none else '') }}">
+          {{ (answer_stats.accuracy_pct ~ '%') if answer_stats.accuracy_pct is not none else 'No ratings yet' }}
+        </div>
+        <div class="sub">correct / (correct + incorrect), excludes "unsure"</div>
+      </div>
+      <div class="card">
+        <div class="label">Avg latency</div>
+        <div class="value">{{ (answer_stats.avg_latency_ms ~ ' ms') if answer_stats.avg_latency_ms is not none else '—' }}</div>
+      </div>
+      <div class="card">
+        <div class="label">Avg chunks per answer</div>
+        <div class="value">{{ answer_stats.avg_chunk_count if answer_stats.avg_chunk_count is not none else '—' }}</div>
+      </div>
+    </div>
+    <table>
+      <thead><tr><th>Retrieval backend</th><th>Answers</th></tr></thead>
+      <tbody>
+        {% for backend, n in answer_stats.retrieval_backend_breakdown.items() %}
+        <tr><td><span class="pill {{ backend }}">{{ backend }}</span></td><td>{{ n }}</td></tr>
+        {% else %}
+        <tr><td colspan="2" class="empty">No answers logged yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="empty">No answer-provenance data yet — log_answer() hasn't been wired into /chat, or no database is configured.</p>
+    {% endif %}
+  </section>
+
+  <section>
+    <h2>Deadline extraction — confirmation status</h2>
+    {% if deadline_stats %}
+    <div class="grid">
+      <div class="card">
+        <div class="label">Detected, unconfirmed</div>
+        <div class="value warn">{{ deadline_stats.detected }}</div>
+      </div>
+      <div class="card">
+        <div class="label">Confirmed as-is</div>
+        <div class="value good">{{ deadline_stats.confirmed }}</div>
+      </div>
+      <div class="card">
+        <div class="label">Corrected by student</div>
+        <div class="value bad">{{ deadline_stats.corrected }}</div>
+      </div>
+      <div class="card">
+        <div class="label">Correction rate</div>
+        <div class="value {{ 'bad' if deadline_stats.correction_rate_pct and deadline_stats.correction_rate_pct > 15 else '' }}">
+          {{ (deadline_stats.correction_rate_pct ~ '%') if deadline_stats.correction_rate_pct is not none else 'No reviews yet' }}
+        </div>
+        <div class="sub">corrected / (confirmed + corrected) — an approximate error rate for the extraction model</div>
+      </div>
+    </div>
+    {% else %}
+    <p class="empty">No deadline-confirmation data yet.</p>
+    {% endif %}
+  </section>
+
+  <section>
+    <h2>Perceived helpfulness vs. faculty-rated correctness</h2>
+    <p class="empty" style="margin-top:-6px;">Only counts answers that have <em>both</em> a student thumbs
+      up/down and a faculty rating, since the two measure different things.</p>
+    {% if feedback_gap %}
+    <div class="grid">
+      <div class="card">
+        <div class="label">Answers with both ratings</div>
+        <div class="value">{{ feedback_gap.total_with_both_ratings }}</div>
+      </div>
+      <div class="card">
+        <div class="label">Thumbs-up but faculty said incorrect</div>
+        <div class="value {{ 'bad' if feedback_gap.thumbs_up_but_incorrect else '' }}">{{ feedback_gap.thumbs_up_but_incorrect }}</div>
+        <div class="sub">{{ (feedback_gap.thumbs_up_but_incorrect_pct ~ '% of the overlap') if feedback_gap.thumbs_up_but_incorrect_pct is not none else '' }} — confident-sounding wrong answers a student approved of anyway</div>
+      </div>
+    </div>
+    {% else %}
+    <p class="empty">No answers have both a student rating and a faculty rating yet.</p>
+    {% endif %}
+  </section>
+
+  <section>
+    <h2>Rate a sample answer</h2>
+    <p class="empty" style="margin-top:-6px;">Most recent unrated answers. Read the question and answer against the
+      source documents before rating — "correct" means the facts are right and supported, not just that it sounds reasonable.</p>
+    {% if unrated_sample %}
+      {% for a in unrated_sample %}
+      <div class="answer-card" id="answer-{{ a.id }}">
+        <div class="q">Q: {{ a.question }}</div>
+        <div class="a">{{ a.answer_text if a.answer_text else "(answer text not logged for this row)" }}</div>
+        <div class="meta">
+          <span class="pill {{ a.retrieval_backend }}">{{ a.retrieval_backend }}</span>
+          &middot; {{ a.model }} &middot; {{ a.chunk_count }} chunk(s) &middot;
+          {{ (a.latency_ms ~ ' ms') if a.latency_ms is not none else 'latency n/a' }} &middot;
+          {{ a.created_at }}
+        </div>
+        <div class="rate-row">
+          <button class="rate correct" data-id="{{ a.id }}" data-rating="correct">Correct</button>
+          <button class="rate incorrect" data-id="{{ a.id }}" data-rating="incorrect">Incorrect</button>
+          <button class="rate unsure" data-id="{{ a.id }}" data-rating="unsure">Unsure</button>
+          <textarea placeholder="Optional note (what was wrong, what source should've been cited...)" id="notes-{{ a.id }}"></textarea>
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <p class="empty">No unrated answers waiting — either nothing has been logged yet, or everything logged so far has already been rated.</p>
+    {% endif %}
+  </section>
+
+  <p><a class="export-link" href="{{ url_for('research.export_json') }}">Export rated data as JSON &rarr;</a></p>
+</main>
+
+<script nonce="{{ csp_nonce() }}">
+
+document.querySelectorAll('button.rate').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    var id = btn.getAttribute('data-id');
+    var rating = btn.getAttribute('data-rating');
+    var notesEl = document.getElementById('notes-' + id);
+    var notes = notesEl ? notesEl.value : '';
+    var card = document.getElementById('answer-' + id);
+    var buttons = card.querySelectorAll('button.rate');
+    buttons.forEach(function (b) { b.disabled = true; });
+
+    fetch('/research/rate-answer', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': '{{ csrf_token() }}'
+      },
+      body: JSON.stringify({ log_id: id, rating: rating, notes: notes })
+    }).then(function (resp) {
+      if (resp.ok) {
+        card.style.opacity = '0.5';
+        var doneLabel = document.createElement('div');
+        doneLabel.className = 'meta';
+        doneLabel.textContent = 'Rated: ' + rating;
+        card.appendChild(doneLabel);
+      } else {
+        buttons.forEach(function (b) { b.disabled = false; });
+        alert('Could not save rating — try again.');
+      }
+    }).catch(function () {
+      buttons.forEach(function (b) { b.disabled = false; });
+      alert('Network error saving rating.');
+    });
+  });
+});
+</script>
+
+</body>
+</html>

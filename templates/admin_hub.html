@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — WINK</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/nav.css') }}">
+<style nonce="{{ csp_nonce() }}">
+  :root {
+    --navy: #002855; --navy-deep: #001833; --orange: #FF8200;
+    --light-bg: #f4f6fb; --muted: #6b7a99; --border: #dde3f0; --gray-text: #2d3548;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+    background: var(--light-bg); color: var(--gray-text); min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page-shell { max-width: 900px; margin: 0 auto; padding: 32px 24px 64px; }
+  .admin-header { margin-bottom: 26px; }
+  .admin-header h1 { font-size: 26px; font-weight: 800; color: var(--navy); letter-spacing: -0.3px; }
+  .admin-header p { font-size: 13.5px; color: var(--muted); margin-top: 4px; }
+
+  .admin-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  @media (max-width: 700px) { .admin-grid { grid-template-columns: 1fr; } }
+
+  .admin-card {
+    background: #fff; border-radius: 12px; border: 1px solid var(--border);
+    padding: 22px; text-decoration: none; color: inherit;
+    border-top: 3px solid var(--navy); transition: transform .15s ease, box-shadow .15s ease;
+    display: block;
+  }
+  .admin-card:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(0,40,85,.1); }
+  .admin-card-icon { font-size: 26px; margin-bottom: 12px; }
+  .admin-card-title { font-size: 16px; font-weight: 800; color: var(--navy); margin-bottom: 6px; }
+  .admin-card-desc { font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+</style>
+</head>
+<body>
+{% include "_nav.html" %}
+<main class="page-shell">
+  <div class="admin-header">
+    <h1>Admin</h1>
+    <p>Analytics, research data, and system health — admin-only tools.</p>
+  </div>
+
+  <div class="admin-grid">
+    <a href="/analytics-page" class="admin-card">
+      <div class="admin-card-icon">📊</div>
+      <div class="admin-card-title">Analytics</div>
+      <div class="admin-card-desc">Student usage, engagement, and demo activity across the pilot.</div>
+    </a>
+    <a href="/research" class="admin-card">
+      <div class="admin-card-icon">🔬</div>
+      <div class="admin-card-title">Research</div>
+      <div class="admin-card-desc">Answer logs, retrieval quality, and exportable research data.</div>
+    </a>
+    <a href="/health-page" class="admin-card">
+      <div class="admin-card-icon">🩺</div>
+      <div class="admin-card-title">Health</div>
+      <div class="admin-card-desc">Live status for the database, AI providers, email, storage, and more.</div>
+    </a>
+  </div>
+</main>
+</body>
+</html>

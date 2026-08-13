@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Practice — WINK</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/nav.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/practice.css') }}">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <style nonce="{{ csp_nonce() }}">
+    .quiz-card { }
+    .quiz-options { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
+    .quiz-option {
+      text-align: left; padding: 10px 14px; border-radius: 10px;
+      border: 1px solid #e0e6f0; background: #fff; cursor: pointer;
+      font-size: 14px; transition: background 0.15s ease, border-color 0.15s ease;
+    }
+    .quiz-option:hover:not(:disabled) { background: #f4f6fb; border-color: #FF8200; }
+    .quiz-option:disabled { cursor: default; }
+    .quiz-option.correct { background: #ecfdf5; border-color: #10b981; color: #047857; font-weight: 600; }
+    .quiz-option.incorrect { background: #fef2f2; border-color: #ef4444; color: #b91c1c; font-weight: 600; }
+    .quiz-explanation {
+      margin-top: 10px; padding: 10px 12px; border-radius: 8px;
+      background: #f4f6fb; font-size: 13px; color: #333; display: none;
+    }
+    .quiz-explanation.shown { display: block; }
+    .quiz-score-tally {
+      display: inline-flex; align-items: center; gap: 6px; margin-left: 10px;
+      font-size: 13px; font-weight: 700; color: #002855;
+      background: #e8edf5; padding: 4px 12px; border-radius: 999px;
+    }
+    .summary-block {
+      background: #fff; border: 1px solid #e0e6f0; border-radius: 12px;
+      padding: 20px 24px; line-height: 1.6; font-size: 14px;
+    }
+    .summary-block h3 { margin: 16px 0 8px; color: #002855; }
+    .summary-block h3:first-child { margin-top: 0; }
+    .summary-block ul { margin: 6px 0 12px 20px; }
+    .summary-block p { margin: 8px 0; }
+</style>
+</head>
+<body>
+
+  {% include "_nav.html" %}
+
+  <div class="page-shell">
+    <div class="page-header">
+      <h1>🧠 Practice &amp; Review</h1>
+      <p>Generate new practice questions from your course material, or review what's due today.</p>
+    </div>
+
+    <div class="card">
+      <h2>Generate practice questions</h2>
+      <div class="card-sub">Uses your uploaded material for a course. If you've also uploaded a past exam or quiz and tagged it as an assessment, its format is used as a style guide.</div>
+
+      <div id="generate-error" class="alert alert-danger" style="display:none;"></div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="course-input">Course</label>
+          <input type="text" id="course-input" list="known-courses" placeholder="e.g. CS 2302" autocomplete="off">
+          <datalist id="known-courses">
+            {% for c in known_courses %}
+            <option value="{{ c }}">
+            {% endfor %}
+          </datalist>
+        </div>
+        <div class="form-group">
+          <label for="qtype-input">Type</label>
+          <select id="qtype-input" onchange="onQtypeChange()">
+            <option value="flashcard">Flashcards</option>
+            <option value="review" selected>Review Questions</option>
+            <option value="quiz">Practice Quiz</option>
+            <option value="summary">Summary</option>
+            <option value="assessment_quiz">Assessment Quiz</option>
+          </select>
+        </div>
+        <div class="form-group" id="count-group" style="max-width:120px;">
+          <label for="count-input">How many</label>
+          <input type="number" id="count-input" value="8" min="1" max="15">
+        </div>
+      </div>
+      <div class="card-sub" id="qtype-note" style="display:none;"></div>
+
+      <div class="attach-row">
+        <label for="handout-input" class="btn btn-ghost btn-sm" style="cursor:pointer;">📎 Attach a handout for this session</label>
+        <input type="file" id="handout-input" style="display:none;" onchange="attachTempHandout()">
+        <span class="attach-status" id="attach-status">Not saved to your account — used for this generation only.</span>
+      </div>
+
+      <button class="btn btn-primary" id="generate-btn" onclick="generatePractice()">Generate</button>
+
+      <div id="generate-loading" class="loading-spinner" style="display:none;">Generating…</div>
+      <div id="generate-results" style="margin-top:16px;"></div>
+    </div>
+
+    <div class="card">
+      <h2>Due for review</h2>
+      <div class="card-sub">Questions you've answered before, resurfaced on a schedule — answer correctly and it comes back further out; miss it and it comes back tomorrow.</div>
+      <button class="btn btn-ghost btn-sm" onclick="loadReview()">Refresh</button>
+      <div id="review-loading" class="loading-spinner">Loading…</div>
+      <div id="review-results" style="margin-top:16px;"></div>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/csrf-fetch.js') }}"></script>
+<script nonce="{{ csp_nonce() }}">
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str == null ? '' : String(str);
+      return div.innerHTML;
+    }
+
+    // Courses that have at least one document tagged as an assessment —
+    // Assessment Quiz needs one for whatever course is selected; see
+    // onQtypeChange() below for the upfront warning this powers.
+    const ASSESSMENT_COURSES = new Set({{ assessment_courses | tojson }});
+
+    const QTYPE_NOTES = {
+      flashcard: 'Short front/back cards for quick recall — self-graded.',
+      review: 'Open-ended short-answer and multiple-choice questions — self-graded.',
+      quiz: 'Multiple choice, auto-graded — pick an answer and see your score with an explanation immediately.',
+      summary: 'A study summary of your material — not a question set, nothing to grade.',
+      assessment_quiz: 'Multiple choice styled after a past exam/quiz you\'ve uploaded and tagged as an assessment for this course, auto-graded.',
+    };
+
+    function onQtypeChange() {
+      const qtype = document.getElementById('qtype-input').value;
+      const course = document.getElementById('course-input').value.trim();
+      const note = document.getElementById('qtype-note');
+      const countGroup = document.getElementById('count-group');
+      countGroup.style.display = (qtype === 'summary') ? 'none' : '';
+      let text = QTYPE_NOTES[qtype] || '';
+      if (qtype === 'assessment_quiz' && course && !ASSESSMENT_COURSES.has(course)) {
+        text += ' ⚠️ No assessment uploaded for ' + course + ' yet — upload one on the Documents page first.';
+      }
+      note.textContent = text;
+      note.style.display = text ? 'block' : 'none';
+    }
+    document.getElementById('course-input').addEventListener('input', onQtypeChange);
+    onQtypeChange();
+
+    let tempHandoutContent = null;
+
+    async function attachTempHandout() {
+      const input = document.getElementById('handout-input');
+      const status = document.getElementById('attach-status');
+      const file = input.files[0];
+      if (!file) return;
+      status.textContent = 'Reading ' + file.name + '…';
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('temporary', 'true');
+      try {
+        const resp = await fetch('/upload', { method: 'POST', body: formData });
+        const data = await resp.json();
+        if (!resp.ok || !data.success) {
+          status.textContent = data.error || 'Could not read that file.';
+          tempHandoutContent = null;
+          return;
+        }
+        tempHandoutContent = data.content;
+        status.textContent = '✓ ' + file.name + ' attached for this session (not saved).';
+      } catch (e) {
+        status.textContent = 'Could not read that file.';
+        tempHandoutContent = null;
+      }
+    }
+
+    function renderQuestionCard(q) {
+      const wrap = document.createElement('div');
+      wrap.className = 'question-card';
+      wrap.dataset.qid = q.id || '';
+      const answerHtml = q.explanation
+        ? `<div>${escapeHtml(q.answer)}</div><div class="q-explanation">${escapeHtml(q.explanation)}</div>`
+        : `<div>${escapeHtml(q.answer)}</div>`;
+      wrap.innerHTML = `
+        <div class="q-text">${escapeHtml(q.question)}<span class="grade-badge"></span></div>
+        <div class="q-answer" id="answer-${escapeHtml(String(q.id || Math.random()))}">${answerHtml}</div>
+        <div class="q-actions"></div>`;
+
+      const actions = wrap.querySelector('.q-actions');
+      const revealBtn = document.createElement('button');
+      revealBtn.className = 'btn btn-ghost btn-sm';
+      revealBtn.textContent = 'Reveal answer';
+      revealBtn.addEventListener('click', function() {
+        wrap.querySelector('.q-answer').classList.toggle('shown');
+      });
+      actions.appendChild(revealBtn);
+
+      if (q.id) {
+        const correctBtn = document.createElement('button');
+        correctBtn.className = 'btn btn-correct btn-sm';
+        correctBtn.textContent = 'Got it right';
+        correctBtn.addEventListener('click', function() { gradeQuestion(q.id, true, correctBtn); });
+        const incorrectBtn = document.createElement('button');
+        incorrectBtn.className = 'btn btn-incorrect btn-sm';
+        incorrectBtn.textContent = 'Got it wrong';
+        incorrectBtn.addEventListener('click', function() { gradeQuestion(q.id, false, incorrectBtn); });
+        actions.appendChild(correctBtn);
+        actions.appendChild(incorrectBtn);
+      }
+      return wrap;
+    }
+
+    let quizTally = { correct: 0, total: 0 };
+
+    function updateQuizTallyDisplay() {
+      const el = document.getElementById('quiz-tally');
+      if (!el) return;
+      el.textContent = `Score: ${quizTally.correct}/${quizTally.total}`;
+    }
+
+    function renderQuizCard(q) {
+      const wrap = document.createElement('div');
+      wrap.className = 'question-card quiz-card';
+      wrap.dataset.qid = q.id || '';
+      const optionsHtml = (q.options || []).map((opt, i) =>
+        `<button class="quiz-option" data-idx="${i}">${escapeHtml(opt)}</button>`
+      ).join('');
+      wrap.innerHTML = `
+        <div class="q-text">${escapeHtml(q.question)}<span class="grade-badge"></span></div>
+        <div class="quiz-options">${optionsHtml}</div>
+        <div class="quiz-explanation"></div>`;
+
+      wrap.querySelectorAll('.quiz-option').forEach(btn => {
+        btn.addEventListener('click', () => submitQuizAnswer(q.id, parseInt(btn.dataset.idx, 10), wrap));
+      });
+      return wrap;
+    }
+
+    async function submitQuizAnswer(questionId, selectedIndex, cardEl) {
+      if (!questionId) return;
+      const buttons = cardEl.querySelectorAll('.quiz-option');
+      buttons.forEach(b => b.disabled = true);
+      try {
+        const resp = await fetch('/grade-quiz-answer', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question_id: questionId, selected_index: selectedIndex }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+          buttons.forEach(b => b.disabled = false);
+          return;
+        }
+        buttons.forEach((b, i) => {
+          if (i === data.correct_index) b.classList.add('correct');
+          else if (i === selectedIndex && !data.correct) b.classList.add('incorrect');
+        });
+        const badge = cardEl.querySelector('.grade-badge');
+        badge.innerHTML = data.correct
+          ? '<span class="badge-graded badge-correct">Correct</span>'
+          : '<span class="badge-graded badge-incorrect">Missed — see why below</span>';
+        if (data.explanation) {
+          const expl = cardEl.querySelector('.quiz-explanation');
+          expl.textContent = data.explanation;
+          expl.classList.add('shown');
+        }
+        quizTally.total += 1;
+        if (data.correct) quizTally.correct += 1;
+        updateQuizTallyDisplay();
+      } catch (e) {
+        buttons.forEach(b => b.disabled = false);
+      }
+    }
+
+    function renderSummaryMarkdown(text) {
+      const lines = escapeHtml(text).split('\n');
+      let html = '';
+      let inList = false;
+      for (let raw of lines) {
+        const line = raw.trim();
+        const bolded = line.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        if (line.startsWith('## ')) {
+          if (inList) { html += '</ul>'; inList = false; }
+          html += `<h3>${bolded.slice(3)}</h3>`;
+        } else if (line.startsWith('- ') || line.startsWith('* ')) {
+          if (!inList) { html += '<ul>'; inList = true; }
+          html += `<li>${bolded.slice(2)}</li>`;
+        } else if (line === '') {
+          if (inList) { html += '</ul>'; inList = false; }
+        } else {
+          if (inList) { html += '</ul>'; inList = false; }
+          html += `<p>${bolded}</p>`;
+        }
+      }
+      if (inList) html += '</ul>';
+      return html;
+    }
+
+    async function generatePractice() {
+      const course = document.getElementById('course-input').value.trim();
+      const qtype = document.getElementById('qtype-input').value;
+      const count = parseInt(document.getElementById('count-input').value, 10) || 8;
+      const errorBox = document.getElementById('generate-error');
+      const loading = document.getElementById('generate-loading');
+      const results = document.getElementById('generate-results');
+      const btn = document.getElementById('generate-btn');
+      errorBox.style.display = 'none';
+      results.innerHTML = '';
+      if (!course) {
+        errorBox.textContent = 'Please enter a course.';
+        errorBox.style.display = 'block';
+        return;
+      }
+      btn.disabled = true;
+      loading.style.display = 'block';
+      try {
+        const body = { course: course, count: count, qtype: qtype };
+        if (tempHandoutContent) body.temp_material = tempHandoutContent;
+        const resp = await fetch('/generate-practice', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+          errorBox.textContent = data.error || 'Something went wrong. Please try again.';
+          errorBox.style.display = 'block';
+          return;
+        }
+        if (qtype === 'summary') {
+          if (!data.summary) {
+            results.innerHTML = '<div class="empty-state">No summary was generated — try a different course or attach more material.</div>';
+            return;
+          }
+          const block = document.createElement('div');
+          block.className = 'summary-block';
+          block.innerHTML = renderSummaryMarkdown(data.summary);
+          results.appendChild(block);
+          return;
+        }
+        if (!data.questions || !data.questions.length) {
+          results.innerHTML = '<div class="empty-state">No questions were generated — try a different course or attach more material.</div>';
+          return;
+        }
+        const isQuiz = (qtype === 'quiz' || qtype === 'assessment_quiz');
+        if (isQuiz) {
+          quizTally = { correct: 0, total: 0 };
+          const tallyEl = document.createElement('div');
+          tallyEl.id = 'quiz-tally';
+          tallyEl.className = 'quiz-score-tally';
+          tallyEl.textContent = `Score: 0/${data.questions.length}`;
+          results.appendChild(tallyEl);
+        }
+        data.questions.forEach(q => results.appendChild(isQuiz ? renderQuizCard(q) : renderQuestionCard(q)));
+      } catch (e) {
+        errorBox.textContent = 'Something went wrong. Please try again.';
+        errorBox.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        loading.style.display = 'none';
+      }
+    }
+
+    async function gradeQuestion(questionId, correct, btnEl) {
+      const card = btnEl.closest('.question-card');
+      try {
+        const resp = await fetch('/practice-attempt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question_id: questionId, correct: correct }),
+        });
+        if (!resp.ok) return;
+        card.classList.add('graded');
+        const badge = card.querySelector('.grade-badge');
+        badge.innerHTML = correct
+          ? '<span class="badge-graded badge-correct">Correct</span>'
+          : '<span class="badge-graded badge-incorrect">Review again soon</span>';
+        card.querySelectorAll('.btn-correct, .btn-incorrect').forEach(b => b.disabled = true);
+      } catch (e) {  }
+    }
+
+    async function loadReview() {
+      const loading = document.getElementById('review-loading');
+      const results = document.getElementById('review-results');
+      loading.style.display = 'block';
+      results.innerHTML = '';
+      try {
+        const resp = await fetch('/practice-review');
+        const data = await resp.json();
+        loading.style.display = 'none';
+        if (!data.questions || !data.questions.length) {
+          results.innerHTML = '<div class="empty-state">Nothing due for review right now — generate some practice questions above, or check back later.</div>';
+          return;
+        }
+
+        const quizQuestions = data.questions.filter(q => q.qtype === 'quiz' || q.qtype === 'assessment_quiz');
+        if (quizQuestions.length) {
+          quizTally = { correct: 0, total: 0 };
+          const tallyEl = document.createElement('div');
+          tallyEl.id = 'quiz-tally';
+          tallyEl.className = 'quiz-score-tally';
+          tallyEl.textContent = `Score: 0/${quizQuestions.length}`;
+          results.appendChild(tallyEl);
+        }
+        data.questions.forEach(q => {
+          const isQuiz = (q.qtype === 'quiz' || q.qtype === 'assessment_quiz');
+          results.appendChild(isQuiz ? renderQuizCard(q) : renderQuestionCard(q));
+        });
+      } catch (e) {
+        loading.style.display = 'none';
+        results.innerHTML = '<div class="empty-state">Couldn\'t load your review queue — please refresh the page.</div>';
+      }
+    }
+
+    loadReview();
+  </script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ title }} — WINK</title>
+  <style nonce="{{ csp_nonce() }}">
+    body { font-family: -apple-system, sans-serif; max-width: 700px; margin: 40px auto; padding: 0 20px; color: #444; }
+    h1 { color: #002855; }
+    .shared-sub { color: #6b7a99; font-size: 13px; }
+    hr { border: none; border-top: 1px solid #dde3f0; margin: 20px 0; }
+    .msg-row { margin-bottom: 14px; }
+    .msg-role.user { color: #FF8200; }
+    .msg-role.wink { color: #002855; }
+    .msg-content { white-space: pre-wrap; }
+</style>
+</head>
+<body>
+  <h1>{{ title }}</h1>
+  <p class="shared-sub">Shared read-only conversation from WINK</p>
+  <hr>
+  {% for m in messages %}
+  <div class="msg-row">
+    <strong class="msg-role {{ 'user' if m.get('role') == 'user' else 'wink' }}">{{ 'You' if m.get('role') == 'user' else 'WINK' }}:</strong>
+    <span class="msg-content">{{ m.get('content', '') }}</span>
+  </div>
+  {% endfor %}
+</body>
+</html>

@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Calendar — WINK</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/nav.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/calendar.css') }}">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+</head>
+<body>
+
+  {% include "_nav.html" %}
+
+  <div class="page-shell">
+    <div class="cal-header">
+      <h1>📅 Master Calendar</h1>
+      <div class="cal-nav">
+        <button class="cal-nav-btn" onclick="changeMonth(-1)" aria-label="Previous month">‹</button>
+        <div class="cal-month-label" id="month-label"></div>
+        <button class="cal-nav-btn" onclick="changeMonth(1)" aria-label="Next month">›</button>
+        <button class="cal-today-btn" onclick="goToday()">Today</button>
+      </div>
+    </div>
+
+    <div class="legend" id="legend"></div>
+
+    <div class="cal-add-row">
+      <button class="cal-add-btn" onclick="openAddItemModal()">
+        <span class="cal-add-icon">＋</span> Add Item
+      </button>
+    </div>
+
+    <div class="cal-grid">
+      <div class="cal-weekdays">
+        <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+      </div>
+      <div class="cal-days" id="cal-days"></div>
+    </div>
+
+    <div class="empty-state" id="empty-state" style="display:none;">
+      <span class="empty-icon">📭</span>
+      <h3>No deadlines found yet</h3>
+      <p>Upload a syllabus with a schedule of due dates on the <a href="/documents" style="color:#FF8200;font-weight:600;">Documents</a> page, and WINK will plot them here automatically.</p>
+    </div>
+  </div>
+
+  <div class="day-panel" id="day-panel" onclick="if(event.target===this) closeDayPanel()">
+    <div class="day-panel-card" role="dialog" aria-modal="true" aria-labelledby="day-panel-title">
+      <div class="day-panel-header">
+        <h2 id="day-panel-title">—</h2>
+        <button class="day-panel-close" onclick="closeDayPanel()" aria-label="Close">✕</button>
+      </div>
+      <div id="day-panel-body"></div>
+    </div>
+  </div>
+
+  <div class="wink-modal-overlay" id="add-item-modal" onclick="if(event.target===this) closeAddItemModal()">
+    <div class="wink-modal-card" role="dialog" aria-modal="true" aria-labelledby="add-item-title">
+      <div class="day-panel-header">
+        <h2 id="add-item-title">Add Calendar Item</h2>
+        <button class="day-panel-close" onclick="closeAddItemModal()" aria-label="Close">✕</button>
+      </div>
+      <form id="add-item-form">
+        <div class="ai-form-group">
+          <label for="ai-title">Title</label>
+          <input type="text" id="ai-title" required maxlength="200" placeholder="e.g. Doctor's Appointment">
+        </div>
+        <div class="ai-form-group">
+          <label for="ai-category">Category</label>
+          <select id="ai-category" required>
+            <option value="">Select…</option>
+            {% for c in personal_item_categories %}
+              <option value="{{ c }}">{{ c }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="ai-form-group">
+          <label for="ai-date">Date</label>
+          <input type="date" id="ai-date" required>
+        </div>
+        <div class="ai-form-group">
+          <label for="ai-color">Color</label>
+          <div class="ai-color-row">
+            <span class="ai-color-swatch" id="ai-color-swatch"></span>
+            <select id="ai-color" onchange="updateColorSwatch()">
+              {% for c in personal_item_colors %}
+                <option value="{{ c.hex }}">{{ c.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="ai-form-group ai-checkbox-row">
+          <label><input type="checkbox" id="ai-recurring" onchange="toggleRecurrenceFields(this.checked)"> Recurring</label>
+        </div>
+        <div id="ai-recurrence-fields" style="display:none;">
+          <div class="ai-form-group">
+            <label for="ai-frequency">Repeats</label>
+            <select id="ai-frequency">
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+            </select>
+          </div>
+          <div class="ai-form-group">
+            <label for="ai-until">Until</label>
+            <input type="date" id="ai-until">
+          </div>
+        </div>
+        <div id="add-item-error" class="ai-error" style="display:none;"></div>
+        <button type="submit" class="cal-today-btn ai-submit-btn">Add to Calendar</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/csrf-fetch.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/course-colors.js') }}"></script>
+<script nonce="{{ csp_nonce() }}">
+
+    const WINK_COURSE_COLORS = {{ course_colors | tojson }};
+    const PERSONAL_ITEM_CATEGORIES = {{ personal_item_categories | tojson }};
+    const PERSONAL_ITEM_COLORS = {{ personal_item_colors | tojson }};
+
+    let allDeadlines = [];
+    let deadlinesByDate = {};
+    let courseColors = {};
+    let viewYear, viewMonth;
+
+    function colorForCourse(course) {
+      if (!(course in courseColors)) {
+        courseColors[course] = winkColorForCourse(course, WINK_COURSE_COLORS);
+      }
+      return courseColors[course];
+    }
+
+    function itemColor(it) {
+      return it.color || colorForCourse(it.course);
+    }
+
+    function pad(n) { return String(n).padStart(2, '0'); }
+
+    function applyPendingBackgrounds(root) {
+      root.querySelectorAll('[data-bg]').forEach(el => {
+        el.style.background = el.dataset.bg;
+        el.removeAttribute('data-bg');
+      });
+      root.querySelectorAll('[data-fg]').forEach(el => {
+        el.style.color = el.dataset.fg;
+        el.removeAttribute('data-fg');
+      });
+    }
+
+    document.getElementById('cal-days').addEventListener('click', function(e) {
+
+      const check = e.target.closest('.cal-chip-check');
+      if (check) {
+        e.stopPropagation();
+        toggleDeadlineCompleted(check.dataset.id, check.dataset.completed === 'true');
+        return;
+      }
+      const cell = e.target.closest('[data-date]');
+      if (cell) openDayPanel(cell.dataset.date);
+    });
+    document.getElementById('cal-days').addEventListener('keydown', function(e) {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const check = e.target.closest('.cal-chip-check');
+      if (check) {
+        e.preventDefault(); e.stopPropagation();
+        toggleDeadlineCompleted(check.dataset.id, check.dataset.completed === 'true');
+        return;
+      }
+      const cell = e.target.closest('[data-date]');
+      if (cell) { e.preventDefault(); openDayPanel(cell.dataset.date); }
+    });
+
+    async function toggleDeadlineCompleted(id, currentlyCompleted) {
+      try {
+        const res = await fetch(`/deadlines/${id}/complete`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ completed: !currentlyCompleted }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          alert((data && data.error) || 'Could not save — please try again.');
+          return;
+        }
+        deadlinesByDate = {};
+        courseColors = {};
+        allDeadlines = data.deadlines || [];
+        allDeadlines.forEach(d => {
+          if (!d.due_date) return;
+          (deadlinesByDate[d.due_date] = deadlinesByDate[d.due_date] || []).push(d);
+          colorForCourse(d.course);
+        });
+        renderLegend();
+        renderCalendar();
+        if (currentPanelDate && deadlinesByDate[currentPanelDate]) openDayPanel(currentPanelDate);
+      } catch (e) {
+        console.error('toggleDeadlineCompleted error', e);
+        alert('Network error — please try again.');
+      }
+    }
+
+    function renderLegend() {
+      const legend = document.getElementById('legend');
+      const courses = Object.keys(courseColors);
+      if (courses.length === 0) { legend.innerHTML = ''; return; }
+      legend.innerHTML = courses.map(c =>
+        `<div class="legend-item"><span class="legend-dot" data-bg="${courseColors[c]}"></span><span data-fg="${courseColors[c]}" style="font-weight:700;">${escapeHtml(c)}</span></div>`
+      ).join('');
+      applyPendingBackgrounds(legend);
+    }
+
+    function renderCalendar() {
+      document.getElementById('month-label').textContent =
+        new Date(viewYear, viewMonth, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
+
+      const firstOfMonth = new Date(viewYear, viewMonth, 1);
+      const startDow = firstOfMonth.getDay();
+      const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+      const daysInPrevMonth = new Date(viewYear, viewMonth, 0).getDate();
+
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const cells = [];
+
+      for (let i = 0; i < startDow; i++) {
+        const d = daysInPrevMonth - startDow + i + 1;
+        cells.push({ day: d, otherMonth: true, dateStr: null });
+      }
+
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dateStr = `${viewYear}-${pad(viewMonth+1)}-${pad(d)}`;
+        cells.push({ day: d, otherMonth: false, dateStr });
+      }
+
+      while (cells.length % 7 !== 0) {
+        cells.push({ day: cells.length, otherMonth: true, dateStr: null });
+      }
+
+      const wrap = document.getElementById('cal-days');
+      wrap.innerHTML = cells.map(cell => {
+        const items = cell.dateStr ? (deadlinesByDate[cell.dateStr] || []) : [];
+        const isToday = cell.dateStr === todayStr;
+        const chips = items.slice(0, 3).map(it => {
+          const bg = itemColor(it);
+          const fg = winkTextColorForBg(bg);
+
+          return `<div class="cal-chip${it.completed ? ' completed' : ''}" data-bg="${bg}" data-fg="${fg}" title="${escapeHtml(it.title)}">
+            <span class="cal-chip-check" data-id="${it.id}" data-completed="${it.completed ? 'true' : 'false'}" role="checkbox" aria-checked="${it.completed ? 'true' : 'false'}" aria-label="Mark ${escapeHtml(it.title)} as ${it.completed ? 'not completed' : 'completed'}" tabindex="0">${it.completed ? '✓' : ''}</span>
+            <span class="cal-chip-text">${escapeHtml(it.title)}</span>
+          </div>`;
+        }).join('');
+        const more = items.length > 3 ? `<div class="cal-more">+${items.length - 3} more</div>` : '';
+        const classes = ['cal-day'];
+        if (cell.otherMonth) classes.push('other-month');
+        if (isToday) classes.push('today');
+        let interactiveAttrs = '';
+        if (cell.dateStr) {
+          const label = `${cell.day}${isToday ? ', today' : ''}${items.length ? `, ${items.length} item${items.length !== 1 ? 's' : ''} due` : ', nothing due'}`;
+          interactiveAttrs = `data-date="${cell.dateStr}" tabindex="0" role="button" aria-label="${escapeHtml(label)}"`;
+        }
+        return `<div class="${classes.join(' ')}" ${interactiveAttrs}>
+          <div class="cal-day-num${items.length ? ' has-items' : ''}">${cell.day}</div>
+          ${chips}${more}
+        </div>`;
+      }).join('');
+      applyPendingBackgrounds(wrap);
+    }
+
+    function escapeHtml(text) {
+      return String(text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+
+    let dayPanelLastFocus = null;
+
+    let currentPanelDate = null;
+
+    function openDayPanel(dateStr) {
+      currentPanelDate = dateStr;
+      const items = deadlinesByDate[dateStr] || [];
+      const dateObj = new Date(dateStr + 'T00:00:00');
+      document.getElementById('day-panel-title').textContent =
+        dateObj.toLocaleDateString('default', { weekday: 'long', month: 'long', day: 'numeric' });
+      const body = document.getElementById('day-panel-body');
+      if (items.length === 0) {
+        body.innerHTML = '<div class="day-empty">Nothing due this day.</div>';
+      } else {
+        body.innerHTML = items.map(it => {
+          const status = it.status || 'detected';
+          const statusLabel = status === 'confirmed' ? 'Confirmed'
+            : status === 'corrected' ? 'Corrected'
+            : status === 'superseded' ? 'Dismissed'
+            : 'Unconfirmed — AI-detected';
+          const snippet = it.source_snippet
+            ? `<div class="day-item-snippet">Found in: “${escapeHtml(it.source_snippet)}”</div>` : '';
+          const actions = it.is_personal ? `
+            <div class="day-item-actions" data-id="${it.id}">
+              <button data-action="show-edit-personal">✎ Edit</button>
+              <button data-action="delete-personal">🗑 Delete</button>
+              ${it.series_id ? '<button data-action="delete-series">Delete whole series</button>' : ''}
+            </div>
+            <div class="day-item-edit-form" data-id="${it.id}">
+              <input type="text" data-field="title" value="${escapeHtml(it.title)}" aria-label="Title">
+              <select data-field="category" aria-label="Category">
+                ${PERSONAL_ITEM_CATEGORIES.map(c =>
+                  `<option value="${escapeHtml(c)}"${c === it.course ? ' selected' : ''}>${escapeHtml(c)}</option>`
+                ).join('')}
+              </select>
+              <input type="date" data-field="due_date" value="${it.due_date || ''}" aria-label="Date">
+              <select data-field="color" aria-label="Color">
+                ${PERSONAL_ITEM_COLORS.map(c =>
+                  `<option value="${c.hex}"${c.hex === it.color ? ' selected' : ''}>${escapeHtml(c.name)}</option>`
+                ).join('')}
+              </select>
+              ${it.series_id ? `
+                <label class="day-item-edit-series">
+                  <input type="checkbox" data-field="apply_to_series">
+                  Apply title/category/color to entire series
+                </label>` : ''}
+              <button class="primary" data-action="save-edit-personal">Save</button>
+            </div>` : status === 'detected' ? `
+            <div class="day-item-actions" data-id="${it.id}">
+              <button class="primary" data-action="confirm">✓ Confirm</button>
+              <button data-action="show-correct">✎ Correct</button>
+              <button data-action="dismiss">✕ Dismiss</button>
+            </div>
+            <div class="day-item-correct-form" data-id="${it.id}">
+              <input type="text" data-field="title" value="${escapeHtml(it.title)}" aria-label="Corrected title">
+              <input type="date" data-field="due_date" value="${it.due_date || ''}" aria-label="Corrected due date">
+              <button class="primary" data-action="save-correct">Save</button>
+            </div>` : '';
+          return `
+          <div class="day-item${it.completed ? ' completed' : ''}">
+            <label class="day-item-check-wrap" aria-label="Mark ${escapeHtml(it.title)} as ${it.completed ? 'not completed' : 'completed'}">
+              <input type="checkbox" class="day-item-check" data-id="${it.id}" data-completed="${it.completed ? 'true' : 'false'}" ${it.completed ? 'checked' : ''}>
+            </label>
+            <span class="day-item-dot" data-bg="${itemColor(it)}"></span>
+            <div style="flex:1; min-width:0;">
+              <div class="day-item-title">${escapeHtml(it.title)}</div>
+              <div class="day-item-course" data-fg="${itemColor(it)}" style="font-weight:700;">${escapeHtml(it.course)}</div>
+              ${it.is_personal ? '' : `<span class="day-item-status ${status}">${statusLabel}</span>`}
+              ${snippet}
+              ${it.document_id ? `<a href="/documents#doc-row-${it.document_id}" class="day-item-doc-link">📄 ${escapeHtml(it.document_name || 'View source document')}</a>` : ''}
+              ${actions}
+            </div>
+          </div>`;
+        }).join('');
+        applyPendingBackgrounds(body);
+      }
+      dayPanelLastFocus = document.activeElement;
+      document.getElementById('day-panel').classList.add('open');
+      document.addEventListener('keydown', handleDayPanelKeydown);
+
+      requestAnimationFrame(() => document.querySelector('.day-panel-close').focus());
+    }
+
+    document.getElementById('day-panel-body').addEventListener('change', function(e) {
+      const check = e.target.closest('.day-item-check');
+      if (!check) return;
+      toggleDeadlineCompleted(check.dataset.id, check.dataset.completed === 'true');
+    });
+
+    document.getElementById('day-panel-body').addEventListener('click', async function(e) {
+      const btn = e.target.closest('button[data-action]');
+      if (!btn) return;
+      const action = btn.dataset.action;
+      const container = btn.closest('[data-id]');
+      const id = container && container.dataset.id;
+      if (!id) return;
+
+      if (action === 'show-correct') {
+        const form = container.parentElement.querySelector('.day-item-correct-form');
+        if (form) form.classList.add('open');
+        return;
+      }
+      if (action === 'confirm') {
+        await sendDeadlineStatus(id, 'confirmed');
+        return;
+      }
+      if (action === 'dismiss') {
+        if (!window.confirm('Dismiss this deadline? It will stop appearing in reminders.')) return;
+        await sendDeadlineStatus(id, 'superseded');
+        return;
+      }
+      if (action === 'delete-personal') {
+        if (!window.confirm('Delete this item?')) return;
+        await deletePersonalItem(id, false);
+        return;
+      }
+      if (action === 'delete-series') {
+        if (!window.confirm('Delete every occurrence of this recurring item?')) return;
+        await deletePersonalItem(id, true);
+        return;
+      }
+      if (action === 'show-edit-personal') {
+        const form = container.parentElement.querySelector('.day-item-edit-form');
+        if (form) form.classList.add('open');
+        return;
+      }
+      if (action === 'save-edit-personal') {
+        const form = container;
+        const title = form.querySelector('[data-field="title"]').value.trim();
+        const category = form.querySelector('[data-field="category"]').value;
+        const dueDate = form.querySelector('[data-field="due_date"]').value;
+        const color = form.querySelector('[data-field="color"]').value;
+        const applyCheckbox = form.querySelector('[data-field="apply_to_series"]');
+        const applyToSeries = applyCheckbox ? applyCheckbox.checked : false;
+        if (!title || !category || !dueDate) { alert('Title, category, and date are required.'); return; }
+        await savePersonalItemEdit(id, title, category, dueDate, color, applyToSeries);
+        return;
+      }
+      if (action === 'save-correct') {
+        const form = container;
+        const title = form.querySelector('[data-field="title"]').value.trim();
+        const dueDate = form.querySelector('[data-field="due_date"]').value;
+        if (!title || !dueDate) { alert('Title and due date are required.'); return; }
+        await sendDeadlineStatus(id, 'corrected', title, dueDate);
+        return;
+      }
+    });
+
+    async function sendDeadlineStatus(id, status, title, dueDate) {
+      try {
+        const res = await fetch(`/deadlines/${id}/confirm`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status, title, due_date: dueDate }),
+        });
+        if (!res.ok) { alert('Could not save — please try again.'); return; }
+        const updated = await res.json();
+        await reloadDeadlines();
+        openDayPanel((updated && updated.due_date) || currentPanelDate);
+      } catch (e) {
+        console.error('sendDeadlineStatus error', e);
+        alert('Network error — please try again.');
+      }
+    }
+
+    async function deletePersonalItem(id, deleteSeries) {
+      try {
+        const res = await fetch(`/personal-items/${id}${deleteSeries ? '?series=true' : ''}`, {
+          method: 'DELETE',
+        });
+        if (!res.ok) { alert('Could not delete — please try again.'); return; }
+        deadlinesByDate = {};
+        courseColors = {};
+        const data = await res.json();
+        allDeadlines = data.deadlines || [];
+        allDeadlines.forEach(d => {
+          if (!d.due_date) return;
+          (deadlinesByDate[d.due_date] = deadlinesByDate[d.due_date] || []).push(d);
+          colorForCourse(d.course);
+        });
+        renderLegend();
+        renderCalendar();
+
+        if (!deadlinesByDate[currentPanelDate] || !deadlinesByDate[currentPanelDate].length) {
+          closeDayPanel();
+        } else {
+          openDayPanel(currentPanelDate);
+        }
+      } catch (e) {
+        console.error('deletePersonalItem error', e);
+        alert('Network error — please try again.');
+      }
+    }
+
+    async function savePersonalItemEdit(id, title, category, dueDate, color, applyToSeries) {
+      try {
+        const res = await fetch(`/personal-items/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, category, due_date: dueDate, color, apply_to_series: applyToSeries }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          alert((data && data.error) || 'Could not save — please try again.');
+          return;
+        }
+        deadlinesByDate = {};
+        courseColors = {};
+        allDeadlines = data.deadlines || [];
+        allDeadlines.forEach(d => {
+          if (!d.due_date) return;
+          (deadlinesByDate[d.due_date] = deadlinesByDate[d.due_date] || []).push(d);
+          colorForCourse(d.course);
+        });
+        renderLegend();
+        renderCalendar();
+        openDayPanel(dueDate);
+      } catch (e) {
+        console.error('savePersonalItemEdit error', e);
+        alert('Network error — please try again.');
+      }
+    }
+
+    async function reloadDeadlines() {
+      try {
+        const res = await fetch('/calendar-data');
+        const data = await res.json();
+        allDeadlines = data.deadlines || [];
+      } catch (e) {
+        console.error('calendar-data fetch error', e);
+        allDeadlines = [];
+      }
+      deadlinesByDate = {};
+      allDeadlines.forEach(d => {
+        if (!d.due_date) return;
+        (deadlinesByDate[d.due_date] = deadlinesByDate[d.due_date] || []).push(d);
+        colorForCourse(d.course);
+      });
+      renderLegend();
+      renderCalendar();
+    }
+
+    function closeDayPanel() {
+      document.getElementById('day-panel').classList.remove('open');
+      document.removeEventListener('keydown', handleDayPanelKeydown);
+      if (dayPanelLastFocus) { dayPanelLastFocus.focus(); dayPanelLastFocus = null; }
+    }
+
+    function handleDayPanelKeydown(e) {
+      if (e.key === 'Escape') { closeDayPanel(); return; }
+      if (e.key !== 'Tab') return;
+
+      const card = document.querySelector('.day-panel-card');
+      const focusable = card.querySelectorAll('button, a[href]');
+      if (focusable.length === 0) return;
+      const first = focusable[0], last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+
+    function changeMonth(delta) {
+      viewMonth += delta;
+      if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+      if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+      renderCalendar();
+    }
+
+    function toggleRecurrenceFields(show) {
+      document.getElementById('ai-recurrence-fields').style.display = show ? 'block' : 'none';
+      document.getElementById('ai-until').required = show;
+    }
+
+    function updateColorSwatch() {
+      document.getElementById('ai-color-swatch').style.background = document.getElementById('ai-color').value;
+    }
+
+    function openAddItemModal() {
+      document.getElementById('add-item-form').reset();
+      toggleRecurrenceFields(false);
+      updateColorSwatch();
+      document.getElementById('add-item-error').style.display = 'none';
+
+      const defaultDate = currentPanelDate
+        || `${viewYear}-${pad(viewMonth + 1)}-${pad(new Date().getDate())}`;
+      document.getElementById('ai-date').value = defaultDate;
+      document.getElementById('add-item-modal').classList.add('open');
+      requestAnimationFrame(() => document.getElementById('ai-title').focus());
+    }
+
+    function closeAddItemModal() {
+      document.getElementById('add-item-modal').classList.remove('open');
+    }
+
+    document.getElementById('add-item-form').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const errorEl = document.getElementById('add-item-error');
+      errorEl.style.display = 'none';
+
+      const title = document.getElementById('ai-title').value.trim();
+      const category = document.getElementById('ai-category').value;
+      const due_date = document.getElementById('ai-date').value;
+      const color = document.getElementById('ai-color').value;
+      const recurring = document.getElementById('ai-recurring').checked;
+      const frequency = recurring ? document.getElementById('ai-frequency').value : null;
+      const recurrence_end = recurring ? document.getElementById('ai-until').value : null;
+
+      if (!title || !category || !due_date) {
+        errorEl.textContent = 'Title, category, and date are required.';
+        errorEl.style.display = 'block';
+        return;
+      }
+      if (recurring && !recurrence_end) {
+        errorEl.textContent = 'Recurring items need an end date.';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      const submitBtn = document.querySelector('.ai-submit-btn');
+      submitBtn.disabled = true; submitBtn.textContent = 'Adding…';
+      try {
+        const res = await fetch('/personal-items', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, category, due_date, color, frequency, recurrence_end }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          errorEl.textContent = data.error || 'Could not save — please try again.';
+          errorEl.style.display = 'block';
+          return;
+        }
+        deadlinesByDate = {};
+        courseColors = {};
+        allDeadlines = data.deadlines || [];
+        allDeadlines.forEach(d => {
+          if (!d.due_date) return;
+          (deadlinesByDate[d.due_date] = deadlinesByDate[d.due_date] || []).push(d);
+          colorForCourse(d.course);
+        });
+        document.getElementById('empty-state').style.display = allDeadlines.length ? 'none' : 'block';
+        renderLegend();
+        renderCalendar();
+        closeAddItemModal();
+      } catch (err) {
+        console.error('add-item submit error', err);
+        errorEl.textContent = 'Network error — please try again.';
+        errorEl.style.display = 'block';
+      } finally {
+        submitBtn.disabled = false; submitBtn.textContent = 'Add to Calendar';
+      }
+    });
+
+    function goToday() {
+      const now = new Date();
+      viewYear = now.getFullYear(); viewMonth = now.getMonth();
+      renderCalendar();
+    }
+
+    async function init() {
+      const params = new URLSearchParams(window.location.search);
+      const linkedDate = params.get('date');
+      const now = new Date();
+      if (linkedDate && /^\d{4}-\d{2}-\d{2}$/.test(linkedDate)) {
+        const [y, m] = linkedDate.split('-').map(Number);
+        viewYear = y; viewMonth = m - 1;
+      } else {
+        viewYear = now.getFullYear(); viewMonth = now.getMonth();
+      }
+
+      try {
+        const res = await fetch('/calendar-data');
+        const data = await res.json();
+        allDeadlines = data.deadlines || [];
+      } catch (e) {
+        console.error('calendar-data fetch error', e);
+        allDeadlines = [];
+      }
+
+      deadlinesByDate = {};
+      allDeadlines.forEach(d => {
+        if (!d.due_date) return;
+        (deadlinesByDate[d.due_date] = deadlinesByDate[d.due_date] || []).push(d);
+        colorForCourse(d.course);
+      });
+
+      if (allDeadlines.length === 0) {
+        document.getElementById('empty-state').style.display = 'block';
+      }
+
+      renderLegend();
+      renderCalendar();
+
+      if (linkedDate && /^\d{4}-\d{2}-\d{2}$/.test(linkedDate)) {
+        openDayPanel(linkedDate);
+      }
+    }
+
+    init();
+  </script>
+
+</body>
+</html>

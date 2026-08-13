@@ -1,0 +1,77 @@
+
+<style nonce="{{ csp_nonce() }}">
+  /* nav.css (not part of this bundle) is what normally colors and fonts
+     these elements — active links, the logo, the greeting, and Log out
+     can otherwise all end up on different type/color. Forcing one
+     consistent white font-family/size/weight across the whole bar here,
+     with !important since we don't control nav.css's specificity. */
+  .app-nav,
+  .app-nav .nav-links a,
+  .app-nav .nav-links a.active,
+  .app-nav .nav-user,
+  .app-nav .nav-user strong,
+  .app-nav .btn-logout,
+  .app-nav .nav-toggle {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif !important;
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    color: #fff !important;
+  }
+  /* The logo reads as a wordmark, not a nav link — it needs its own
+     larger, bolder size rather than matching the regular link size the
+     rule above sets for everything else. */
+  .app-nav .nav-logo {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif !important;
+    font-size: 24px !important;
+    font-weight: 800 !important;
+    color: #fff !important;
+  }
+  .app-nav .nav-logo span {
+    color: #FF8200 !important;
+  }
+  .app-nav .nav-right {
+    display: flex !important;
+    align-items: center !important;
+  }
+  .app-nav .nav-user {
+    white-space: nowrap;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 1.2;
+    text-align: center;
+  }
+</style>
+<nav class="app-nav" id="app-nav">
+  <a href="/dashboard" class="nav-logo">WINK<span>.</span></a>
+  <div class="nav-divider"></div>
+  <button class="nav-toggle" onclick="toggleNav()" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="app-nav">☰</button>
+  <div class="nav-links">
+    <a href="/dashboard" class="{{ 'active' if active == 'dashboard' else '' }}">Dashboard</a>
+    <a href="/documents" class="{{ 'active' if active == 'documents' else '' }}">My Documents</a>
+    <a href="/chat-page" class="{{ 'active' if active == 'chat' else '' }}">Ask WINK</a>
+    <a href="/calendar-page" class="{{ 'active' if active == 'calendar' else '' }}">Calendar</a>
+    <a href="/practice-page" class="{{ 'active' if active == 'practice' else '' }}">Practice</a>
+    <a href="/grades-page" class="{{ 'active' if active == 'grades' else '' }}">Grades</a>
+    <a href="/progress-page" class="{{ 'active' if active == 'progress' else '' }}">My Progress</a>
+    <a href="/manual" class="{{ 'active' if active == 'manual' else '' }}">Help</a>
+    {% if s.email == admin_email %}
+    <a href="/admin-page" class="{{ 'active' if active in ['admin','analytics','research','health'] else '' }}">Admin</a>
+    {% endif %}
+  </div>
+  <div class="nav-right">
+    <div class="nav-user"><span>Hello,</span><strong>{{ s.first_name }}</strong></div>
+    <a href="/logout" class="btn-logout">Log out</a>
+  </div>
+</nav>
+
+<script nonce="{{ csp_nonce() }}">
+
+  function toggleNav() {
+    const nav = document.getElementById('app-nav');
+    const btn = document.querySelector('.nav-toggle');
+    const open = nav.classList.toggle('nav-open');
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+</script>

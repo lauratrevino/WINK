@@ -1,0 +1,13 @@
+.git
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+tests
+.env
+uploads
+.DS_Store
+venv/
+.venv/
+*.egg-info/
+MY_PROGRESS_BUILD_NOTES.txt

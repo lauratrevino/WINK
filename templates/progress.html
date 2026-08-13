@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Progress — WINK</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/nav.css') }}">
+<style nonce="{{ csp_nonce() }}">
+  :root {
+    --navy: #002855; --navy-deep: #001833; --navy2: #0b477e; --orange: #FF8200;
+    --light-bg: #f4f6fb; --muted: #6b7a99; --border: #dde3f0; --gray-text: #2d3548;
+    --green: #16a34a; --green-soft: #e7f6ec;
+    --slate: #64748b;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+    background: var(--light-bg); color: var(--gray-text); min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page-shell { max-width: 1080px; margin: 0 auto; padding: 32px 24px 64px; }
+
+  /* Header — confident, editorial, no mascot icon box. A thin orange rule
+     under the eyebrow does the "branding" work instead of an emoji tile. */
+  .progress-header { margin-bottom: 26px; }
+  .progress-eyebrow {
+    font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--orange); margin-bottom: 6px;
+  }
+  .progress-header h1 { font-size: 26px; font-weight: 800; color: var(--navy); letter-spacing: -0.3px; }
+  .progress-header p { font-size: 13.5px; color: var(--muted); margin-top: 4px; max-width: 60ch; }
+
+  .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+  .stat-card {
+    background: #fff; border-radius: 10px; border: 1px solid var(--border);
+    border-top: 3px solid var(--navy); padding: 16px 18px;
+  }
+  /* Four distinct, rich jewel tones — one per metric — rather than a
+     single flat navy across the board. Deep/saturated, not pastel, so
+     the cards stay colorful without reading as a kids'-app reward tile. */
+  .stat-card.c1 { border-top-color: var(--orange); }
+  .stat-card.c1 .stat-value { color: var(--orange); }
+  .stat-card.c2 { border-top-color: #4338CA; }
+  .stat-card.c2 .stat-value { color: #4338CA; }
+  .stat-card.c3 { border-top-color: #15803D; }
+  .stat-card.c3 .stat-value { color: #15803D; }
+  .stat-card.c4 { border-top-color: #7E22CE; }
+  .stat-card.c4 .stat-value { color: #7E22CE; }
+  .stat-value { font-size: 26px; font-weight: 800; color: var(--navy); letter-spacing: -0.5px; line-height: 1; }
+  .stat-label {
+    font-size: 10.5px; color: var(--muted); margin-top: 6px;
+    text-transform: uppercase; letter-spacing: .06em; font-weight: 600;
+  }
+
+  /* Insight line — a single calm sentence, not a sticker box. Reads like
+     an analyst's note, not a cheerful notification. */
+  .insight-bar {
+    display: none; align-items: flex-start; gap: 10px;
+    border-left: 3px solid var(--orange); background: #fff;
+    padding: 12px 16px; margin-bottom: 20px; border-radius: 0 8px 8px 0;
+  }
+  .insight-bar.show { display: flex; }
+  .insight-bar-label {
+    font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--orange); flex-shrink: 0; padding-top: 2px;
+  }
+  .insight-list { font-size: 13px; color: var(--gray-text); line-height: 1.7; }
+
+  .card {
+    background: #fff; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 18px; overflow: hidden;
+  }
+  .card-header { padding: 16px 20px; border-bottom: 1px solid #eef0f6; }
+  .card-header h2 { font-size: 14px; font-weight: 700; color: var(--navy); letter-spacing: -0.1px; }
+  .card-header p { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+  .card-body { padding: 20px; }
+
+  .grid-2 { display: grid; grid-template-columns: 1.1fr 1fr; gap: 16px; }
+
+  /* ── Signature element: completion ring on a dark panel — the one
+     place this page spends real visual weight, everything else stays
+     quiet and disciplined around it. ── */
+  .ring-card {
+    background: linear-gradient(150deg, var(--navy) 0%, var(--navy-deep) 100%);
+    border-radius: 12px; padding: 24px; display: flex; align-items: center; gap: 24px;
+    position: relative; overflow: hidden;
+  }
+  .ring-card::after {
+    content: ''; position: absolute; right: -15%; top: -50%; width: 60%; height: 200%;
+    background: radial-gradient(ellipse at center, rgba(255,130,0,0.16) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .ring-svg { flex-shrink: 0; position: relative; z-index: 1; }
+  .ring-track { stroke: rgba(255,255,255,0.12); }
+  .ring-fill { stroke: var(--orange); stroke-linecap: round; transition: stroke-dashoffset 1s cubic-bezier(.4,0,.2,1); }
+  /* Fixed stroke-dashoffset per 5% completion step (circumference 326.7,
+     same math as before, just precomputed here as classes instead of a
+     JS-set inline style, which the CSP silently blocks). */
+  .ring-0{stroke-dashoffset:326.7}.ring-5{stroke-dashoffset:310.365}.ring-10{stroke-dashoffset:294.03}
+  .ring-15{stroke-dashoffset:277.695}.ring-20{stroke-dashoffset:261.36}.ring-25{stroke-dashoffset:245.025}
+  .ring-30{stroke-dashoffset:228.69}.ring-35{stroke-dashoffset:212.355}.ring-40{stroke-dashoffset:196.02}
+  .ring-45{stroke-dashoffset:179.685}.ring-50{stroke-dashoffset:163.35}.ring-55{stroke-dashoffset:147.015}
+  .ring-60{stroke-dashoffset:130.68}.ring-65{stroke-dashoffset:114.345}.ring-70{stroke-dashoffset:98.01}
+  .ring-75{stroke-dashoffset:81.675}.ring-80{stroke-dashoffset:65.34}.ring-85{stroke-dashoffset:49.005}
+  .ring-90{stroke-dashoffset:32.67}.ring-95{stroke-dashoffset:16.335}.ring-100{stroke-dashoffset:0}
+  .ring-center-value { font-size: 25px; font-weight: 800; fill: #fff; letter-spacing: -0.5px; }
+  .ring-center-label { font-size: 8.5px; fill: rgba(255,255,255,0.55); letter-spacing: .1em; }
+  .ring-copy { position: relative; z-index: 1; }
+  .ring-copy-title { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: rgba(255,255,255,0.55); margin-bottom: 8px; }
+  .ring-copy-main { font-size: 15px; color: #fff; line-height: 1.5; }
+  .ring-copy-main strong { color: var(--orange); font-weight: 700; }
+  .ring-copy-sub { font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 8px; }
+
+  /* ── Weekly activity: restrained bar chart, navy bars not rainbow ── */
+  .week-chart { display: flex; align-items: flex-end; gap: 10px; height: 128px; }
+  .week-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; min-width: 0; }
+  .week-bar-track { flex: 1; width: 100%; max-width: 46px; display: flex; align-items: flex-end; }
+  .week-bar-fill { width: 100%; background: var(--navy); border-radius: 3px 3px 0 0; transition: height 0.6s cubic-bezier(.4,0,.2,1); min-height: 3px; }
+  .week-col:last-child .week-bar-fill { background: var(--orange); }
+  /* Fixed-step height/width classes, one per 5% increment. The CSP here
+     only allows inline style="..." values that exactly match a hash
+     computed from this static template at deploy time — any style
+     string built dynamically in JS (a per-course color, a computed
+     percentage) can never match and gets silently blocked. Toggling one
+     of these preset classes instead sidesteps that entirely, since
+     class attributes aren't restricted by style-src-attr. */
+  .h-0{height:0%}.h-5{height:5%}.h-10{height:10%}.h-15{height:15%}.h-20{height:20%}
+  .h-25{height:25%}.h-30{height:30%}.h-35{height:35%}.h-40{height:40%}.h-45{height:45%}
+  .h-50{height:50%}.h-55{height:55%}.h-60{height:60%}.h-65{height:65%}.h-70{height:70%}
+  .h-75{height:75%}.h-80{height:80%}.h-85{height:85%}.h-90{height:90%}.h-95{height:95%}
+  .h-100{height:100%}
+  .w-0{width:0%}.w-5{width:5%}.w-10{width:10%}.w-15{width:15%}.w-20{width:20%}
+  .w-25{width:25%}.w-30{width:30%}.w-35{width:35%}.w-40{width:40%}.w-45{width:45%}
+  .w-50{width:50%}.w-55{width:55%}.w-60{width:60%}.w-65{width:65%}.w-70{width:70%}
+  .w-75{width:75%}.w-80{width:80%}.w-85{width:85%}.w-90{width:90%}.w-95{width:95%}
+  .w-100{width:100%}
+  /* One class per palette color in course_colors.py, plus its fallback,
+     so a per-course color is a class toggle rather than an inline style. */
+  .course-color-0{background:#FF8200}.course-color-1{background:#0EA5E9}
+  .course-color-2{background:#22C55E}.course-color-3{background:#A855F7}
+  .course-color-4{background:#EF4444}.course-color-5{background:#14B8A6}
+  .course-color-6{background:#EAB308}.course-color-7{background:#EC4899}
+  .course-color-8{background:#6366F1}.course-color-9{background:#84CC16}
+  .course-color-10{background:#F97316}.course-color-11{background:#06B6D4}
+  .course-color-fallback{background:#94A3B8}
+  .hidden{display:none}
+  .week-val { font-size: 10.5px; font-weight: 700; color: var(--navy); margin-top: 6px; }
+  .week-label { font-size: 9.5px; color: var(--muted); margin-top: 1px; white-space: nowrap; }
+
+  /* ── Metric rows — a clean list, not colored blocks. A number, a
+     label, and a slim horizontal indicator bar where a ratio applies. ── */
+  .metric-row { padding: 13px 0; border-bottom: 1px solid #f0f2f7; }
+  .metric-row:last-child { border-bottom: none; }
+  .metric-row-top { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 5px; }
+  .metric-row-label { font-size: 12.5px; color: var(--gray-text); font-weight: 600; }
+  .metric-row-value { font-size: 15px; font-weight: 800; color: var(--navy); }
+  .metric-row-track { height: 5px; background: #eef0f6; border-radius: 999px; overflow: hidden; }
+  .metric-row-fill { height: 100%; background: var(--navy); border-radius: 999px; transition: width 0.7s cubic-bezier(.4,0,.2,1); }
+  .metric-row-fill.accent { background: var(--orange); }
+  .metric-row-caption { font-size: 11px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
+
+  /* ── Per-course breakdown — reuses the same course colors already
+     shown on Documents/Calendar/Dashboard, so a class reads as the same
+     color everywhere in the app. ── */
+  .course-row { padding: 14px 0; border-bottom: 1px solid #f0f2f7; }
+  .course-row:last-child { border-bottom: none; }
+  .course-row-top { display: flex; align-items: center; gap: 9px; margin-bottom: 7px; }
+  .course-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .course-name { font-size: 13px; font-weight: 700; color: var(--navy); flex: 1; }
+  .course-frac { font-size: 12px; color: var(--muted); font-weight: 600; }
+  .course-bar-track { height: 24px; background: #eef0f6; border-radius: 999px; overflow: hidden; margin-left: 19px; }
+  .course-bar-fill { height: 100%; border-radius: 999px; transition: width 0.7s cubic-bezier(.4,0,.2,1); min-width: 3px; }
+  .course-sub { font-size: 11px; color: var(--muted); margin-top: 6px; margin-left: 19px; }
+
+  .empty-state { text-align: center; padding: 28px 20px; }
+  .empty-state h3 { font-size: 14px; color: var(--navy); margin-bottom: 4px; }
+  .empty-state p { font-size: 12px; color: var(--muted); }
+
+  /* ── Daily/Weekly/Monthly view toggle for the activity chart ── */
+  .card-header-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .view-toggle { display: flex; gap: 4px; flex-shrink: 0; }
+  .view-toggle-btn {
+    font-size: 11px; font-weight: 700; color: var(--muted);
+    background: #f4f6fb; border: 1px solid var(--border); border-radius: 6px;
+    padding: 5px 11px; cursor: pointer; transition: all 0.15s; font-family: inherit;
+  }
+  .view-toggle-btn:hover { color: var(--navy); border-color: var(--navy); }
+  .view-toggle-btn.active { background: var(--navy); color: #fff; border-color: var(--navy); }
+
+  /* ── Progress By Class: total-assignments note + per-course "Assignments" label ── */
+  .course-total-note { font-size: 12px; font-weight: 700; color: var(--navy); margin-top: 6px; }
+  .course-frac-wrap { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.3; }
+  .course-frac-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+
+  @media (max-width: 760px) {
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+    .grid-2 { grid-template-columns: 1fr; }
+    .ring-card { flex-direction: column; text-align: center; }
+  }
+</style>
+</head>
+<body>
+{% include "_nav.html" %}
+<main class="page-shell">
+  <div class="progress-header">
+    <div class="progress-eyebrow">Your Activity</div>
+    <h1>My Progress</h1>
+    <p>Here's the momentum you're building — a record of the real work you're putting in, one week at a time!</p>
+  </div>
+
+  <div class="stats-row" id="stats-row">
+    <div class="stat-card c1"><div class="stat-value">—</div><div class="stat-label">Active Days · 30d</div></div>
+    <div class="stat-card c2"><div class="stat-value">—</div><div class="stat-label">Questions Asked · 30d</div></div>
+    <div class="stat-card c3"><div class="stat-value">—</div><div class="stat-label">Completed On Time</div></div>
+    <div class="stat-card c4"><div class="stat-value">—</div><div class="stat-label">Practice Attempted</div></div>
+  </div>
+
+  <div class="insight-bar" id="insight-bar">
+    <div class="insight-bar-label">Trend</div>
+    <div class="insight-list" id="insight-list"></div>
+  </div>
+
+  <div class="grid-2">
+    <div class="ring-card" id="ring-wrap">
+      <svg class="ring-svg" width="128" height="128" viewBox="0 0 128 128">
+        <circle class="ring-track" cx="64" cy="64" r="52" fill="none" stroke-width="10"/>
+        <circle class="ring-fill" id="ring-fill" cx="64" cy="64" r="52" fill="none" stroke-width="10"
+                stroke-dasharray="326.7" stroke-dashoffset="326.7" transform="rotate(-90 64 64)"/>
+        <text class="ring-center-value" id="ring-center-value" x="64" y="60" text-anchor="middle">—</text>
+        <text class="ring-center-label" x="64" y="75" text-anchor="middle">COMPLETE</text>
+      </svg>
+      <div class="ring-copy">
+        <div class="ring-copy-title">Completion Rate</div>
+        <div class="ring-copy-main"><strong id="comp-completed">—</strong> of <span id="comp-total">—</span> tracked deadlines are done</div>
+        <div class="ring-copy-sub"><span id="comp-ontime">—</span> of those were completed on or before the due date</div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:0;">
+      <div class="card-header">
+        <div class="card-header-row">
+          <div>
+            <h2>Activity</h2>
+            <p id="activity-instruction">See how often you're using WINK — switch between daily, weekly, and monthly views.</p>
+            <p style="font-size:11.5px;color:var(--muted);margin-top:2px;">The number above each bar is total activity in that period — page visits, questions asked, and practice attempts combined.</p>
+          </div>
+          <div class="view-toggle" id="activity-view-toggle">
+            <button type="button" class="view-toggle-btn active" data-view="daily">Daily</button>
+            <button type="button" class="view-toggle-btn" data-view="weekly">Weekly</button>
+            <button type="button" class="view-toggle-btn" data-view="monthly">Monthly</button>
+          </div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="week-chart" id="weekly-chart"></div>
+        <div class="empty-state hidden" id="weekly-empty" style="padding:16px 0 0;">
+          <h3>Nothing here yet</h3>
+          <p>Your activity will show up here once you start using WINK.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-header"><h2>Staying Organized</h2><p>Planning activity, last 30 days</p></div>
+      <div class="card-body">
+        <div class="metric-row">
+          <div class="metric-row-top"><span class="metric-row-label">Personal items added to Calendar</span><span class="metric-row-value" id="org-personal">—</span></div>
+        </div>
+        <div class="metric-row">
+          <div class="metric-row-top"><span class="metric-row-label">AI-detected deadlines confirmed or corrected</span><span class="metric-row-value" id="org-reviewed">—</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><h2>Practice &amp; Review</h2><p>Engagement with generated practice material</p></div>
+      <div class="card-body">
+        <div class="metric-row">
+          <div class="metric-row-top"><span class="metric-row-label">Questions generated for you</span><span class="metric-row-value" id="prac-total">—</span></div>
+        </div>
+        <div class="metric-row">
+          <div class="metric-row-top"><span class="metric-row-label">Attempted</span><span class="metric-row-value" id="prac-attempted-frac">—</span></div>
+          <div class="metric-row-track"><div class="metric-row-fill accent w-0" id="prac-attempted-bar"></div></div>
+        </div>
+        <div class="metric-row">
+          <div class="metric-row-top"><span class="metric-row-label">Correct / Wrong</span><span class="metric-row-value" id="prac-correct-wrong">—</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card hidden" id="by-course-card">
+    <div class="card-header">
+      <h2>Progress By Class</h2>
+      <p>Completion and practice engagement, course by course</p>
+      <p class="metric-row-caption" style="margin-top:4px;">Each bar's percentage is completed assignments ÷ total tracked assignments for that course — it only counts what WINK has found deadlines for, not every assignment in the class.</p>
+      <p class="course-total-note" id="course-total-note"></p>
+    </div>
+    <div class="card-body" id="by-course-container"></div>
+  </div>
+</main>
+
+<script nonce="{{ csp_nonce() }}">
+function escapeHtml(s) {
+  return (s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// Ring circumference for r=52: 2 * PI * 52 ≈ 326.7 (matches the
+// stroke-dasharray already set in the markup above).
+const RING_CIRCUMFERENCE = 326.7;
+
+let progressData = null; // cached so the daily/weekly/monthly toggle can re-render without re-fetching
+
+// Works for whichever date key a given granularity's entries carry
+// (daily: "date", weekly: "week_start", monthly: "month" as "YYYY-MM").
+function activityLabel(view, entry) {
+  const raw = entry.date || entry.week_start || entry.month;
+  if (!raw) return '';
+  const iso = raw.length === 7 ? raw + '-01T00:00:00' : raw + 'T00:00:00';
+  const d0 = new Date(iso);
+  if (view === 'daily') return d0.toLocaleDateString('default', { weekday: 'short', day: 'numeric' });
+  if (view === 'monthly') return d0.toLocaleDateString('default', { month: 'short', year: '2-digit' });
+  return d0.toLocaleDateString('default', { month: 'short', day: 'numeric' });
+}
+
+function renderActivityChart(view) {
+  const chart = document.getElementById('weekly-chart');
+  const emptyEl = document.getElementById('weekly-empty');
+  const dataKey = { daily: 'daily_activity', weekly: 'weekly_activity', monthly: 'monthly_activity' }[view];
+  const entries = (progressData && progressData[dataKey]) || [];
+
+  if (!entries.length) {
+    chart.innerHTML = '';
+    emptyEl.querySelector('p').textContent = `Your ${view} activity will show up here once you start using WINK.`;
+    emptyEl.classList.remove('hidden');
+    return;
+  }
+  emptyEl.classList.add('hidden');
+
+  const max = Math.max(...entries.map(e => e.count), 1);
+  // Snap each bar to the nearest 5% increment of the scale (rather than
+  // an arbitrary continuous percentage) so the chart reads in clean
+  // steps, and so each bar can use one of the fixed .h-N classes below
+  // instead of an inline style the CSP would block. A non-zero count
+  // never rounds down to a 0% bar.
+  chart.innerHTML = entries.map(e => {
+    let pct = Math.round((e.count / max) * 100 / 5) * 5;
+    if (e.count > 0 && pct === 0) pct = 5;
+    return `
+    <div class="week-col">
+      <div class="week-bar-track"><div class="week-bar-fill h-${pct}"></div></div>
+      <div class="week-val">${e.count}</div>
+      <div class="week-label">${activityLabel(view, e)}</div>
+    </div>`;
+  }).join('');
+}
+
+// Mirrors WINK_COURSE_COLOR_PALETTE in services/course_colors.py — same
+// order, so a course's assigned hex maps to the matching .course-color-N
+// class instead of being applied as an inline style (which the CSP here
+// would silently block).
+const COURSE_COLOR_PALETTE = ['#FF8200','#0EA5E9','#22C55E','#A855F7','#EF4444','#14B8A6',
+  '#EAB308','#EC4899','#6366F1','#84CC16','#F97316','#06B6D4'];
+function courseColorClass(hex) {
+  const idx = COURSE_COLOR_PALETTE.findIndex(c => c.toLowerCase() === (hex || '').toLowerCase());
+  return idx === -1 ? 'course-color-fallback' : `course-color-${idx}`;
+}
+
+document.getElementById('activity-view-toggle').addEventListener('click', (e) => {
+  const btn = e.target.closest('.view-toggle-btn');
+  if (!btn || !progressData) return;
+  document.querySelectorAll('#activity-view-toggle .view-toggle-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderActivityChart(btn.dataset.view);
+});
+
+async function loadProgress() {
+  try {
+    const res = await fetch('/progress-data');
+    const d = await res.json();
+    if (d.error) return;
+    progressData = d;
+
+    const statValues = [
+      d.active_days,
+      d.questions_asked,
+      `${d.completion.on_time} / ${d.completion.completed}`,
+      d.practice.attempted,
+    ];
+    document.querySelectorAll('#stats-row .stat-value').forEach((el, i) => { el.textContent = statValues[i]; });
+
+    if (d.noticed && d.noticed.length) {
+      document.getElementById('insight-list').innerHTML = d.noticed.map(escapeHtml).join(' &nbsp;·&nbsp; ');
+      document.getElementById('insight-bar').classList.add('show');
+    }
+
+    const rawPct = d.completion.total > 0 ? Math.round((d.completion.completed / d.completion.total) * 100) : 0;
+    const pct = Math.round(rawPct / 5) * 5;
+    const ringFill = document.getElementById('ring-fill');
+    ringFill.classList.add(`ring-${pct}`);
+    document.getElementById('ring-center-value').textContent = d.completion.total > 0 ? `${rawPct}%` : '—';
+    document.getElementById('comp-completed').textContent = d.completion.completed;
+    document.getElementById('comp-total').textContent = d.completion.total;
+    document.getElementById('comp-ontime').textContent = d.completion.on_time;
+
+    const chart = document.getElementById('weekly-chart');
+    renderActivityChart('daily');
+
+    document.getElementById('org-personal').textContent = d.organization.personal_items_added;
+    document.getElementById('org-reviewed').textContent = d.organization.deadlines_reviewed;
+
+    document.getElementById('prac-total').textContent = d.practice.total_questions;
+    let attemptPct = d.practice.total_questions > 0
+      ? Math.round((d.practice.attempted / d.practice.total_questions) * 100 / 5) * 5 : 0;
+    if (d.practice.attempted > 0 && attemptPct === 0) attemptPct = 5;
+    document.getElementById('prac-attempted-frac').textContent = `${d.practice.attempted} / ${d.practice.total_questions}`;
+    document.getElementById('prac-attempted-bar').classList.add(`w-${attemptPct}`);
+
+    // Correct/Wrong, side by side — wrong = attempted minus correct, so
+    // the two numbers always add back up to Attempted above.
+    const correctWrongEl = document.getElementById('prac-correct-wrong');
+    if (typeof d.practice.correct === 'number') {
+      const wrong = d.practice.attempted - d.practice.correct;
+      correctWrongEl.textContent = `${d.practice.correct} correct · ${wrong} wrong`;
+    } else {
+      correctWrongEl.textContent = '—';
+    }
+
+    // Per-course breakdown — same course colors used on Documents/
+    // Calendar/Dashboard (see services/progress.py's _by_course_breakdown).
+    // Whole card stays hidden if there's nothing to show yet (a brand-new
+    // account with no courses tracked) rather than showing an empty shell.
+    const byCourse = d.by_course || [];
+    if (byCourse.length) {
+      const container = document.getElementById('by-course-container');
+      const totalAssignments = byCourse.reduce((sum, c) => sum + (c.total || 0), 0);
+      document.getElementById('course-total-note').textContent =
+        `${totalAssignments} total assignment${totalAssignments === 1 ? '' : 's'} across ${byCourse.length} course${byCourse.length === 1 ? '' : 's'}`;
+      container.innerHTML = byCourse.map(c => {
+        let pct = c.total > 0 ? Math.round((c.completed / c.total) * 100 / 5) * 5 : 0;
+        if (c.completed > 0 && pct === 0) pct = 5;
+        const practiceSub = c.practice_total > 0
+          ? `${c.practice_attempted} / ${c.practice_total} practice questions attempted`
+          : 'No practice questions generated yet';
+        // Uses each course's own color (the same one shown for that course
+        // on Documents/Calendar/Dashboard) via a fixed class rather than
+        // an inline style, which the CSP here silently blocks.
+        const colorClass = courseColorClass(c.color);
+        return `
+          <div class="course-row">
+            <div class="course-row-top">
+              <span class="course-dot ${colorClass}"></span>
+              <span class="course-name">${escapeHtml(c.course)}</span>
+              <div class="course-frac-wrap">
+                <span class="course-frac-label">Assignments</span>
+                <span class="course-frac">${c.completed} / ${c.total} · ${pct}%</span>
+              </div>
+            </div>
+            <div class="course-bar-track"><div class="course-bar-fill w-${pct} ${colorClass}"></div></div>
+            <div class="course-sub">${escapeHtml(practiceSub)}</div>
+          </div>`;
+      }).join('');
+      document.getElementById('by-course-card').classList.remove('hidden');
+    }
+  } catch (e) {
+    console.error('loadProgress error', e);
+  }
+}
+loadProgress();
+</script>
+</body>
+</html>

@@ -1,0 +1,425 @@
+import calendar as _pycalendar
+import secrets
+from datetime import datetime, timedelta
+
+from .. import config
+from ..errors import log_error
+from ..extensions import get_db, anthropic_client
+from ..timeutil import utcnow_naive
+from .analytics import log_token_usage
+from .json_utils import parse_json_array, strip_json_fence
+
+
+
+def extract_deadlines(content, today=None, student_id=None):
+    if not anthropic_client or not content or not content.strip():
+        return []
+    today = today or utcnow_naive().strftime("%Y-%m-%d")
+    try:
+        resp = anthropic_client.messages.create(
+            model=config.CHAT_MODEL,
+            max_tokens=4096,
+            system=(
+                "Extract assignment, exam, and other academic deadlines from the "
+                "document text the user provides. Respond with ONLY a JSON array "
+                "(no prose, no markdown fences) of objects shaped like "
+                '{"title": "...", "due_date": "YYYY-MM-DD", "source_snippet": "..."}. '
+                "source_snippet must be the actual sentence (or short span, under 200 "
+                "characters) from the document that the title/due_date were read from — "
+                "never paraphrase or invent it; copy it from the text given to you. "
+                f"Today's date is {today} — resolve relative or partial dates "
+                "(e.g. \"March 3\" with no year, or \"next Friday\") against it. "
+                "Skip anything without a specific date you can resolve. "
+                "If there are no clear deadlines, respond with []."
+            ),
+            messages=[{"role": "user", "content": content[:config.DEADLINE_EXTRACTION_MAX_CHARS]}],
+        )
+        if student_id is not None:
+            log_token_usage(student_id, "deadline_extraction", config.CHAT_MODEL, resp.usage)
+        raw = "".join(b.text for b in resp.content if getattr(b, "type", None) == "text").strip()
+        raw = strip_json_fence(raw)
+        items = parse_json_array(raw)
+        out = []
+        for it in items if isinstance(items, list) else []:
+            title = str(it.get("title", "")).strip()[:200]
+            due = str(it.get("due_date", "")).strip()
+            try:
+                datetime.strptime(due, "%Y-%m-%d")
+            except Exception:
+                continue
+            if title:
+                out.append({
+                    "title": title,
+                    "due_date": due,
+                    "source_snippet": str(it.get("source_snippet", "")).strip()[:200],
+                })
+        return out[:30]
+    except Exception as e:
+        log_error("services.deadlines.extract_deadlines", e)
+        return []
+
+
+def insert_deadlines(student_id, document_id, course, items):
+    if not config.DB_URL or not items:
+        return []
+    try:
+        conn = get_db(); cur = conn.cursor()
+        ids = []
+        for it in items:
+            cur.execute("""INSERT INTO deadlines (student_id, document_id, course, title, due_date, source_snippet, status)
+                           VALUES (%s, %s, %s, %s, %s, %s, 'detected') RETURNING id""",
+                        (student_id, document_id, course, it["title"], it["due_date"], it.get("source_snippet", "")))
+            ids.append(cur.fetchone()["id"])
+        conn.commit(); cur.close()
+        return ids
+    except Exception as e:
+        log_error("services.deadlines.insert_deadlines", e)
+        return []
+
+
+_DEADLINE_STATUSES = {"detected", "confirmed", "corrected", "superseded"}
+
+PERSONAL_ITEM_CATEGORIES = [
+    "Doctor's Appointment", "Personal", "Work", "Meeting", "Travel", "Exam", "Other",
+]
+
+PERSONAL_ITEM_COLORS = [
+    {"name": "Orange", "hex": "#FF8200"},
+    {"name": "Navy", "hex": "#002855"},
+    {"name": "Green", "hex": "#22C55E"},
+    {"name": "Purple", "hex": "#A855F7"},
+    {"name": "Blue", "hex": "#0EA5E9"},
+    {"name": "Red", "hex": "#EF4444"},
+    {"name": "Pink", "hex": "#EC4899"},
+    {"name": "Teal", "hex": "#14B8A6"},
+    {"name": "Yellow", "hex": "#EAB308"},
+    {"name": "Gray", "hex": "#94A3B8"},
+]
+_PERSONAL_ITEM_COLOR_HEXES = {c["hex"] for c in PERSONAL_ITEM_COLORS}
+
+PERSONAL_ITEM_MAX_OCCURRENCES = 366
+
+
+def _expand_recurrence(start, frequency, until):
+    if frequency not in ("daily", "weekly", "monthly") or not until:
+        return [start]
+    dates = [start]
+    cur = start
+    while len(dates) < PERSONAL_ITEM_MAX_OCCURRENCES:
+        if frequency == "daily":
+            cur = cur + timedelta(days=1)
+        elif frequency == "weekly":
+            cur = cur + timedelta(days=7)
+        else:
+            month = cur.month + 1
+            year = cur.year + (month - 1) // 12
+            month = (month - 1) % 12 + 1
+            last_day = _pycalendar.monthrange(year, month)[1]
+            cur = cur.replace(year=year, month=month, day=min(cur.day, last_day))
+        if cur > until:
+            break
+        dates.append(cur)
+    return dates
+
+
+def add_personal_item(student_id, title, due_date, category, color=None, frequency=None, recurrence_end=None):
+    if not config.DB_URL:
+        return []
+    if color not in _PERSONAL_ITEM_COLOR_HEXES:
+        color = None
+    try:
+        start = datetime.strptime(due_date, "%Y-%m-%d").date()
+        until = datetime.strptime(recurrence_end, "%Y-%m-%d").date() if recurrence_end else None
+        dates = _expand_recurrence(start, frequency, until)
+        series_id = secrets.token_hex(8) if frequency and len(dates) > 1 else None
+        conn = get_db(); cur = conn.cursor()
+        ids = []
+        for d in dates:
+            cur.execute("""INSERT INTO deadlines
+                           (student_id, document_id, course, title, due_date, source_snippet,
+                            status, is_personal, series_id, color, confirmed_at)
+                           VALUES (%s, NULL, %s, %s, %s, '', 'confirmed', TRUE, %s, %s, NOW())
+                           RETURNING id""",
+                        (student_id, category, title, d.isoformat(), series_id, color))
+            ids.append(cur.fetchone()["id"])
+        conn.commit(); cur.close()
+        return ids
+    except Exception as e:
+        log_error("services.deadlines.add_personal_item", e)
+        return []
+
+
+def update_personal_item(deadline_id, student_id, title=None, due_date=None, category=None,
+                         color=None, apply_to_series=False):
+    if not config.DB_URL:
+        return None
+    if color is not None and color not in _PERSONAL_ITEM_COLOR_HEXES:
+        color = None
+    try:
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("SELECT series_id FROM deadlines WHERE id=%s AND student_id=%s AND is_personal=TRUE",
+                    (deadline_id, student_id))
+        row = cur.fetchone()
+        if not row:
+            cur.close()
+            return None
+        series_id = row["series_id"]
+
+        if apply_to_series and series_id:
+            cur.execute("""UPDATE deadlines SET
+                           title = COALESCE(%s, title),
+                           course = COALESCE(%s, course),
+                           color = COALESCE(%s, color)
+                           WHERE series_id=%s AND student_id=%s AND is_personal=TRUE""",
+                        (title, category, color, series_id, student_id))
+        else:
+            cur.execute("""UPDATE deadlines SET
+                           title = COALESCE(%s, title),
+                           course = COALESCE(%s, course),
+                           color = COALESCE(%s, color),
+                           due_date = COALESCE(%s, due_date)
+                           WHERE id=%s AND student_id=%s AND is_personal=TRUE""",
+                        (title, category, color, due_date, deadline_id, student_id))
+        conn.commit()
+
+        cur.execute("SELECT id, course, title, due_date, color FROM deadlines WHERE id=%s AND student_id=%s",
+                    (deadline_id, student_id))
+        updated = cur.fetchone()
+        cur.close()
+        if not updated:
+            return None
+        updated = dict(updated)
+        if updated.get("due_date"):
+            updated["due_date"] = updated["due_date"].isoformat()
+        return updated
+    except Exception as e:
+        log_error("services.deadlines.update_personal_item", e)
+        return None
+
+
+def delete_personal_item(deadline_id, student_id, delete_series=False):
+    if not config.DB_URL:
+        return False
+    try:
+        conn = get_db(); cur = conn.cursor()
+        if delete_series:
+            cur.execute("SELECT series_id FROM deadlines WHERE id=%s AND student_id=%s AND is_personal=TRUE",
+                        (deadline_id, student_id))
+            row = cur.fetchone()
+            if row and row["series_id"]:
+                cur.execute("DELETE FROM deadlines WHERE series_id=%s AND student_id=%s AND is_personal=TRUE",
+                            (row["series_id"], student_id))
+            else:
+                cur.execute("DELETE FROM deadlines WHERE id=%s AND student_id=%s AND is_personal=TRUE",
+                            (deadline_id, student_id))
+        else:
+            cur.execute("DELETE FROM deadlines WHERE id=%s AND student_id=%s AND is_personal=TRUE",
+                        (deadline_id, student_id))
+        deleted = cur.rowcount > 0
+        conn.commit(); cur.close()
+        return deleted
+    except Exception as e:
+        log_error("services.deadlines.delete_personal_item", e)
+        return False
+
+
+def set_deadline_status(deadline_id, student_id, status, title=None, due_date=None):
+    if not config.DB_URL or status not in _DEADLINE_STATUSES:
+        return None
+    try:
+        conn = get_db(); cur = conn.cursor()
+        if title is not None or due_date is not None:
+            cur.execute("""UPDATE deadlines SET
+                           title = COALESCE(%s, title),
+                           due_date = COALESCE(%s, due_date),
+                           status = %s, confirmed_at = NOW()
+                           WHERE id=%s AND student_id=%s
+                           RETURNING id, title, due_date, status""",
+                        (title, due_date, status, deadline_id, student_id))
+        else:
+            cur.execute("""UPDATE deadlines SET status = %s,
+                           confirmed_at = CASE WHEN %s IN ('confirmed','corrected') THEN NOW() ELSE confirmed_at END
+                           WHERE id=%s AND student_id=%s
+                           RETURNING id, title, due_date, status""",
+                        (status, status, deadline_id, student_id))
+        updated = cur.fetchone()
+        conn.commit(); cur.close()
+        return dict(updated) if updated else None
+    except Exception as e:
+        log_error("services.deadlines.set_deadline_status", e)
+        return None
+
+
+def set_deadline_completed(deadline_id, student_id, completed):
+    if not config.DB_URL:
+        return None
+    try:
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("""UPDATE deadlines SET completed = %s,
+                       completed_at = CASE WHEN %s THEN NOW() ELSE NULL END
+                       WHERE id=%s AND student_id=%s
+                       RETURNING id, title, due_date, completed""",
+                    (bool(completed), bool(completed), deadline_id, student_id))
+        updated = cur.fetchone()
+        conn.commit(); cur.close()
+        return dict(updated) if updated else None
+    except Exception as e:
+        log_error("services.deadlines.set_deadline_completed", e)
+        return None
+
+
+def get_deadline_confirmation_stats():
+    if not config.DB_URL:
+        return None
+    try:
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("SELECT status, COUNT(*) as n FROM deadlines GROUP BY status")
+        counts = {r["status"]: r["n"] for r in cur.fetchall()}
+        cur.close()
+        confirmed, corrected = counts.get("confirmed", 0), counts.get("corrected", 0)
+        reviewed = confirmed + corrected
+        return {
+            "detected": counts.get("detected", 0),
+            "confirmed": confirmed,
+            "corrected": corrected,
+            "superseded": counts.get("superseded", 0),
+            "reviewed_count": reviewed,
+            "correction_rate_pct": round(corrected / reviewed * 100, 1) if reviewed else None,
+        }
+    except Exception as e:
+        log_error("services.deadlines.get_deadline_confirmation_stats", e)
+        return None
+
+
+def get_upcoming_deadlines(sid, days_ahead=14, confirmed_only=False):
+    if not config.DB_URL:
+        return []
+    try:
+        conn = get_db(); cur = conn.cursor()
+        query = """SELECT id, course, title, due_date, status, completed FROM deadlines
+                   WHERE student_id=%s AND due_date >= (NOW() AT TIME ZONE %s)::date
+                   AND due_date <= (NOW() AT TIME ZONE %s)::date + %s::int"""
+        if confirmed_only:
+            query += " AND status IN ('confirmed','corrected')"
+        query += " ORDER BY due_date ASC"
+        cur.execute(query, (sid, config.APP_TIMEZONE, config.APP_TIMEZONE, days_ahead))
+        rows = [dict(r) for r in cur.fetchall()]
+        cur.close()
+        for r in rows:
+            r["due_date"] = r["due_date"].isoformat()
+        return rows
+    except Exception as e:
+        log_error("services.deadlines.get_upcoming_deadlines", e); return []
+
+
+def get_all_deadlines(sid):
+    if not config.DB_URL:
+        return []
+    try:
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("""SELECT dl.id, dl.course, dl.title, dl.due_date, dl.status,
+                              dl.source_snippet, dl.confirmed_at,
+                              dl.document_id, d.orig_name as document_name,
+                              dl.is_personal, dl.series_id, dl.color, dl.completed
+                       FROM deadlines dl LEFT JOIN documents d ON d.id = dl.document_id
+                       WHERE dl.student_id=%s ORDER BY dl.due_date ASC""", (sid,))
+        rows = [dict(r) for r in cur.fetchall()]
+        cur.close()
+        for r in rows:
+            r["due_date"] = r["due_date"].isoformat() if r["due_date"] else None
+            r["confirmed_at"] = r["confirmed_at"].isoformat() if r["confirmed_at"] else None
+        return rows
+    except Exception as e:
+        log_error("services.deadlines.get_all_deadlines", e); return []
+
+
+def build_study_plan(sid, weeks_ahead=4):
+    from datetime import timedelta
+    from ..timeutil import utcnow_naive
+    from .practice import get_due_questions
+
+    today = utcnow_naive().date()
+    rows = [r for r in get_all_deadlines(sid) if r.get("due_date")]
+    due_questions = get_due_questions(sid, limit=200)
+
+    weeks = []
+    for w in range(weeks_ahead):
+        week_start = today + timedelta(days=7 * w)
+        week_end = week_start + timedelta(days=6)
+        week_deadlines = [
+            r for r in rows
+            if week_start.isoformat() <= r["due_date"] <= week_end.isoformat()
+        ]
+        review_count = len(due_questions) if w == 0 else 0
+        weeks.append({
+            "week_start": week_start.isoformat(),
+            "week_end": week_end.isoformat(),
+            "deadlines": sorted(week_deadlines, key=lambda r: r["due_date"]),
+            "questions_due_for_review": review_count,
+        })
+    return weeks
+
+
+def detect_deadline_conflicts(sid, window_days=5, min_items=3):
+    rows = get_all_deadlines(sid)
+    dated = [r for r in rows if r.get("due_date")]
+    dated.sort(key=lambda r: r["due_date"])
+
+    clusters = []
+    current = []
+    prev_date = None
+    for r in dated:
+        d = datetime.strptime(r["due_date"], "%Y-%m-%d").date()
+        if prev_date is not None and (d - prev_date).days > window_days:
+            if len(current) >= min_items:
+                clusters.append(current)
+            current = []
+        current.append(r)
+        prev_date = d
+    if len(current) >= min_items:
+        clusters.append(current)
+    return clusters
+
+
+def build_deadlines_context(sid):
+    if not config.DB_URL:
+        return "\n\nNo deadline data available (no database configured)."
+    rows = get_all_deadlines(sid)
+    if not rows:
+        return ("\n\nNo deadlines have been extracted yet. This can mean the student's "
+                "documents don't contain a schedule of specific dates, or nothing has "
+                "been uploaded yet — don't invent dates that aren't in this list.")
+    unconfirmed = [r for r in rows if r.get("status", "detected") == "detected"]
+    lines = [f"\n\n{'='*60}\nEXTRACTED DEADLINES — every date-specific item found across "
+             f"ALL of the student's uploaded documents ({len(rows)} total). This list is "
+             "COMPLETE and NOT truncated, unlike the raw document text below — always use "
+             "this list (not the raw text) when asked for a calendar, schedule, or 'what's "
+             f"due' summary.\n{'='*60}"]
+    if unconfirmed:
+        lines.append(
+            f"NOTE: {len(unconfirmed)} of these are AI-extracted and not yet confirmed by the "
+            "student ('detected' status below) — present them as possible deadlines to verify "
+            "against the syllabus, not as certain. Encourage the student to confirm or correct "
+            "them on their calendar page. Never state a 'detected' deadline with the same "
+            "confidence as a 'confirmed' or 'corrected' one."
+        )
+    for r in rows:
+        due = r["due_date"] or "date unknown"
+        status = r.get("status", "detected")
+        tag = "" if status in ("confirmed", "corrected") else " [unconfirmed]"
+        lines.append(f"- [{r['course']}] {r['title']} — due {due}{tag}")
+    lines.append(f"{'='*60}")
+
+    conflicts = detect_deadline_conflicts(sid)
+    if conflicts:
+        lines.append(
+            "\nHEADS UP — busy stretches: the ranges below have several deadlines landing "
+            "close together. Proactively mention this ONCE if the student asks about their "
+            "calendar, schedule, or workload — don't force it into every unrelated answer:"
+        )
+        for cluster in conflicts:
+            start, end = cluster[0]["due_date"], cluster[-1]["due_date"]
+            items = "; ".join(f"{r['course']}: {r['title']} ({r['due_date']})" for r in cluster)
+            lines.append(f"- {start} to {end} ({len(cluster)} items): {items}")
+    lines.append("")
+    return "\n".join(lines)

@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grade Calculator — WINK</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/nav.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/grades.css') }}">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+</head>
+<body>
+
+  {% include "_nav.html" %}
+
+  <div class="page-shell">
+    <div class="gc-header">
+      <h1>🧮 Grade Calculator</h1>
+      <p>Pull your grading breakdown from an uploaded syllabus, then plug in scores to see where you stand — or what you still need.</p>
+    </div>
+
+    <div class="card">
+      <h2>1. Pick a course</h2>
+      <div class="course-row">
+        <select id="course-input" aria-label="Course">
+          {% if known_courses %}
+            {% for c in known_courses %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          {% else %}
+            <option value="" disabled selected>No courses uploaded yet</option>
+          {% endif %}
+        </select>
+        <button class="btn btn-primary" id="extract-btn" onclick="extractWeights()" {% if not known_courses %}disabled{% endif %}>Pull weights from my syllabus</button>
+      </div>
+      <div class="extract-note">Uses whatever you've uploaded for this course on the Documents page — upload a syllabus there first if nothing comes back.</div>
+      <div class="extract-msg" id="extract-msg"></div>
+    </div>
+
+    <div class="card" id="weights-card" style="display:none;">
+      <h2>2. Grading breakdown</h2>
+      <table class="weights-table" id="weights-table">
+        <thead>
+          <tr><th>Category</th><th style="width:90px;">Weight %</th><th style="width:90px;">Your score %</th><th style="width:36px;"></th></tr>
+        </thead>
+        <tbody id="weights-tbody"></tbody>
+        <tfoot>
+          <tr class="weight-total-row">
+            <td colspan="4" id="weight-total-label"></td>
+          </tr>
+        </tfoot>
+      </table>
+      <div class="weights-empty" id="weights-empty" style="display:none;">No categories yet — extract from a syllabus above, or add one manually.</div>
+      <button class="btn btn-secondary add-row-btn" onclick="addRow('', '', '')">+ Add category</button>
+    </div>
+
+    <div class="card" id="current-grade-card" style="display:none;">
+      <h2>3. Current grade</h2>
+      <div class="result-card">
+        <span class="result-label">Based on the categories you've entered a score for:</span>
+        <span class="result-value" id="current-grade-value">—</span>
+      </div>
+      <div class="result-sub" id="current-grade-sub"></div>
+    </div>
+
+    <div class="card" id="target-card" style="display:none;">
+      <h2>4. What do I need on the rest?</h2>
+      <div class="target-row">
+        <label for="target-input" style="font-size:13px;color:#6b7a99;">I want an overall grade of</label>
+        <input type="number" id="target-input" placeholder="90" min="0" max="100" step="0.1">
+        <span style="font-size:13px;color:#6b7a99;">%</span>
+        <button class="btn btn-primary" onclick="calculateTarget()">Calculate</button>
+      </div>
+      <div class="target-result" id="target-result"></div>
+    </div>
+
+    <div class="empty-state" id="no-course-state">
+      <span class="empty-icon">🧮</span>
+      <h3>Start by picking a course</h3>
+      <p>Type a course above and pull its grading weights, or add categories by hand if you'd rather build the table yourself.</p>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/csrf-fetch.js') }}"></script>
+<script nonce="{{ csp_nonce() }}">
+    function escapeHtml(text) {
+      return String(text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+
+    // Scores are scratch-pad "what-if" numbers, not the real grading
+
+    const SCORES_KEY_PREFIX = 'wink-grades-scores:{{ s.id }}:';
+
+    function loadScores(course) {
+      try {
+        const raw = localStorage.getItem(SCORES_KEY_PREFIX + course.toLowerCase());
+        return raw ? JSON.parse(raw) : {};
+      } catch (e) { return {}; }
+    }
+
+    function saveScores(course, scoresByRowId) {
+      try {
+        localStorage.setItem(SCORES_KEY_PREFIX + course.toLowerCase(), JSON.stringify(scoresByRowId));
+      } catch (e) {  }
+    }
+
+    let rowSeq = 0;
+    let currentCourse = '';
+    let saveTimer = null;
+
+    function currentCourseName() {
+      return document.getElementById('course-input').value.trim();
+    }
+
+    function addRow(category, weight, score) {
+      document.getElementById('weights-card').style.display = 'block';
+      document.getElementById('no-course-state').style.display = 'none';
+      const tbody = document.getElementById('weights-tbody');
+      const id = 'row-' + (++rowSeq);
+      const tr = document.createElement('tr');
+      tr.dataset.rowId = id;
+      tr.innerHTML = `
+        <td><input type="text" class="category-input" value="${escapeHtml(category || '')}" placeholder="e.g. Homework" aria-label="Category name"></td>
+        <td><input type="number" class="weight-input" value="${weight !== '' && weight != null ? weight : ''}" min="0" max="100" step="0.1" aria-label="Weight percent"></td>
+        <td><input type="number" class="score-input" value="${score !== '' && score != null ? score : ''}" min="0" max="100" step="0.1" aria-label="Your score percent"></td>
+        <td><button class="btn-danger" title="Remove category" aria-label="Remove category" onclick="removeRow('${id}')">✕</button></td>`;
+      tbody.appendChild(tr);
+      tr.querySelector('.category-input').addEventListener('input', onWeightsChanged);
+      tr.querySelector('.weight-input').addEventListener('input', onWeightsChanged);
+      tr.querySelector('.score-input').addEventListener('input', onScoreChanged);
+      recompute();
+    }
+
+    function removeRow(id) {
+      const tr = document.querySelector(`tr[data-row-id="${id}"]`);
+      if (tr) tr.remove();
+      onWeightsChanged();
+    }
+
+    function clearTable() {
+      document.getElementById('weights-tbody').innerHTML = '';
+    }
+
+    function getRows() {
+      return [...document.querySelectorAll('#weights-tbody tr')].map(tr => ({
+        id: tr.dataset.rowId,
+        category: tr.querySelector('.category-input').value.trim(),
+        weight: parseFloat(tr.querySelector('.weight-input').value),
+        score: tr.querySelector('.score-input').value === '' ? null : parseFloat(tr.querySelector('.score-input').value),
+      }));
+    }
+
+    function onScoreChanged() {
+      const course = currentCourseName();
+      if (course) {
+        const scores = {};
+        getRows().forEach(r => { if (r.score !== null && !isNaN(r.score)) scores[r.category] = r.score; });
+        saveScores(course, scores);
+      }
+      recompute();
+    }
+
+    function onWeightsChanged() {
+      recompute();
+      scheduleSaveWeights();
+    }
+
+    function scheduleSaveWeights() {
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(saveWeightsNow, 700);
+    }
+
+    async function saveWeightsNow() {
+      const course = currentCourseName();
+      if (!course) return;
+      const weights = getRows()
+        .filter(r => r.category && !isNaN(r.weight) && r.weight > 0)
+        .map(r => ({ category: r.category, weight: r.weight }));
+      try {
+        await fetch('/save-grading-weights', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ course, weights }),
+        });
+      } catch (e) {  }
+    }
+
+    function recompute() {
+      const rows = getRows().filter(r => r.category && !isNaN(r.weight) && r.weight > 0);
+      const totalWeight = rows.reduce((sum, r) => sum + r.weight, 0);
+
+      document.getElementById('weights-empty').style.display = rows.length ? 'none' : 'block';
+      const totalLabel = document.getElementById('weight-total-label');
+      if (rows.length) {
+        const over = totalWeight > 100.5;
+        totalLabel.innerHTML = `Total weight: <span class="${over ? 'over100' : ''}">${totalWeight.toFixed(1)}%</span>` +
+          (over ? ' — that\'s over 100%, double-check your categories.' : '');
+      } else {
+        totalLabel.textContent = '';
+      }
+
+      const scored = rows.filter(r => r.score !== null && !isNaN(r.score));
+      const currentCard = document.getElementById('current-grade-card');
+      const targetCard = document.getElementById('target-card');
+      if (rows.length === 0) {
+        currentCard.style.display = 'none';
+        targetCard.style.display = 'none';
+        return;
+      }
+      currentCard.style.display = 'block';
+      targetCard.style.display = 'block';
+
+      if (scored.length === 0) {
+        document.getElementById('current-grade-value').textContent = '—';
+        document.getElementById('current-grade-sub').textContent = 'Enter a score for at least one category.';
+      } else {
+        const scoredWeight = scored.reduce((s, r) => s + r.weight, 0);
+        const weighted = scored.reduce((s, r) => s + r.weight * r.score, 0);
+        const currentGrade = scoredWeight > 0 ? weighted / scoredWeight : 0;
+        document.getElementById('current-grade-value').textContent = currentGrade.toFixed(2) + '%';
+        const remaining = rows.length - scored.length;
+        document.getElementById('current-grade-sub').textContent = remaining > 0
+          ? `Based on ${scoredWeight.toFixed(1)}% of the total weight — ${remaining} categor${remaining === 1 ? 'y' : 'ies'} still blank.`
+          : 'Every category has a score entered — this is your full grade.';
+      }
+    }
+
+    function calculateTarget() {
+      const target = parseFloat(document.getElementById('target-input').value);
+      const resultEl = document.getElementById('target-result');
+      if (isNaN(target)) {
+        resultEl.className = 'target-result warn';
+        resultEl.textContent = 'Enter a target grade first.';
+        return;
+      }
+      const rows = getRows().filter(r => r.category && !isNaN(r.weight) && r.weight > 0);
+      const totalWeight = rows.reduce((s, r) => s + r.weight, 0);
+      if (totalWeight === 0) {
+        resultEl.className = 'target-result warn';
+        resultEl.textContent = 'Add at least one weighted category first.';
+        return;
+      }
+      const scored = rows.filter(r => r.score !== null && !isNaN(r.score));
+      const remaining = rows.filter(r => r.score === null || isNaN(r.score));
+      const knownWeighted = scored.reduce((s, r) => s + r.weight * r.score, 0);
+      const remainingWeight = remaining.reduce((s, r) => s + r.weight, 0);
+
+      if (remainingWeight === 0) {
+        const finalGrade = totalWeight > 0 ? knownWeighted / totalWeight : 0;
+        resultEl.className = finalGrade >= target ? 'target-result' : 'target-result bad';
+        resultEl.innerHTML = `Every category already has a score — your final grade is <strong>${finalGrade.toFixed(2)}%</strong>, nothing left to solve for.`;
+        return;
+      }
+
+      const needed = (target * totalWeight - knownWeighted) / remainingWeight;
+      resultEl.className = needed > 100 ? 'target-result bad' : (needed < 0 ? 'target-result' : 'target-result');
+      if (needed > 100) {
+        resultEl.innerHTML = `You'd need <strong>${needed.toFixed(2)}%</strong> on the remaining ${remaining.length} categor${remaining.length === 1 ? 'y' : 'ies'} — that's over 100%, so a ${target}% overall isn't reachable from here.`;
+      } else if (needed < 0) {
+        resultEl.innerHTML = `You've already clinched a ${target}% overall — even a 0% on what's left keeps you above it.`;
+      } else {
+        resultEl.innerHTML = `You need an average of <strong>${needed.toFixed(2)}%</strong> across the remaining ${remaining.length} categor${remaining.length === 1 ? 'y' : 'ies'} (${remainingWeight.toFixed(1)}% of the total weight) to reach ${target}% overall.`;
+      }
+    }
+
+    function showExtractMessage(text) {
+      const el = document.getElementById('extract-msg');
+      el.textContent = text;
+      el.classList.add('show');
+    }
+
+    function hideExtractMessage() {
+      document.getElementById('extract-msg').classList.remove('show');
+    }
+
+    async function loadCourse(course) {
+      currentCourse = course;
+      clearTable();
+      hideExtractMessage();
+      if (!course) {
+        document.getElementById('weights-card').style.display = 'none';
+        document.getElementById('current-grade-card').style.display = 'none';
+        document.getElementById('target-card').style.display = 'none';
+        document.getElementById('no-course-state').style.display = 'block';
+        return;
+      }
+      let weights = [];
+      try {
+        const res = await fetch(`/grading-weights?course=${encodeURIComponent(course)}`);
+        const data = await res.json();
+        weights = data.weights || [];
+      } catch (e) { console.error('grading-weights fetch error', e); }
+
+      if (weights.length === 0) {
+        document.getElementById('weights-card').style.display = 'none';
+        document.getElementById('current-grade-card').style.display = 'none';
+        document.getElementById('target-card').style.display = 'none';
+        document.getElementById('no-course-state').style.display = 'block';
+        return;
+      }
+      const scores = loadScores(course);
+      weights.forEach(w => addRow(w.category, w.weight, scores[w.category] ?? ''));
+    }
+
+    async function extractWeights() {
+      const course = currentCourseName();
+      if (!course) { alert('Enter a course first.'); return; }
+      const btn = document.getElementById('extract-btn');
+      btn.disabled = true;
+      const originalLabel = btn.textContent;
+      btn.textContent = 'Reading your syllabus…';
+      hideExtractMessage();
+      try {
+        const res = await fetch('/extract-grading-weights', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ course }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          showExtractMessage(data.error || 'Something went wrong extracting weights.');
+          if (data.retry_after) btn.textContent = `Wait ${Math.ceil(data.retry_after)}s…`;
+          return;
+        }
+        if (data.message) showExtractMessage(data.message);
+        currentCourse = course;
+        clearTable();
+        const scores = loadScores(course);
+        (data.weights || []).forEach(w => addRow(w.category, w.weight, scores[w.category] ?? ''));
+        document.getElementById('weights-card').style.display = 'block';
+        document.getElementById('no-course-state').style.display = 'none';
+      } catch (e) {
+        console.error('extractWeights error', e);
+        showExtractMessage('Network error — please try again.');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = originalLabel;
+      }
+    }
+
+    document.getElementById('course-input').addEventListener('change', (e) => loadCourse(e.target.value.trim()));
+
+    {% if known_courses %}
+    loadCourse({{ known_courses[0]|tojson }});
+    document.getElementById('course-input').value = {{ known_courses[0]|tojson }};
+    {% endif %}
+  </script>
+
+</body>
+</html>
