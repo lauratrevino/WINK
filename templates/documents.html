@@ -310,6 +310,9 @@
                         </svg>
                       </span>
                       <a class="doc-name-text" href="{{ url_for('documents.download_file', doc_id=doc.id) }}" target="_blank" rel="noopener">{{ doc.orig_name }}</a>
+                      {% if doc.chunking_failed %}
+                      <span class="badge" title="WINK couldn't finish processing this file for smarter search — it may not show up in answers about your other courses' content. Try deleting and re-uploading it." style="background:#fef2f2;color:#b91c1c;margin-left:6px;font-size:10px;">⚠ Processing issue</span>
+                      {% endif %}
                     </div>
                   </td>
                   <td>{{ (doc.size_bytes / 1024)|round(1) }} KB</td>
@@ -735,7 +738,7 @@
             ? new Date(d.uploaded_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
             : '—';
           html += `<tr id="doc-row-${d.id}">
-            <td><div class="doc-name-cell"><span class="doc-file-icon">${fileIcon(d.orig_name)}</span><a class="doc-name-text" href="/documents/${d.id}/file" target="_blank" rel="noopener">${escapeHtml(d.orig_name)}</a></div></td>
+            <td><div class="doc-name-cell"><span class="doc-file-icon">${fileIcon(d.orig_name)}</span><a class="doc-name-text" href="/documents/${d.id}/file" target="_blank" rel="noopener">${escapeHtml(d.orig_name)}</a>${d.chunking_failed ? '<span class="badge" title="WINK couldn\'t finish processing this file for smarter search — it may not show up in answers about your other courses\' content. Try deleting and re-uploading it." style="background:#fef2f2;color:#b91c1c;margin-left:6px;font-size:10px;">⚠ Processing issue</span>' : ''}</div></td>
             <td>${(d.size_bytes/1024).toFixed(1)} KB</td>
             <td>${uploadedDate}</td>
             <td>

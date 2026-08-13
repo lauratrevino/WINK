@@ -53,10 +53,10 @@ def create_app():
         nonce = g.get("csp_nonce", "")
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline'; "
+            "script-src 'self'; "
             f"script-src-elem 'self' 'nonce-{nonce}'; "
             f"script-src-attr 'unsafe-hashes' {_script_src_attr}; "
-            "style-src 'self' 'unsafe-inline'; "
+            "style-src 'self'; "
             f"style-src-elem 'self' 'nonce-{nonce}'; "
             f"style-src-attr 'unsafe-hashes' {_style_src_attr}; "
             "img-src 'self' https: data:; "

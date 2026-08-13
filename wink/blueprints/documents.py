@@ -1,8 +1,9 @@
 import logging
 import os
+import threading
 import uuid
 
-from flask import Blueprint, abort, g, jsonify, render_template, request, send_file
+from flask import Blueprint, abort, current_app, g, jsonify, render_template, request, send_file
 from werkzeug.exceptions import HTTPException
 from werkzeug.utils import secure_filename
 
@@ -242,6 +243,44 @@ def list_global_documents():
     return jsonify({"docs": get_global_docs(university or None)})
 
 
+def _assign_global_deadlines_in_background(app, new_doc_id, content, university, label, orig, triggered_by_id):
+    """Runs the AI deadline extraction and per-student deadline insertion for
+    a just-uploaded global document, off the request thread. This is the
+    part that scales with student count and involves an AI call — for a
+    large "ALL universities" upload with many students, doing this inline
+    could make the admin's upload request run long enough to approach the
+    Gunicorn request timeout. The document itself (saved, extracted, chunked)
+    is already fully usable for retrieval by the time this starts; this
+    thread only handles pre-populating deadlines from it.
+
+    Needs its own Flask app context — get_db() relies on Flask's per-request
+    `g`, which doesn't exist on a bare background thread."""
+    with app.app_context():
+        try:
+            deadlines = extract_deadlines(content, student_id=triggered_by_id)
+            if not deadlines:
+                return
+            conn = get_db(); cur = conn.cursor()
+            # Only assign to students who can actually receive/see them — a
+            # suspended or self-deleted account shouldn't accumulate new
+            # deadlines from material uploaded after they left.
+            if university == "ALL":
+                cur.execute("SELECT id FROM students WHERE is_active IS TRUE AND account_deleted_at IS NULL")
+            else:
+                cur.execute("""SELECT id FROM students WHERE lower(university)=lower(%s)
+                               AND is_active IS TRUE AND account_deleted_at IS NULL""", (university,))
+            student_ids = [r["id"] for r in cur.fetchall()]
+            cur.close()
+            for student_id in student_ids:
+                insert_deadlines(student_id, new_doc_id, label, deadlines)
+            logger.info(
+                "GLOBAL UPLOAD (background): %s (%s) → %d deadline(s) applied to %d student(s)",
+                orig, university, len(deadlines), len(student_ids),
+            )
+        except Exception as e:
+            log_error("documents.global_upload_background_deadlines", e, document_id=new_doc_id)
+
+
 @bp.route("/upload-global", methods=["POST"])
 @admin_required
 def upload_global_document():
@@ -309,35 +348,20 @@ def upload_global_document():
             conn.commit(); cur.close()
             store_document_chunks(new_doc_id, None, university, label, orig, content)
 
-        deadlines_found = 0
         if new_doc_id and content and config.DB_URL:
-            deadlines = extract_deadlines(content, student_id=s["id"])
-            if deadlines:
-                conn = get_db(); cur = conn.cursor()
-                # Only assign to students who can actually receive/see them —
-                # a suspended or self-deleted account shouldn't accumulate
-                # new deadlines from material uploaded after they left.
-                if university == "ALL":
-                    cur.execute("SELECT id FROM students WHERE is_active IS TRUE AND account_deleted_at IS NULL")
-                else:
-                    cur.execute("""SELECT id FROM students WHERE lower(university)=lower(%s)
-                                   AND is_active IS TRUE AND account_deleted_at IS NULL""", (university,))
-                student_ids = [r["id"] for r in cur.fetchall()]
-                cur.close()
-                for student_id in student_ids:
-                    insert_deadlines(student_id, new_doc_id, label, deadlines)
-                deadlines_found = len(deadlines)
-                logger.info(
-                    "GLOBAL UPLOAD: %s (%s) → %d deadline(s) applied to %d student(s)",
-                    orig, university, len(deadlines), len(student_ids),
-                )
+            app_obj = current_app._get_current_object()
+            threading.Thread(
+                target=_assign_global_deadlines_in_background,
+                args=(app_obj, new_doc_id, content, university, label, orig, s["id"]),
+                daemon=True,
+            ).start()
 
         invalidate_global_docs_cache(None if university == "ALL" else university)
         log_event(s["id"], "global_file_uploaded",
-                  {"name": orig, "label": label, "university": university,
-                   "chars": len(content), "deadlines": deadlines_found})
+                  {"name": orig, "label": label, "university": university, "chars": len(content)})
         return jsonify({"success": True, "docs": get_global_docs(university),
-                        "chars_extracted": len(content), "deadlines_found": deadlines_found})
+                        "chars_extracted": len(content),
+                        "deadlines_processing": bool(new_doc_id and content)})
     except Exception as e:
         log_error("documents.global_upload", e)
         return jsonify({"error": "Something went wrong on our end. Please try again."}), 500

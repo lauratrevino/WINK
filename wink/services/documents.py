@@ -206,8 +206,12 @@ def store_document_chunks(document_id, student_id, university, course, orig_name
     header = f"[{orig_name}] ({course})" if course else f"[{orig_name}]"
     chunks = chunk_text(content, header=header)
     if not chunks:
+        # content was non-empty but produced zero chunks — treat this the
+        # same as a hard failure below, since the document will otherwise
+        # look completely normal while being invisible to retrieval.
+        _mark_chunking_failed(document_id, "chunk_text() returned no chunks for non-empty content")
         return
-    embeddings = embed_texts(chunks, input_type="document")  
+    embeddings = embed_texts(chunks, input_type="document")
     try:
         conn = get_db(); cur = conn.cursor()
         for i, chunk in enumerate(chunks):
@@ -217,9 +221,28 @@ def store_document_chunks(document_id, student_id, university, course, orig_name
                            VALUES (%s, %s, %s, %s, %s, %s)""",
                         (document_id, student_id, university or "", i, chunk,
                          json.dumps(emb) if emb is not None else None))
+        # Clear any previous failure flag — e.g. a reupload/reprocess that
+        # succeeds this time around should self-heal the document's status.
+        cur.execute("UPDATE documents SET chunking_failed=FALSE WHERE id=%s", (document_id,))
         conn.commit(); cur.close()
     except Exception as e:
-        log_error("services.documents.store_document_chunks", e)
+        log_error("services.documents.store_document_chunks", e, document_id=document_id)
+        _mark_chunking_failed(document_id, str(e))
+
+
+def _mark_chunking_failed(document_id, reason):
+    """Best-effort: flip the visible flag so a document with failed chunking
+    doesn't silently look identical to a fully-working one. Uses its own
+    connection/try because this is already inside (or called right after)
+    error handling — a failure here should never mask the original error."""
+    if not config.DB_URL or not document_id:
+        return
+    try:
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("UPDATE documents SET chunking_failed=TRUE WHERE id=%s", (document_id,))
+        conn.commit(); cur.close()
+    except Exception as e:
+        log_error("services.documents._mark_chunking_failed", e, document_id=document_id, reason=reason)
 
 
 def get_student_chunks(sid):

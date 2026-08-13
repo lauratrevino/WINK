@@ -152,6 +152,23 @@ def check_conversation_purge():
         return {"name": "Deleted-conversation purge", "status": "warn", "detail": f"Couldn't check run history: {str(e)[:200]}"}
 
 
+def check_chunking():
+    if not config.DB_URL:
+        return {"name": "Document chunk processing", "status": "not_configured", "detail": "No DATABASE_URL set."}
+    try:
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) as n FROM documents WHERE chunking_failed IS TRUE")
+        failed = cur.fetchone()["n"]
+        cur.close()
+        if failed == 0:
+            return {"name": "Document chunk processing", "status": "ok", "detail": "No documents currently flagged with a processing failure."}
+        return {"name": "Document chunk processing", "status": "warn",
+                "detail": f"{failed} document(s) failed semantic-search chunk processing and won't "
+                          f"surface in retrieval-based answers — check My Documents pages or re-upload them."}
+    except Exception as e:
+        return {"name": "Document chunk processing", "status": "warn", "detail": f"Couldn't check: {str(e)[:200]}"}
+
+
 def get_health_report():
     checks = [
         check_database(),
@@ -162,6 +179,7 @@ def get_health_report():
         check_storage(),
         check_reminders(),
         check_conversation_purge(),
+        check_chunking(),
     ]
     order = {"down": 0, "warn": 1, "not_configured": 2, "ok": 3}
     checks.sort(key=lambda c: order.get(c["status"], 4))

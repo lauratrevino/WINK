@@ -137,6 +137,7 @@ def init_db():
         cur.execute("ALTER TABLE documents ADD COLUMN IF NOT EXISTS crn TEXT DEFAULT ''")
         cur.execute("ALTER TABLE documents ADD COLUMN IF NOT EXISTS university TEXT DEFAULT ''")
         cur.execute("ALTER TABLE documents ADD COLUMN IF NOT EXISTS doc_type TEXT DEFAULT 'material'")
+        cur.execute("ALTER TABLE documents ADD COLUMN IF NOT EXISTS chunking_failed BOOLEAN DEFAULT FALSE")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_documents_global_university ON documents(university) WHERE student_id IS NULL")
         cur.execute("""CREATE TABLE IF NOT EXISTS events (
             id SERIAL PRIMARY KEY, student_id INTEGER,
