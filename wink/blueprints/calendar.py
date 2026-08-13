@@ -1,6 +1,7 @@
 import concurrent.futures
 import secrets
-from datetime import datetime
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from flask import Blueprint, g, jsonify, render_template, request
 
@@ -307,6 +308,97 @@ def send_deadline_reminders():
         return jsonify({"students_notified": sent_count, "deadlines_covered": len(rows)})
     except Exception as e:
         log_error("calendar.send_deadline_reminders", e)
+        try:
+            conn = get_db(); cur = conn.cursor()
+            cur.execute("UPDATE cron_runs SET completed_at=NOW(), last_error=%s WHERE id=%s",
+                        (str(e)[:500], run_id))
+            conn.commit(); cur.close()
+        except Exception:
+            pass
+        return jsonify({"error": "Something went wrong on our end."}), 500
+
+
+@bp.route("/send-weekly-digest", methods=["POST"])
+@csrf.exempt
+def send_weekly_digest():
+    """A once-a-week 'here's what's due this week' email, separate from the
+    closer 3-day reminder above — meant to run once, at the start of the
+    week (e.g. Monday morning). Unlike the 3-day reminder, this doesn't mark
+    individual deadlines as handled (there's no equivalent of `reminded` to
+    set — the same deadline is expected to appear here once, then again in
+    the closer reminder as it approaches). Because of that, this route
+    guards against accidentally running twice in the same week itself,
+    rather than relying on per-deadline state."""
+    provided = request.headers.get("X-WINK-Cron-Secret", "")
+    if not provided:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            provided = auth_header[len("Bearer "):]
+    if not config.CRON_SECRET or not secrets.compare_digest(provided, config.CRON_SECRET):
+        return jsonify({"error": "Not authorized"}), 403
+    if not config.DB_URL:
+        return jsonify({"error": "No database"}), 500
+
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""SELECT COUNT(*) as n FROM cron_runs
+                   WHERE job_name='send_weekly_digest' AND completed_at IS NOT NULL
+                   AND last_error IS NULL AND completed_at > NOW() - INTERVAL '6 days'""")
+    already_ran = cur.fetchone()["n"] > 0
+    cur.close()
+    if already_ran:
+        return jsonify({"skipped": True, "reason": "Weekly digest already sent within the last 6 days."})
+
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("INSERT INTO cron_runs(job_name) VALUES('send_weekly_digest') RETURNING id")
+    run_id = cur.fetchone()["id"]
+    conn.commit(); cur.close()
+
+    try:
+        # Monday-to-Sunday window for "this week," in the app's configured
+        # timezone rather than the DB server's — same reasoning as every
+        # other date comparison in this file.
+        local_today = datetime.now(ZoneInfo(config.APP_TIMEZONE)).date()
+        week_start = local_today - timedelta(days=local_today.weekday())  # Monday
+        week_end = week_start + timedelta(days=6)  # Sunday
+
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("""SELECT d.id, d.title, d.due_date, d.course, s.id as sid, s.email, s.first_name
+                       FROM deadlines d JOIN students s ON s.id = d.student_id
+                       WHERE d.due_date BETWEEN %s AND %s
+                       AND s.is_active IS TRUE
+                       AND s.account_deleted_at IS NULL
+                       ORDER BY s.id, d.due_date""", (week_start, week_end))
+        rows = [dict(r) for r in cur.fetchall()]
+        cur.close()
+
+        by_student = {}
+        for r in rows:
+            by_student.setdefault(r["sid"], {"email": r["email"], "first_name": r["first_name"], "items": []})
+            by_student[r["sid"]]["items"].append(r)
+
+        sent_count = 0
+        failed_count = 0
+        for sid, info in by_student.items():
+            lines = [f"  • {it['title']} ({it['course']}) — due {it['due_date'].strftime('%A, %b %d')}"
+                     for it in info["items"]]
+            body = (f"Hi {info['first_name']},\n\nHere's what's on your plate this week "
+                    f"({week_start.strftime('%b %d')}–{week_end.strftime('%b %d')}):\n\n"
+                    + "\n".join(lines) +
+                    "\n\nYou'll also get a closer reminder as each one approaches.\n\n— WINK")
+            if send_email(info["email"], "Your week ahead — WINK", body):
+                sent_count += 1
+            else:
+                failed_count += 1
+
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("""UPDATE cron_runs SET completed_at=NOW(), number_processed=%s,
+                       number_sent=%s, number_failed=%s WHERE id=%s""",
+                    (len(by_student), sent_count, failed_count, run_id))
+        conn.commit(); cur.close()
+
+        return jsonify({"students_notified": sent_count, "deadlines_covered": len(rows)})
+    except Exception as e:
+        log_error("calendar.send_weekly_digest", e)
         try:
             conn = get_db(); cur = conn.cursor()
             cur.execute("UPDATE cron_runs SET completed_at=NOW(), last_error=%s WHERE id=%s",

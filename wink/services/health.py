@@ -123,6 +123,36 @@ def check_reminders():
         return {"name": "Scheduled reminders", "status": "warn", "detail": f"Couldn't check run history: {str(e)[:200]}"}
 
 
+def check_weekly_digest():
+    if not getattr(config, "CRON_SECRET", None):
+        return {"name": "Weekly digest", "status": "not_configured",
+                "detail": "No CRON_SECRET set — /send-weekly-digest is unreachable, so nothing can trigger it."}
+    if not config.DB_URL:
+        return {"name": "Weekly digest", "status": "warn",
+                "detail": "Endpoint is configured and protected, but no database is available to check its run history."}
+    try:
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("""SELECT started_at, completed_at, number_processed, number_sent,
+                       number_failed, last_error FROM cron_runs
+                       WHERE job_name='send_weekly_digest' ORDER BY started_at DESC LIMIT 1""")
+        row = cur.fetchone(); cur.close()
+        if not row:
+            return {"name": "Weekly digest", "status": "warn",
+                    "detail": "Endpoint is configured and protected, but has never been called yet — "
+                              "confirm your external scheduler is set up (once a week, e.g. Monday morning)."}
+        if row["last_error"]:
+            return {"name": "Weekly digest", "status": "down",
+                    "detail": f"Last run at {row['started_at']} failed: {row['last_error'][:200]}"}
+        if not row["completed_at"]:
+            return {"name": "Weekly digest", "status": "warn",
+                    "detail": f"A run started at {row['started_at']} but never recorded completion — it may have crashed or timed out."}
+        return {"name": "Weekly digest", "status": "ok",
+                "detail": f"Last ran {row['completed_at']} — {row['number_sent']} sent, "
+                          f"{row['number_failed']} failed, {row['number_processed']} students processed."}
+    except Exception as e:
+        return {"name": "Weekly digest", "status": "warn", "detail": f"Couldn't check run history: {str(e)[:200]}"}
+
+
 def check_conversation_purge():
     if not getattr(config, "CRON_SECRET", None):
         return {"name": "Deleted-conversation purge", "status": "not_configured",
@@ -179,6 +209,7 @@ def get_health_report():
         check_storage(),
         check_reminders(),
         check_conversation_purge(),
+        check_weekly_digest(),
         check_chunking(),
     ]
     order = {"down": 0, "warn": 1, "not_configured": 2, "ok": 3}
