@@ -23,7 +23,7 @@ def grades_page():
                                active="grades", known_courses=known_courses)
     except Exception as e:
         log_error("grades.grades_page", e)
-        return "<h2>Something went wrong</h2><p>Please try again, or <a href='/logout'>log out</a> and back in.</p>", 500
+        return "<h2>Something went wrong</h2><p>Please try again, or <form method='POST' action='/logout' style='display:inline'><button type='submit' style='background:none;border:none;padding:0;color:#0645AD;text-decoration:underline;cursor:pointer;font:inherit;'>log out</button></form> and back in.</p>", 500
 
 
 @bp.route("/grading-weights")

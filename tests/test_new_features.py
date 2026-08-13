@@ -101,7 +101,7 @@ class TestSpacedRepetitionRealDB:
             qid = cur.fetchone()["id"]
             conn.commit(); cur.close()
 
-        client.get("/logout")
+        client.post("/logout")
         register(client, email="b@utep.edu")
         resp = client.post("/practice-attempt", json={"question_id": qid, "correct": True})
         assert resp.status_code == 404, "a student must not be able to update another student's practice question"

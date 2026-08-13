@@ -8,7 +8,7 @@ from flask import Blueprint, redirect, session, url_for
 from werkzeug.security import generate_password_hash
 
 from .. import config
-from ..extensions import get_db
+from ..extensions import csrf, get_db
 from ..security import rate_limited
 
 bp = Blueprint("demo", __name__)
@@ -146,7 +146,8 @@ def _seed_demo(cur, sid):
                 (sid,"Planning my week",messages))
 
 
-@bp.route("/demo/start", methods=["GET", "POST"])
+@bp.route("/demo/start", methods=["POST"])
+@csrf.exempt
 def start_demo():
     if not config.DB_URL:
         return "Demo mode requires the database.", 503

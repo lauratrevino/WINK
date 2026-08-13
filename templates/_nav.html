@@ -62,11 +62,16 @@
   </div>
   <div class="nav-right">
     <div class="nav-user"><span>Hello,</span><strong>{{ s.first_name }}</strong></div>
-    <a href="/logout" class="btn-logout">Log out</a>
+    <a href="#" onclick="winkLogout(event)" class="btn-logout">Log out</a>
   </div>
 </nav>
 
 <script nonce="{{ csp_nonce() }}">
+
+  function winkLogout(e) {
+    if (e) e.preventDefault();
+    fetch('/logout', { method: 'POST' }).finally(() => { window.location.href = '/'; });
+  }
 
   function toggleNav() {
     const nav = document.getElementById('app-nav');

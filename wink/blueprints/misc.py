@@ -27,7 +27,7 @@ def manual():
         return render_template("manual.html", s=s, admin_email=config.ADMIN_EMAIL, active="manual")
     except Exception as e:
         log_error("misc.manual", e)
-        return "<h2>Something went wrong</h2><p>Please try again, or <a href='/logout'>log out</a> and back in.</p>", 500
+        return "<h2>Something went wrong</h2><p>Please try again, or <form method='POST' action='/logout' style='display:inline'><button type='submit' style='background:none;border:none;padding:0;color:#0645AD;text-decoration:underline;cursor:pointer;font:inherit;'>log out</button></form> and back in.</p>", 500
 
 
 @bp.route("/health")

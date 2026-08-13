@@ -1,10 +1,10 @@
 import json
-from datetime import timedelta
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from .. import config
 from ..errors import log_error
 from ..extensions import anthropic_client, get_db
-from ..timeutil import utcnow_naive
 from .analytics import log_token_usage
 from .json_utils import parse_json_array, strip_json_fence
 
@@ -151,7 +151,8 @@ def schedule_next_review(current_interval_days, correct):
         new_interval = min(current_interval_days * 3, _MAX_INTERVAL_DAYS)
     else:
         new_interval = 1
-    next_review = (utcnow_naive() + timedelta(days=new_interval)).date()
+    local_today = datetime.now(ZoneInfo(config.APP_TIMEZONE)).date()
+    next_review = local_today + timedelta(days=new_interval)
     return new_interval, next_review
 
 

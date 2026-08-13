@@ -53,21 +53,21 @@ class TestRegistrationAndLogin:
 
     def test_login_with_correct_password_succeeds(self, client):
         register(client)
-        client.get("/logout")
+        client.post("/logout")
         resp = login(client)
         assert resp.status_code == 302
         assert client.get("/dashboard").status_code == 200
 
     def test_login_with_wrong_password_fails(self, client):
         register(client)
-        client.get("/logout")
+        client.post("/logout")
         resp = login(client, password="wrong-password")
         assert "Invalid email or password" in resp.get_data(as_text=True)
         assert client.get("/dashboard").status_code == 302  
 
     def test_admin_login_redirects_to_analytics(self, client):
         register(client, email="admin@utep.edu")
-        client.get("/logout")
+        client.post("/logout")
         resp = login(client, email="admin@utep.edu")
         assert resp.status_code == 302
         assert "/analytics-page" in resp.headers["Location"]
@@ -146,13 +146,13 @@ class TestDocumentUpload:
             "course": "COURSEA", "crn": "1111",
         }, content_type="multipart/form-data")
         client.get("/documents")
-        client.get("/logout")
+        client.post("/logout")
 
         register(client, email="b@utep.edu")
         resp = client.post("/delete-file", json={"doc_id": 1})
         assert resp.status_code == 200  
 
-        client.get("/logout")
+        client.post("/logout")
         login(client, email="a@utep.edu")
         docs_after = client.get("/documents").data
         assert b"a_doc.txt" in docs_after, "student A's document must still exist — B must not be able to delete it"
@@ -195,7 +195,7 @@ class TestAdminAnalytics:
 
     def test_admin_sees_real_student_summary(self, client):
         register(client, email="s1@utep.edu")
-        client.get("/logout")
+        client.post("/logout")
         register(client, email="admin@utep.edu")
 
         data = client.get("/analytics-data").get_json()
@@ -206,7 +206,7 @@ class TestAdminAnalytics:
     def test_toggle_student_active_persists_to_real_db(self, client, app):
         from wink.extensions import get_db
         register(client, email="s1@utep.edu")
-        client.get("/logout")
+        client.post("/logout")
         register(client, email="admin@utep.edu")
 
         with app.app_context():
@@ -218,6 +218,6 @@ class TestAdminAnalytics:
         resp = client.post("/toggle-student-active", json={"student_id": sid})
         assert resp.get_json()["is_active"] is False
 
-        client.get("/logout")
+        client.post("/logout")
         login_resp = login(client, email="s1@utep.edu")
         assert "suspended" in login_resp.get_data(as_text=True)

@@ -8,7 +8,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from .. import config
 from ..errors import log_error
-from ..extensions import get_db
+from ..extensions import csrf, get_db
 from ..security import login_required, rate_limited
 from ..services.analytics import log_event
 from ..services.deadlines import extract_deadlines, insert_deadlines
@@ -181,7 +181,8 @@ def login():
         return render_template("landing.html", error="Something went wrong on our end. Please try again in a moment.")
 
 
-@bp.route("/logout")
+@bp.route("/logout", methods=["POST"])
+@csrf.exempt
 def logout():
     sid = session.get("sid")
     is_demo = session.get("is_demo")

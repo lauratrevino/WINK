@@ -55,11 +55,12 @@
       padding: 0 18px;
       pointer-events: none;
     }
-    .hero-demo-cta a { pointer-events: auto; }
+    .hero-demo-cta form { pointer-events: auto; margin: 0; }
     .hero-demo-btn {
       display: inline-block; background: #FF8200; color: #fff;
       text-decoration: none; font-weight: 800; padding: 11px 16px;
       border-radius: 999px; box-shadow: 0 6px 18px rgba(0,40,85,.22);
+      border: none; cursor: pointer; font: inherit; font-weight: 800;
     }
 
     .hero-text {
@@ -345,7 +346,9 @@
     </div>
 
     <div class="hero-demo-cta">
-      <a href="/demo/start" class="hero-demo-btn">🧪 Try WINK Demo</a>
+      <form method="POST" action="/demo/start">
+        <button type="submit" class="hero-demo-btn">🧪 Try WINK Demo</button>
+      </form>
     </div>
   </div>
 

@@ -105,7 +105,7 @@ class TestPasswordResetTokenHashing:
         assert reset_resp.status_code == 200
         assert b"password has been updated" in reset_resp.data.lower() or b"sign in" in reset_resp.data.lower()
 
-        client.get("/logout")
+        client.post("/logout")
         login_resp = client.post("/login", data={"email": "resetflow@utep.edu", "password": "newpassword456"})
         assert login_resp.status_code == 302, "should be able to log in with the new password after reset"
 
