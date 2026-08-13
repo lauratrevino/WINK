@@ -8,7 +8,7 @@ from flask import Flask, g, request
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from . import config, csp_hashes, extensions
-from .blueprints import admin, auth, calendar, chat, dashboard, demo, documents, grades, misc, progress, research
+from .blueprints import admin, auth, calendar, chat, dashboard, demo, documents, grades, misc, progress, research, webhooks
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +75,7 @@ def create_app():
             response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         return response
 
-    for bp_module in (misc, auth, dashboard, documents, calendar, chat, admin, research, grades, progress, demo):
+    for bp_module in (misc, auth, dashboard, documents, calendar, chat, admin, research, grades, progress, demo, webhooks):
         app.register_blueprint(bp_module.bp)
 
     with app.app_context():

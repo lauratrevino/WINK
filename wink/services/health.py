@@ -53,6 +53,29 @@ def check_email():
     return {"name": "Email (AWS SES)", "status": "ok", "detail": f"Configured via {config.SMTP_HOST}."}
 
 
+def check_bounce_handling():
+    if not config.DB_URL:
+        return {"name": "Bounce/complaint handling", "status": "not_configured", "detail": "No DATABASE_URL set."}
+    try:
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) as n FROM email_suppressions")
+        suppressed = cur.fetchone()["n"]
+        cur.execute("SELECT COUNT(*) as n FROM email_events WHERE created_at > NOW() - INTERVAL '7 days'")
+        recent_events = cur.fetchone()["n"]
+        cur.execute("SELECT MAX(created_at) as t FROM email_events")
+        last_event = cur.fetchone()["t"]
+        cur.close()
+        if last_event is None:
+            return {"name": "Bounce/complaint handling", "status": "warn",
+                    "detail": "No SES notifications have ever been received — confirm the SNS subscription "
+                              "to /webhooks/ses-notifications is set up and confirmed in the AWS console."}
+        return {"name": "Bounce/complaint handling", "status": "ok",
+                "detail": f"{suppressed} address(es) suppressed total; {recent_events} event(s) in the last 7 days; "
+                          f"last event received {last_event}."}
+    except Exception as e:
+        return {"name": "Bounce/complaint handling", "status": "warn", "detail": f"Couldn't check: {str(e)[:200]}"}
+
+
 def check_document_parsing():
     missing = []
     for mod in ("pypdf", "docx", "pptx", "openpyxl", "PIL"):
@@ -210,6 +233,7 @@ def get_health_report():
         check_reminders(),
         check_conversation_purge(),
         check_weekly_digest(),
+        check_bounce_handling(),
         check_chunking(),
     ]
     order = {"down": 0, "warn": 1, "not_configured": 2, "ok": 3}

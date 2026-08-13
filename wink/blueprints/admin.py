@@ -360,6 +360,50 @@ def health_data():
         return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
 
 
+@bp.route("/email-suppressions")
+@admin_required
+def email_suppressions():
+    """Lists addresses WINK will no longer send to, due to a prior hard
+    bounce or spam complaint reported by AWS SES — visible so you can see
+    who's affected and, if warranted (e.g. a student fixed a full mailbox),
+    manually clear one via the endpoint below."""
+    try:
+        if not config.DB_URL: return jsonify({"error": "No database"}), 500
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("SELECT email, reason, created_at FROM email_suppressions ORDER BY created_at DESC LIMIT 500")
+        rows = [dict(r) for r in cur.fetchall()]
+        for r in rows:
+            r["created_at"] = r["created_at"].isoformat() if r["created_at"] else None
+        cur.close()
+        return jsonify({"suppressions": rows})
+    except Exception as e:
+        log_error("admin.email_suppressions", e)
+        return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
+
+
+@bp.route("/email-suppressions/remove", methods=["POST"])
+@admin_required
+def remove_email_suppression():
+    try:
+        s = g.student
+        if not config.DB_URL: return jsonify({"error": "No database"}), 500
+        data = request.get_json() or {}
+        email = (data.get("email") or "").strip().lower()
+        if not email:
+            return jsonify({"error": "Missing email"}), 400
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("DELETE FROM email_suppressions WHERE email=%s RETURNING email", (email,))
+        row = cur.fetchone()
+        conn.commit(); cur.close()
+        if not row:
+            return jsonify({"error": "That address wasn't on the suppression list."}), 404
+        log_event(s["id"], "email_suppression_removed", {"email": email})
+        return jsonify({"success": True})
+    except Exception as e:
+        log_error("admin.remove_email_suppression", e)
+        return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
+
+
 @bp.route("/admin-page")
 @admin_page_required
 def admin_hub():

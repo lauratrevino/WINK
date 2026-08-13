@@ -43,6 +43,11 @@ logger.info(
     EMAIL_CONFIGURED, SMTP_HOST, SMTP_USER, SMTP_PORT,
 )
 CRON_SECRET = os.environ.get("CRON_SECRET", "")
+# Optional extra hardening for the SES bounce/complaint webhook — if set,
+# incoming notifications are also checked against this specific SNS topic
+# ARN, on top of the signature verification that always applies. Leave
+# unset and the webhook still works, verified by signature alone.
+SES_NOTIFICATION_TOPIC_ARN = os.environ.get("SES_NOTIFICATION_TOPIC_ARN", "").strip()
 
 CHAT_MODEL = os.environ.get("WINK_MODEL", "claude-haiku-4-5-20251001")
 CHAT_MAX_TOKENS = 1024

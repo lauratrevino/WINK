@@ -11,6 +11,13 @@ def send_email(to_email, subject, body):
         return False
     to_email = str(to_email).replace("\r", "").replace("\n", "")
     subject = str(subject).replace("\r", "").replace("\n", "")
+    # Imported here rather than at module level purely to keep this file's
+    # import list minimal for its main job (sending mail) — there's no
+    # circular dependency, ses_notifications.py never imports this module.
+    from .ses_notifications import is_suppressed
+    if is_suppressed(to_email):
+        logger.warning("EMAIL (not sent — recipient is suppressed due to a prior hard bounce or complaint) to=%s subject=%r", to_email, subject)
+        return False
     try:
         import smtplib
         from email.mime.text import MIMEText

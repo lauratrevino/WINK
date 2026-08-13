@@ -312,6 +312,27 @@ def init_db():
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_cron_runs_job_started ON cron_runs(job_name, started_at DESC)")
 
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS email_suppressions (
+                id SERIAL PRIMARY KEY,
+                email TEXT UNIQUE NOT NULL,
+                reason TEXT NOT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS email_events (
+                id SERIAL PRIMARY KEY,
+                email TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                detail TEXT,
+                raw_message_id TEXT,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_email_events_email ON email_events(email)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_email_events_created_at ON email_events(created_at)")
+
         conn.commit(); cur.close()
         logger.info("DB initialized OK.")
     except Exception as e:
