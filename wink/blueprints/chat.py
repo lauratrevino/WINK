@@ -2,6 +2,7 @@ import json
 import secrets
 import time
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import anthropic
 from flask import (Blueprint, current_app, g, jsonify, render_template,
@@ -131,7 +132,7 @@ def chat():
             )
         else:
             temp_doc_ctx = ""
-        now = datetime.now()
+        now = datetime.now(ZoneInfo(config.APP_TIMEZONE))
         today = now.strftime("%A, %B %d, %Y")
         university_display = student_university or "their university"
         is_utep = "utep" in student_university.lower() or "el paso" in student_university.lower()

@@ -42,4 +42,5 @@ def health():
         except Exception as e:
             log_error("misc.health_db_check", e)
             db_ok = False
-    return jsonify({"status": "ok" if db_ok else "degraded"})
+    status = "ok" if db_ok else "degraded"
+    return jsonify({"status": status}), (200 if db_ok else 503)

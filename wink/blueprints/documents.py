@@ -267,6 +267,7 @@ def upload_global_document():
         folder = os.path.join(config.UPLOAD_FOLDER, "global")
         os.makedirs(folder, exist_ok=True)
 
+        existing = None
         if config.DB_URL:
             conn = get_db(); cur = conn.cursor()
             cur.execute("""SELECT id, filename FROM documents
@@ -274,16 +275,13 @@ def upload_global_document():
                            AND lower(orig_name)=lower(%s)""",
                         (university, file.filename))
             existing = cur.fetchone()
-            if existing:
-                cur.execute("DELETE FROM deadlines WHERE document_id=%s", (existing["id"],))
-                old_fp = os.path.join(folder, existing["filename"])
-                if os.path.exists(old_fp):
-                    try: os.remove(old_fp)
-                    except Exception: pass
-                cur.execute("DELETE FROM documents WHERE id=%s", (existing["id"],))
-                conn.commit()
             cur.close()
 
+        # Save and extract the NEW file first — only once it's successfully
+        # saved, extracted, and inserted do we touch the old document/
+        # deadlines it's replacing. Same reasoning as the per-student upload
+        # fix: a failure partway through must never leave every student with
+        # neither the old reference material nor the new.
         orig = file.filename
         saved = f"{uuid.uuid4().hex[:8]}_{secure_filename(orig)}"
         path = os.path.join(folder, saved)
@@ -299,6 +297,15 @@ def upload_global_document():
                            VALUES(NULL,%s,%s,%s,'',%s,%s,%s) RETURNING id""",
                         (saved, orig, label, size, content, university))
             new_doc_id = cur.fetchone()["id"]
+            if existing:
+                # The new document is safely inserted — now it's safe to
+                # remove the one it's replacing.
+                cur.execute("DELETE FROM deadlines WHERE document_id=%s", (existing["id"],))
+                old_fp = os.path.join(folder, existing["filename"])
+                if os.path.exists(old_fp):
+                    try: os.remove(old_fp)
+                    except Exception: pass
+                cur.execute("DELETE FROM documents WHERE id=%s", (existing["id"],))
             conn.commit(); cur.close()
             store_document_chunks(new_doc_id, None, university, label, orig, content)
 
@@ -307,10 +314,14 @@ def upload_global_document():
             deadlines = extract_deadlines(content, student_id=s["id"])
             if deadlines:
                 conn = get_db(); cur = conn.cursor()
+                # Only assign to students who can actually receive/see them —
+                # a suspended or self-deleted account shouldn't accumulate
+                # new deadlines from material uploaded after they left.
                 if university == "ALL":
-                    cur.execute("SELECT id FROM students")
+                    cur.execute("SELECT id FROM students WHERE is_active IS TRUE AND account_deleted_at IS NULL")
                 else:
-                    cur.execute("SELECT id FROM students WHERE lower(university)=lower(%s)", (university,))
+                    cur.execute("""SELECT id FROM students WHERE lower(university)=lower(%s)
+                                   AND is_active IS TRUE AND account_deleted_at IS NULL""", (university,))
                 student_ids = [r["id"] for r in cur.fetchall()]
                 cur.close()
                 for student_id in student_ids:

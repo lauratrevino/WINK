@@ -59,6 +59,8 @@ def update_profile():
         if not config.DB_URL:
             return jsonify({"error": "No database configured."}), 500
         conn = get_db(); cur = conn.cursor()
+        cur.execute("SELECT university FROM students WHERE id=%s", (s["id"],))
+        old_university = (cur.fetchone() or {}).get("university") or ""
         if preferred_language is not None:
             cur.execute("""UPDATE students SET first_name=%s, last_name=%s,
                            classification=%s, major=%s, university=%s, preferred_language=%s
@@ -68,6 +70,17 @@ def update_profile():
             cur.execute("""UPDATE students SET first_name=%s, last_name=%s,
                            classification=%s, major=%s, university=%s WHERE id=%s""",
                         (first_name, last_name, classification, major, university, s["id"]))
+        if old_university.strip().lower() != university.strip().lower():
+            # Remove deadlines that came from the OLD university's global
+            # reference documents — they no longer apply now that the
+            # student is somewhere else. Deadlines from the student's own
+            # uploaded documents, and from any 'ALL universities' global
+            # document, are untouched (a global doc's student_id is NULL,
+            # so this can never match a personal upload).
+            cur.execute("""DELETE FROM deadlines WHERE student_id=%s AND document_id IN (
+                           SELECT id FROM documents WHERE student_id IS NULL
+                           AND lower(university) != lower(%s) AND lower(university) != 'all')""",
+                        (s["id"], university))
         conn.commit(); cur.close()
         log_event(s["id"], "profile_updated", {"classification": classification, "major": major, "university": university})
         profile = {"first_name": first_name, "last_name": last_name,
