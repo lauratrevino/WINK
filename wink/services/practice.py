@@ -143,6 +143,59 @@ def generate_practice_summary(material_text, course, student_id=None):
         return ""
 
 
+def generate_study_plan(course, material_text, quiz_results, student_id=None):
+    """Builds a personalized study plan from a just-completed Assessment Quiz.
+
+    quiz_results: list of {"question": str, "correct": bool} covering every
+    question the student answered in that session. Used to tell the model
+    what the student already has down vs. what needs work, so the plan is
+    grounded in their actual performance rather than a generic overview.
+    """
+    if not anthropic_client or not (material_text or "").strip() or not quiz_results:
+        return ""
+
+    correct_qs = [r.get("question", "").strip() for r in quiz_results if r.get("correct") and r.get("question")]
+    missed_qs = [r.get("question", "").strip() for r in quiz_results if not r.get("correct") and r.get("question")]
+    total = len(quiz_results)
+    correct_count = len(correct_qs)
+
+    system = (
+        f"You are building a personalized study plan for a college student in "
+        f"{course or 'their course'}, based on a knowledge-check quiz they just completed. "
+        f"They answered {correct_count} of {total} questions correctly. Using the course "
+        "material together with the specific questions they got right and wrong, identify "
+        "which topics they already know well and which need more work, then write a short, "
+        "prioritized plan: 3-6 concrete next steps ordered by what to focus on first, tied "
+        "to specific concepts from the material — not generic study advice. Use markdown "
+        "(## headings, bullet points, **bold** for key terms). Be encouraging but honest "
+        "about the gaps. Do not invent facts not present in the material."
+    )
+
+    results_summary = "Answered CORRECTLY (already solid on this):\n"
+    results_summary += ("\n".join(f"- {q}" for q in correct_qs) if correct_qs else "- (none)")
+    results_summary += "\n\nAnswered INCORRECTLY (needs review):\n"
+    results_summary += ("\n".join(f"- {q}" for q in missed_qs) if missed_qs else "- (none)")
+
+    user_content = (
+        f"COURSE MATERIAL:\n{material_text[:config.PRACTICE_MATERIAL_MAX_CHARS]}\n\n"
+        f"QUIZ RESULTS:\n{results_summary}"
+    )
+
+    try:
+        resp = anthropic_client.messages.create(
+            model=config.CHAT_MODEL,
+            max_tokens=2048,
+            system=system,
+            messages=[{"role": "user", "content": user_content}],
+        )
+        if student_id is not None:
+            log_token_usage(student_id, "practice_study_plan", config.CHAT_MODEL, resp.usage)
+        return "".join(b.text for b in resp.content if getattr(b, "type", None) == "text").strip()
+    except Exception as e:
+        log_error("services.practice.generate_study_plan", e)
+        return ""
+
+
 _MAX_INTERVAL_DAYS = 60
 
 

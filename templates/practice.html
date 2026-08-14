@@ -205,6 +205,10 @@
     }
 
     let quizTally = { correct: 0, total: 0 };
+    // Only set for a freshly-generated Assessment Quiz session (not the spaced-
+    // repetition review queue, which can mix questions from different courses/
+    // sessions and wouldn't represent "how you just did" for one topic).
+    let assessmentQuizTracking = null;
 
     function updateQuizTallyDisplay() {
       const el = document.getElementById('quiz-tally');
@@ -225,12 +229,12 @@
         <div class="quiz-explanation"></div>`;
 
       wrap.querySelectorAll('.quiz-option').forEach(btn => {
-        btn.addEventListener('click', () => submitQuizAnswer(q.id, parseInt(btn.dataset.idx, 10), wrap));
+        btn.addEventListener('click', () => submitQuizAnswer(q.id, parseInt(btn.dataset.idx, 10), wrap, q));
       });
       return wrap;
     }
 
-    async function submitQuizAnswer(questionId, selectedIndex, cardEl) {
+    async function submitQuizAnswer(questionId, selectedIndex, cardEl, q) {
       if (!questionId) return;
       const buttons = cardEl.querySelectorAll('.quiz-option');
       buttons.forEach(b => b.disabled = true);
@@ -261,6 +265,16 @@
         quizTally.total += 1;
         if (data.correct) quizTally.correct += 1;
         updateQuizTallyDisplay();
+
+        if (assessmentQuizTracking) {
+          assessmentQuizTracking.results.push({
+            question: (q && q.question) || '',
+            correct: !!data.correct,
+          });
+          if (assessmentQuizTracking.results.length >= assessmentQuizTracking.total) {
+            generateStudyPlan();
+          }
+        }
       } catch (e) {
         buttons.forEach(b => b.disabled = false);
       }
@@ -290,6 +304,33 @@
       return html;
     }
 
+    async function generateStudyPlan() {
+      if (!assessmentQuizTracking) return;
+      const { course, results } = assessmentQuizTracking;
+      const container = document.getElementById('generate-results');
+      const planWrap = document.createElement('div');
+      planWrap.id = 'study-plan-wrap';
+      planWrap.className = 'card';
+      planWrap.style.marginTop = '16px';
+      planWrap.innerHTML = '<h2>Your Personalized Study Plan</h2><div class="loading-spinner">Building your study plan…</div>';
+      container.appendChild(planWrap);
+      try {
+        const resp = await fetch('/generate-study-plan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ course: course, results: results }),
+        });
+        const data = await resp.json();
+        if (!resp.ok || !data.plan) {
+          planWrap.innerHTML = '<h2>Your Personalized Study Plan</h2><div class="empty-state">Couldn\'t generate a study plan this time — your quiz results above are still saved.</div>';
+          return;
+        }
+        planWrap.innerHTML = '<h2>Your Personalized Study Plan</h2>' + renderSummaryMarkdown(data.plan);
+      } catch (e) {
+        planWrap.innerHTML = '<h2>Your Personalized Study Plan</h2><div class="empty-state">Couldn\'t generate a study plan this time — your quiz results above are still saved.</div>';
+      }
+    }
+
     async function generatePractice() {
       const course = document.getElementById('course-input').value.trim();
       const qtype = document.getElementById('qtype-input').value;
@@ -300,6 +341,7 @@
       const btn = document.getElementById('generate-btn');
       errorBox.style.display = 'none';
       results.innerHTML = '';
+      assessmentQuizTracking = null;
       if (!course) {
         errorBox.textContent = 'Please enter a course.';
         errorBox.style.display = 'block';
@@ -345,6 +387,9 @@
           tallyEl.textContent = `Score: 0/${data.questions.length}`;
           results.appendChild(tallyEl);
         }
+        if (qtype === 'assessment_quiz') {
+          assessmentQuizTracking = { course: course, results: [], total: data.questions.length };
+        }
         data.questions.forEach(q => results.appendChild(isQuiz ? renderQuizCard(q) : renderQuestionCard(q)));
       } catch (e) {
         errorBox.textContent = 'Something went wrong. Please try again.';
@@ -378,6 +423,9 @@
       const results = document.getElementById('review-results');
       loading.style.display = 'block';
       results.innerHTML = '';
+      // The review queue can mix questions from different courses and sessions,
+      // so it never counts toward a single-session study plan.
+      assessmentQuizTracking = null;
       try {
         const resp = await fetch('/practice-review');
         const data = await resp.json();
