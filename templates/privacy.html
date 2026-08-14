@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy Policy — WINK</title>
+<style nonce="{{ csp_nonce() }}">
+  :root {
+    --navy: #002855; --navy-deep: #001833; --orange: #FF8200;
+    --light-bg: #f4f6fb; --muted: #6b7a99; --border: #dde3f0; --gray-text: #2d3548;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+    background: var(--light-bg); color: var(--gray-text); min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  header.top {
+    background: var(--navy); padding: 18px 24px; display: flex; align-items: center;
+  }
+  header.top a { color: #fff; font-size: 22px; font-weight: 800; text-decoration: none; }
+  header.top a span { color: var(--orange); }
+  .page-shell { max-width: 760px; margin: 0 auto; padding: 40px 24px 72px; }
+  h1 { font-size: 28px; font-weight: 800; color: var(--navy); letter-spacing: -0.3px; margin-bottom: 6px; }
+  .updated { font-size: 13px; color: var(--muted); margin-bottom: 32px; }
+  h2 { font-size: 18px; font-weight: 700; color: var(--navy); margin: 28px 0 10px; }
+  p, li { font-size: 14.5px; line-height: 1.65; color: var(--gray-text); }
+  ul { margin: 8px 0 8px 22px; }
+  li { margin-bottom: 6px; }
+  a.inline { color: var(--navy); font-weight: 600; }
+  .back { display: inline-block; margin-top: 36px; font-size: 13.5px; color: var(--muted); text-decoration: none; }
+  .back:hover { color: var(--navy); }
+</style>
+</head>
+<body>
+<header class="top">
+  <a href="/">WINK<span>.</span></a>
+</header>
+<main class="page-shell">
+  <h1>Privacy Policy</h1>
+  <p class="updated">Last updated: {{ updated_date }}</p>
+
+  <p>WINK ("What I Need to Know") is an academic support platform for university students. This page explains what information we collect, how it's used, and how it's protected.</p>
+
+  <h2>Information We Collect</h2>
+  <ul>
+    <li><strong>Account information:</strong> name, university email address, and password (stored as a secure hash, never in plain text).</li>
+    <li><strong>Academic profile:</strong> major and classification, provided to personalize support.</li>
+    <li><strong>Uploaded documents:</strong> course materials (e.g. syllabi) you upload, used to power calendar, chat, and study features.</li>
+    <li><strong>Usage data:</strong> questions asked, pages viewed, and similar activity, used to operate and improve the platform.</li>
+  </ul>
+
+  <h2>How We Use Email</h2>
+  <p>We send transactional email only — account verification and password reset messages triggered directly by your actions. We do not send marketing email, and we do not sell, rent, or share your email address with third parties.</p>
+
+  <h2>How We Use Information</h2>
+  <ul>
+    <li>To provide and operate the WINK platform for you.</li>
+    <li>To send account-related transactional email (verification, password reset).</li>
+    <li>To improve WINK's accuracy and features during the pilot phase.</li>
+  </ul>
+
+  <h2>Data Sharing</h2>
+  <p>We do not sell your personal information. We use trusted third-party services (such as Amazon Web Services) solely to operate WINK's infrastructure and deliver transactional email.</p>
+
+  <h2>Data Retention &amp; Anonymization</h2>
+  <p>Account data is retained for as long as your account is active. Upon request, an account can be anonymized — your name and email are replaced with a non-identifying label, and login access is disabled.</p>
+
+  <h2>Contact</h2>
+  <p>Questions about this policy or your data can be sent to <a class="inline" href="mailto:{{ admin_email }}">{{ admin_email }}</a>.</p>
+
+  <a class="back" href="/">&larr; Back to WINK</a>
+</main>
+</body>
+</html>
