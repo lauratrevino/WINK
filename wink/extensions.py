@@ -122,6 +122,25 @@ def init_app(app):
 
 
 def init_db():
+    """Builds/updates the schema this app expects, idempotently — safe to
+    run on every startup (every statement is CREATE ... IF NOT EXISTS or
+    ADD COLUMN IF NOT EXISTS). This keeps running on every deploy exactly
+    as before; it is NOT being replaced or removed by the Alembic setup
+    in migrations/.
+
+    Going forward, do NOT add new schema changes as new lines in this
+    function — that was fine for a while, but it's exactly what let a
+    real ordering bug hide here for a long time (an index on a column
+    that isn't added until 80 lines later — worked on every database
+    that already had the column, would have failed outright on a
+    genuinely fresh one; caught and fixed via the Alembic baseline
+    verification in migrations/versions/a0205eeb64e6_..._baseline_...py).
+
+    Any NEW schema change from here on should be a new Alembic migration
+    (`alembic revision -m "..."`, write upgrade()/downgrade(), then
+    `alembic upgrade head`) — see migrations/README.md. This function
+    stays as-is, frozen at what it already builds, purely so existing
+    deploys keep working without any extra manual step."""
     if not config.DB_URL:
         logger.warning("No DATABASE_URL set.")
         return
@@ -215,11 +234,6 @@ def init_db():
         # alone), so without this index those deletes scan every student's
         # deadlines, not just one student's.
         cur.execute("CREATE INDEX IF NOT EXISTS idx_deadlines_document_id ON deadlines(document_id)")
-        # series_id lookups are already scoped by student_id (which is
-        # indexed), so this mostly helps the "apply to whole series" UPDATE
-        # once a student is already narrowed down — cheap to add, no
-        # meaningful write-side cost.
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_deadlines_series_id ON deadlines(series_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_conversations_student_id ON conversations(student_id)")
         cur.execute("""CREATE TABLE IF NOT EXISTS document_chunks (
             id SERIAL PRIMARY KEY,
@@ -303,6 +317,16 @@ def init_db():
 
         cur.execute("ALTER TABLE deadlines ADD COLUMN IF NOT EXISTS is_personal BOOLEAN NOT NULL DEFAULT FALSE")
         cur.execute("ALTER TABLE deadlines ADD COLUMN IF NOT EXISTS series_id TEXT")
+        # Moved here from much earlier in this function — it was
+        # previously creating this index before this column existed on a
+        # genuinely fresh database (only ever masked because every real
+        # database in use already had the column from an earlier point in
+        # this file's history; caught via Alembic baseline verification).
+        # series_id lookups are already scoped by student_id (which is
+        # indexed), so this mostly helps the "apply to whole series" UPDATE
+        # once a student is already narrowed down — cheap to add, no
+        # meaningful write-side cost.
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_deadlines_series_id ON deadlines(series_id)")
         cur.execute("ALTER TABLE deadlines ADD COLUMN IF NOT EXISTS color TEXT")
         cur.execute("ALTER TABLE deadlines ADD COLUMN IF NOT EXISTS completed BOOLEAN NOT NULL DEFAULT FALSE")
         cur.execute("ALTER TABLE deadlines ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP")

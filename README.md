@@ -74,6 +74,14 @@ The database schema is created automatically on first run (see `wink/extensions.
 
 **Note on scaling:** the DB connection pool is created per worker process, not shared — so the real ceiling is `WEB_CONCURRENCY × DB_POOL_MAX`. Check your database's `max_connections` before increasing worker count.
 
+## Database migrations
+
+Schema changes go through [Alembic](https://alembic.sqlalchemy.org/) — see
+`migrations/README.md` for the full workflow (one-time setup on the existing
+database, making a new change, rolling one back). `init_db()` in
+`wink/extensions.py` still runs on every startup for backward compatibility,
+but new schema changes should be Alembic migrations, not new lines there.
+
 ## Running tests
 
 Tests run against a real PostgreSQL database (not mocks), so you'll need one available:
