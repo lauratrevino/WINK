@@ -176,6 +176,7 @@
     .required-marker { color: #b91c1c; margin-left: 2px; }
     .pw-hint { font-size: 11px; color: #9ca3af; margin-top: 4px; padding-left: 16px; }
     .pw-hint li { margin-top: 2px; }
+    .field-hint { font-size: 11.5px; color: #9ca3af; margin-top: 5px; line-height: 1.4; }
     @media (prefers-reduced-motion: reduce) {
       .btn-submit, .btn-submit:hover { transition: none; transform: none; }
     }
@@ -2675,6 +2676,17 @@
                 {% endfor %}
               </select>
             </div>
+          </div>
+
+          <div class="form-group">
+            <label for="preferred_language">Preferred Reply Language</label>
+            <select id="preferred_language" name="preferred_language">
+              <option value="">Auto-detect (match whatever language I type in)</option>
+              {% for l in preferred_languages %}
+                <option value="{{ l }}">{{ l }}</option>
+              {% endfor %}
+            </select>
+            <p class="field-hint">Leave this on auto-detect and WINK will reply in whichever language you write in. Choose a specific language here if you'd rather WINK always reply in that language, even on messages you type in English.</p>
           </div>
 
           <button type="submit" class="btn-submit">Create My Account →</button>
