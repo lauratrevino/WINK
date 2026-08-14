@@ -45,7 +45,7 @@
       </div>
 
       <div class="sidebar-section" style="margin-top: auto; border-bottom: none;">
-        <button class="sidebar-link-btn" onclick="openWinkModal('terms')">📄 Terms of Agreement</button>
+        <a class="sidebar-link-btn" href="/terms" target="_blank" rel="noopener" style="text-decoration:none;">📄 Terms of Agreement</a>
         <a class="sidebar-link-btn" href="/manual" target="_blank" rel="noopener">📖 User's Guide</a>
       </div>
     </aside>
@@ -748,29 +748,6 @@
       document.getElementById('chat-input').focus();
     }
 
-    const WINK_MODAL_CONTENT = {
-      terms: `<h2>Terms of Use</h2>
-        <p><strong>Effective Date: August 17, 2026</strong></p>
-        <p>These Terms of Use govern access to and use of WINK. By creating an account, accessing WINK, or using its services, you agree to these Terms.</p>
-        <h3>1. WINK Research Pilot</h3><p>WINK is an experimental AI-powered student success platform being evaluated as part of a research project. Access is provided free of charge during the Fall 2026 pilot period, currently scheduled from August 17, 2026 through December 20, 2026.</p>
-        <h3>2. Use of WINK</h3><p>WINK is intended to assist students with academic organization and information. Users agree not to misuse WINK, interfere with its operation, attempt unauthorized access, introduce malicious software, impersonate another person, or use the service for unlawful purposes.</p>
-        <h3>3. User Responsibility</h3><p>Students remain responsible for their own academic work, decisions, deadlines, registrations, submissions, attendance, and compliance with course and university requirements. Important information should be verified through official sources.</p>
-        <h3>4. Artificial Intelligence</h3><p>AI systems can make mistakes. WINK may provide information that is inaccurate, incomplete, outdated, or based on an incorrect interpretation of uploaded materials.</p>
-        <h3>5. Academic Integrity</h3><p>Users are responsible for complying with the academic integrity requirements of their institution and individual courses. WINK should not be used for cheating, plagiarism, unauthorized collaboration, or other prohibited conduct.</p>
-        <h3>6. Uploaded Content</h3><p>Users retain responsibility for materials they upload. By uploading content, users authorize WINK to store, process, and analyze that content as necessary to provide the service and conduct the approved research associated with the pilot.</p>
-        <h3>7. Research Participation and Data</h3><p>During the research pilot, interactions with WINK may be recorded and analyzed, including questions, AI-generated responses, uploaded information, and use of WINK's features. Access to research data is limited to Dr. Laura Trevino and the small number of research team members who need it to conduct the study, and it will be anonymized before use in research publications or presentations.</p>
-        <h3>8. Availability</h3><p>WINK is provided on an experimental basis. Continuous or uninterrupted access is not guaranteed.</p>
-        <h3>9. No Guarantee of Results</h3><p>Use of WINK does not guarantee improved grades, academic performance, course completion, retention, graduation, or any other academic outcome.</p>
-        <h3>10. Limitation of Reliance</h3><p>Users should not rely on WINK for emergency, medical, mental health, legal, financial, or other professional advice.</p>
-        <h3>11. Account Security</h3><p>Users are responsible for maintaining the confidentiality of their account credentials and for activity conducted through their accounts.</p>
-        <h3>12. Suspension or Termination</h3><p>Access may be limited, suspended, or terminated when necessary to protect users, maintain system security, enforce these Terms, comply with legal or institutional requirements, or operate the research project.</p>
-        <h3>13. Changes to WINK</h3><p>WINK is under active development. Features may be added, modified, removed, or temporarily unavailable during the pilot. These Terms may also be updated when necessary.</p>
-        <h3>14. Acceptance</h3><p>By creating an account or continuing to use WINK, you acknowledge that you have read and understood these Terms of Use and the WINK Privacy Policy and agree to comply with them.</p>`,
-    };
-    function openWinkModal(key) {
-      document.getElementById('wink-modal-body').innerHTML = WINK_MODAL_CONTENT[key] || '';
-      document.getElementById('wink-modal').classList.add('open');
-    }
     function closeWinkModal() {
       document.getElementById('wink-modal').classList.remove('open');
     }
