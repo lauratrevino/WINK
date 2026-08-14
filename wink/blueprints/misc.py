@@ -1,3 +1,5 @@
+from datetime import date
+
 from flask import Blueprint, g, jsonify, render_template
 
 from .. import config
@@ -16,6 +18,21 @@ def landing():
     except Exception as e:
         log_error("misc.landing", e)
         return render_template("landing.html")
+
+
+@bp.route("/privacy")
+def privacy():
+    # Intentionally public (no login_required) — AWS SES reviewers and
+    # prospective users need to read this without an account.
+    try:
+        return render_template(
+            "privacy.html",
+            admin_email=config.ADMIN_EMAIL,
+            updated_date=date.today().strftime("%B %-d, %Y"),
+        )
+    except Exception as e:
+        log_error("misc.privacy", e)
+        return render_template("privacy.html", admin_email=config.ADMIN_EMAIL, updated_date="")
 
 
 @bp.route("/manual")
