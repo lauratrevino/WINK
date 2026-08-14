@@ -86,6 +86,63 @@ def _run_health_checks():
         log_error("misc.health_aws_check", e)
         checks["aws_credentials"] = ("fail", "Check failed")
 
+    # --- Voyage API key (neural embeddings vs. TF-IDF retrieval fallback) --
+    try:
+        voyage_key = os.environ.get("VOYAGE_API_KEY") or getattr(config, "VOYAGE_API_KEY", None)
+        checks["voyage_api_key"] = (
+            "ok" if voyage_key else "warn",
+            "Configured (neural embeddings)" if voyage_key else "Missing — chat falls back to TF-IDF retrieval",
+        )
+    except Exception as e:
+        log_error("misc.health_voyage_check", e)
+        checks["voyage_api_key"] = ("fail", "Check failed")
+
+    # --- Cron secret (authorizes scheduled jobs like deadline reminders) ---
+    try:
+        cron_secret = getattr(config, "CRON_SECRET", None)
+        checks["cron_secret"] = (
+            "ok" if cron_secret else "warn",
+            "Configured" if cron_secret else "Missing — scheduled jobs will reject every call",
+        )
+    except Exception as e:
+        log_error("misc.health_cron_secret_check", e)
+        checks["cron_secret"] = ("fail", "Check failed")
+
+    # --- SES notification topic ARN (bounce/complaint webhook) -------------
+    try:
+        topic_arn = getattr(config, "SES_NOTIFICATION_TOPIC_ARN", None)
+        checks["ses_notification_topic"] = (
+            "ok" if topic_arn else "warn",
+            "Configured" if topic_arn else "Missing",
+        )
+    except Exception as e:
+        log_error("misc.health_ses_topic_check", e)
+        checks["ses_notification_topic"] = ("fail", "Check failed")
+
+    # --- Last scheduled cron run (purge_deleted_conversations, reminders) --
+    try:
+        if config.DB_URL:
+            conn = get_db(); cur = conn.cursor()
+            cur.execute("""SELECT job_name, completed_at, last_error
+                           FROM cron_runs ORDER BY id DESC LIMIT 1""")
+            row = cur.fetchone()
+            cur.close()
+            if not row:
+                checks["last_cron_run"] = ("warn", "No cron runs recorded yet")
+            elif row["last_error"]:
+                checks["last_cron_run"] = ("fail", f"{row['job_name']} failed: {str(row['last_error'])[:80]}")
+            elif row["completed_at"] is None:
+                checks["last_cron_run"] = ("warn", f"{row['job_name']} still running or never completed")
+            else:
+                checks["last_cron_run"] = (
+                    "ok", f"{row['job_name']} completed {row['completed_at'].strftime('%b %-d, %I:%M %p')}"
+                )
+        else:
+            checks["last_cron_run"] = ("warn", "DB not configured")
+    except Exception as e:
+        log_error("misc.health_cron_run_check", e)
+        checks["last_cron_run"] = ("fail", "Check failed")
+
     # --- Upload directory writable ------------------------------------
     try:
         upload_dir = getattr(config, "UPLOAD_FOLDER", None) or tempfile.gettempdir()
