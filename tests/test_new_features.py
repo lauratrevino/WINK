@@ -203,8 +203,8 @@ class TestChatAccessibility:
 class TestSourceCitationInstruction:
     def test_chat_system_prompt_instructs_specific_citation(self):
         import inspect
-        import wink.blueprints.chat as chat_bp
-        source = inspect.getsource(chat_bp.chat)
+        import wink.services.system_prompt as system_prompt
+        source = inspect.getsource(system_prompt.build_chat_instructions)
         assert "CITE YOUR SOURCE SPECIFICALLY" in source
         assert "name the actual file" in source
 
@@ -244,8 +244,8 @@ class TestCommonQuestions:
 class TestDiagramInstruction:
     def test_chat_system_prompt_instructs_mermaid_diagrams(self):
         import inspect
-        import wink.blueprints.chat as chat_bp
-        source = inspect.getsource(chat_bp.chat)
+        import wink.services.system_prompt as system_prompt
+        source = inspect.getsource(system_prompt.build_chat_instructions)
         assert "mermaid" in source.lower()
         assert "flowchart" in source.lower()
 

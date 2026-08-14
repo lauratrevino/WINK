@@ -76,28 +76,49 @@ def get_db():
     return conn
 
 
+def release_db():
+    """Explicitly returns the current request's DB connection to the pool
+    (or closes it, if there's no pool) without waiting for the request to
+    fully end. Safe to call even if no connection was ever acquired; a
+    later get_db() call in the same request transparently opens a new one.
+
+    This matters specifically for streaming responses (see /chat): the
+    normal teardown_appcontext release below only fires once the ENTIRE
+    response — including the full streamed body — has finished sending.
+    Without this, a connection acquired for pre-stream DB reads (loading
+    documents, the conversation row, etc.) sits checked out of the pool,
+    doing nothing, for the many-seconds duration of the AI response
+    streaming out to the browser. With many students chatting at once,
+    that alone is enough to exhaust the pool and start failing new
+    requests — even though the database itself is barely being used
+    during that window. Call this right before starting a long-running
+    stream, once any DB work needed to prepare it is done.
+    """
+    conn = g.pop("_db_conn", None)
+    if conn is None:
+        return
+    try:
+        conn.rollback()
+    except Exception:
+        pass
+    if _db_pool:
+        try:
+            _db_pool.putconn(conn)
+        except Exception:
+            pass
+    else:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
 def init_app(app):
     csrf.init_app(app)
 
     @app.teardown_appcontext
     def _release_request_db_connection(exception=None):
-        conn = g.pop("_db_conn", None)
-        if conn is None:
-            return
-        try:
-            conn.rollback()
-        except Exception:
-            pass
-        if _db_pool:
-            try:
-                _db_pool.putconn(conn)
-            except Exception:
-                pass
-        else:
-            try:
-                conn.close()
-            except Exception:
-                pass
+        release_db()
 
 
 def init_db():

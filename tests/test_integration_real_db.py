@@ -47,9 +47,20 @@ class TestRegistrationAndLogin:
         resp2 = register(client)
         assert "Account already exists" in resp2.get_data(as_text=True)
 
-    def test_non_edu_email_rejected(self, client):
+    def test_non_edu_email_is_accepted(self, client, app):
+        # WINK supports students at any institution, not just UTEP, so
+        # registration deliberately accepts any validly-formatted email —
+        # there's no .edu-only restriction. This replaces an older test
+        # that expected the opposite (a leftover from an earlier,
+        # single-university version of the product).
+        from wink.extensions import get_db
         resp = register(client, email="student@gmail.com")
-        assert "school (.edu) email" in resp.get_data(as_text=True)
+        assert resp.status_code == 302, resp.get_data(as_text=True)
+        with app.app_context():
+            conn = get_db(); cur = conn.cursor()
+            cur.execute("SELECT id FROM students WHERE email=%s", ("student@gmail.com",))
+            row = cur.fetchone(); cur.close()
+        assert row is not None, "a non-.edu email should be allowed to register"
 
     def test_login_with_correct_password_succeeds(self, client):
         register(client)

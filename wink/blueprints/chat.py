@@ -11,7 +11,7 @@ from werkzeug.utils import secure_filename
 
 from .. import config
 from ..errors import log_error
-from ..extensions import anthropic_client, csrf, get_db
+from ..extensions import anthropic_client, csrf, get_db, release_db
 from ..security import login_required, page_login_required, rate_limited, verified_required
 from ..services.analytics import log_event, log_token_usage, parse_conversation_messages
 from ..services.deadlines import build_deadlines_context
@@ -240,6 +240,15 @@ def chat():
                 latency_ms=int((time.time() - start_time) * 1000),
             )
             log_token_usage(student_id, "chat", config.CHAT_MODEL, usage)
+
+        # Every DB read needed to prepare this request (conversation row,
+        # documents, deadlines, etc.) is already done above. Release the
+        # connection back to the pool now rather than letting it sit idle
+        # for the whole streaming duration below — see release_db()'s
+        # docstring in extensions.py for why this matters under load.
+        # generate() re-acquires a fresh connection via get_db() when it
+        # needs one again (saving the transcript, after streaming ends).
+        release_db()
 
         resp = current_app.response_class(stream_with_context(generate()), mimetype="text/plain")
         resp.headers["X-Accel-Buffering"] = "no"

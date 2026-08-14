@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Your WINK Wrapped</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/nav.css') }}">
+<style nonce="{{ csp_nonce() }}">
+  :root {
+    --navy: #002855; --navy-deep: #001833; --orange: #FF8200;
+    --light-bg: #f4f6fb; --muted: #6b7a99; --border: #dde3f0; --gray-text: #2d3548;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+    background: var(--light-bg); color: var(--gray-text); min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page-shell { max-width: 900px; margin: 0 auto; padding: 32px 24px 64px; }
+
+  .wrapped-header {
+    background: linear-gradient(135deg, var(--navy) 0%, #0a3d7a 100%);
+    border-radius: 20px; padding: 36px 32px; color: #fff; margin-bottom: 24px;
+    position: relative; overflow: hidden;
+  }
+  .wrapped-header::after {
+    content: ""; position: absolute; bottom: 0; left: 0; right: 0; height: 4px; background: var(--orange);
+  }
+  .wrapped-eyebrow { font-size: 12px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: #ffb066; margin-bottom: 8px; }
+  .wrapped-header h1 { font-size: 30px; font-weight: 800; letter-spacing: -0.4px; }
+  .wrapped-header p { font-size: 14px; color: rgba(255,255,255,0.75); margin-top: 6px; }
+
+  .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; }
+  @media (max-width: 700px) { .stat-grid { grid-template-columns: 1fr; } }
+  .stat-card {
+    background: #fff; border-radius: 14px; border: 1px solid var(--border);
+    padding: 22px; box-shadow: 0 1px 4px rgba(0,40,85,0.06);
+  }
+  .stat-value { font-size: 34px; font-weight: 800; color: var(--navy); line-height: 1; }
+  .stat-label { font-size: 12.5px; color: var(--muted); margin-top: 6px; text-transform: uppercase; letter-spacing: .04em; font-weight: 700; }
+
+  .card {
+    background: #fff; border-radius: 14px; border: 1px solid var(--border);
+    padding: 22px 24px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,40,85,0.06);
+  }
+  .card h2 { font-size: 15px; font-weight: 800; color: var(--navy); margin-bottom: 14px; }
+
+  .course-row {
+    display: flex; align-items: center; gap: 12px; padding: 9px 0;
+    border-bottom: 1px solid #f0f1f6;
+  }
+  .course-row:last-child { border-bottom: none; }
+  .course-name { font-size: 14px; font-weight: 600; color: var(--gray-text); flex: 1; }
+  .course-count { font-size: 13px; font-weight: 700; color: var(--orange); }
+
+  .empty-state { text-align: center; padding: 48px 24px; color: var(--muted); font-size: 14px; }
+  .loading-state { text-align: center; padding: 48px 24px; color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+
+{% include "_nav.html" %}
+
+<div class="page-shell">
+  <div class="wrapped-header">
+    <div class="wrapped-eyebrow">Your Semester</div>
+    <h1>WINK Wrapped</h1>
+    <p>A quick look back at how you've been using WINK.</p>
+  </div>
+
+  <div id="wrapped-loading" class="loading-state">Loading your stats…</div>
+  <div id="wrapped-content" style="display:none;">
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-value" id="stat-total-questions">—</div>
+        <div class="stat-label">Questions Asked</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="stat-mastered">—</div>
+        <div class="stat-label">Questions Mastered</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="stat-streak">—</div>
+        <div class="stat-label">Longest Streak (days)</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Your Courses</h2>
+      <div id="courses-list"></div>
+    </div>
+
+    <div class="card">
+      <h2>Your Habits</h2>
+      <div class="course-row">
+        <span class="course-name">Busiest week</span>
+        <span class="course-count" id="stat-busiest-week">—</span>
+      </div>
+      <div class="course-row">
+        <span class="course-name">Most active day</span>
+        <span class="course-count" id="stat-busiest-day">—</span>
+      </div>
+    </div>
+  </div>
+  <div id="wrapped-empty" class="empty-state" style="display:none;">
+    Nothing to show yet — ask WINK a few questions and upload some course material, then check back here.
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/scroll-reset.js') }}"></script>
+<script nonce="{{ csp_nonce() }}">
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str == null ? '' : String(str);
+    return div.innerHTML;
+  }
+
+  async function loadWrapped() {
+    const loading = document.getElementById('wrapped-loading');
+    const content = document.getElementById('wrapped-content');
+    const empty = document.getElementById('wrapped-empty');
+    try {
+      const resp = await fetch('/wrapped-data');
+      const data = await resp.json();
+      loading.style.display = 'none';
+      if (!resp.ok || !data || (!data.total_questions && (!data.courses || !data.courses.length))) {
+        empty.style.display = 'block';
+        return;
+      }
+      content.style.display = 'block';
+
+      document.getElementById('stat-total-questions').textContent = data.total_questions ?? 0;
+      document.getElementById('stat-mastered').textContent = data.questions_mastered ?? 0;
+      document.getElementById('stat-streak').textContent = data.longest_streak_days ?? 0;
+
+      const coursesList = document.getElementById('courses-list');
+      if (data.courses && data.courses.length) {
+        coursesList.innerHTML = data.courses.map(c =>
+          `<div class="course-row"><span class="course-name">${escapeHtml(c.course || 'Untitled course')}</span><span class="course-count">${c.n} document${c.n === 1 ? '' : 's'}</span></div>`
+        ).join('');
+      } else {
+        coursesList.innerHTML = '<div class="course-row"><span class="course-name">No courses yet</span></div>';
+      }
+
+      document.getElementById('stat-busiest-week').textContent = data.busiest_week
+        ? `Week of ${data.busiest_week.week_start} (${data.busiest_week.count} question${data.busiest_week.count === 1 ? '' : 's'})`
+        : '—';
+      document.getElementById('stat-busiest-day').textContent = data.busiest_day_of_week || '—';
+    } catch (e) {
+      loading.style.display = 'none';
+      empty.style.display = 'block';
+    }
+  }
+
+  loadWrapped();
+</script>
+</body>
+</html>

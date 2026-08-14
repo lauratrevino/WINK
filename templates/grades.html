@@ -121,11 +121,19 @@
         <td><input type="text" class="category-input" value="${escapeHtml(category || '')}" placeholder="e.g. Homework" aria-label="Category name"></td>
         <td><input type="number" class="weight-input" value="${weight !== '' && weight != null ? weight : ''}" min="0" max="100" step="0.1" aria-label="Weight percent"></td>
         <td><input type="number" class="score-input" value="${score !== '' && score != null ? score : ''}" min="0" max="100" step="0.1" aria-label="Your score percent"></td>
-        <td><button class="btn-danger" title="Remove category" aria-label="Remove category" onclick="removeRow('${id}')">✕</button></td>`;
+        <td><button type="button" class="btn-danger" title="Remove category" aria-label="Remove category">✕</button></td>`;
       tbody.appendChild(tr);
       tr.querySelector('.category-input').addEventListener('input', onWeightsChanged);
       tr.querySelector('.weight-input').addEventListener('input', onWeightsChanged);
       tr.querySelector('.score-input').addEventListener('input', onScoreChanged);
+      // Attached here rather than as an inline onclick attribute with an
+      // interpolated id — this app's CSP only allows inline event-handler
+      // attributes whose exact value was pre-hashed from the static
+      // template files at startup (see csp_hashes.py). A dynamically-built
+      // attribute value can never be pre-hashed, so the browser silently
+      // drops it and the button does nothing. addEventListener isn't
+      // subject to that restriction.
+      tr.querySelector('.btn-danger').addEventListener('click', () => removeRow(id));
       recompute();
     }
 

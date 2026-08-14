@@ -9,7 +9,7 @@ from ..errors import log_error
 from ..extensions import get_db
 from ..security import admin_page_required, admin_required
 from ..services.analytics import compute_engagement_insights, get_demo_usage_stats, get_student_summaries, get_total_token_usage, log_event, safe_payload
-from ..services.health import get_health_report
+from ..services.health import run_health_checks, overall_status
 
 bp = Blueprint("admin", __name__)
 
@@ -338,23 +338,20 @@ def anonymize_student():
         return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
 
 
-@bp.route("/health-page")
-@admin_page_required
-def health_page():
-    try:
-        s = g.student
-        log_event(s["id"], "page_view", {"page": "health"})
-        return render_template("health.html", s=s, active="health")
-    except Exception as e:
-        log_error("admin.health_page", e)
-        return "<h2>Something went wrong</h2><p>Please try again, or <form method='POST' action='/logout' style='display:inline'><button type='submit' style='background:none;border:none;padding:0;color:#0645AD;text-decoration:underline;cursor:pointer;font:inherit;'>log out</button></form> and back in.</p>", 500
-
-
 @bp.route("/health-data")
 @admin_required
 def health_data():
+    """JSON companion to /health-page — same underlying checks, admin-only
+    like the human page (this used to call a separate, disconnected
+    health-check implementation that had silently drifted from the one
+    powering /health-page; both now share one source of truth in
+    services/health.py)."""
     try:
-        return jsonify(get_health_report())
+        checks = run_health_checks()
+        return jsonify({
+            "overall": overall_status(checks),
+            "checks": [{"name": name, "status": status, "detail": detail} for name, (status, detail) in checks.items()],
+        })
     except Exception as e:
         log_error("admin.health_data", e)
         return jsonify({"error": "Something went wrong on our end. Please try again."}), 500

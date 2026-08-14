@@ -2868,11 +2868,11 @@
         });
         const monthKeys = Object.keys(byMonth).sort();
 
-        // No inline style="" with a ${color} substitution here — this
+        // No inline style attribute with a color substitution here — this
         // app's CSP only allows inline style attributes whose exact value
         // was pre-computed and hashed from the static template files at
         // startup (see csp_hashes.py). A dynamically-built style string
-        // like style="background:${color}" was never hashed, so the
+        // interpolating a color variable was never hashed, so the
         // browser silently drops just that attribute while still
         // rendering everything else — which is why colors never showed
         // up even though this code was correct. data-* attributes aren't

@@ -64,7 +64,7 @@ def register():
             cur.execute("""INSERT INTO students(email,password_hash,first_name,last_name,classification,major,university,preferred_language,
                            terms_accepted_at,terms_version,research_consent,research_consent_at,research_consent_version)
                            VALUES(%s,%s,%s,%s,%s,%s,%s,%s,NOW(),%s,%s,NOW(),%s) RETURNING id""",
-                        (email, generate_password_hash(pw), fn, ln, cl, major, university, preferred_language or None,
+                        (email, generate_password_hash(pw), fn, ln, cl, major, university, preferred_language,
                          config.TERMS_VERSION, research_agree, config.TERMS_VERSION))
             new_id = cur.fetchone()["id"]
             verify_token = secrets.token_urlsafe(32)
