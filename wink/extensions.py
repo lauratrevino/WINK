@@ -150,6 +150,11 @@ def init_db():
         cur.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS research_consent_version TEXT")
         cur.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS account_deleted_at TIMESTAMP")
         cur.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS anonymized_at TIMESTAMP")
+        # Lets current_student() detect and invalidate sessions issued
+        # before the most recent password change — without this, resetting
+        # a password (e.g. after a suspected compromise) doesn't actually
+        # revoke any session that was already logged in with the old one.
+        cur.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMP")
         cur.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS is_demo BOOLEAN DEFAULT FALSE")
         cur.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS demo_expires_at TIMESTAMP")
         cur.execute("""CREATE TABLE IF NOT EXISTS documents (

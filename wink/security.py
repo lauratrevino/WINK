@@ -26,6 +26,18 @@ def current_student():
         if s and s.get("account_deleted_at") is not None:
             session.clear()
             return None
+        if s:
+            # A session issued before the account's most recent password
+            # change is stale — without this check, resetting a password
+            # never actually revokes any session that was already logged
+            # in with the old one; it just sits there valid until it
+            # expires on its own. pw_changed_at is set into the session at
+            # login (both routes below) as the comparison anchor.
+            db_pw_changed = s.get("password_changed_at")
+            db_pw_changed_str = db_pw_changed.isoformat() if db_pw_changed else None
+            if session.get("pw_changed_at") != db_pw_changed_str:
+                session.clear()
+                return None
         if s and s.get("is_demo") and s.get("demo_expires_at"):
             from datetime import datetime
             if s["demo_expires_at"] <= datetime.utcnow():

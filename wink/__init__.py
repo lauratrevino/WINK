@@ -61,7 +61,7 @@ def create_app():
             f"style-src-attr 'unsafe-hashes' {_style_src_attr}; "
             "img-src 'self' https: data:; "
             "frame-src https://www.google.com; "
-            "connect-src 'self'; "
+            "connect-src 'self' https://en.wikipedia.org; "
             "object-src 'none'; "
             "base-uri 'self'; "
             "frame-ancestors 'self';"

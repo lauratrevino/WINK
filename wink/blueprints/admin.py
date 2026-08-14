@@ -1,14 +1,13 @@
 
-import secrets
-
 from flask import Blueprint, g, jsonify, render_template, request
-from werkzeug.security import generate_password_hash
 
 from .. import config
 from ..errors import log_error
 from ..extensions import get_db
 from ..security import admin_page_required, admin_required
-from ..services.analytics import compute_engagement_insights, get_demo_usage_stats, get_student_summaries, get_total_token_usage, log_event, safe_payload
+from ..services.analytics import (anonymize_student_record, compute_engagement_insights,
+                                   get_demo_usage_stats, get_student_summaries,
+                                   get_total_token_usage, log_event, safe_payload)
 from ..services.health import run_health_checks, overall_status
 
 bp = Blueprint("admin", __name__)
@@ -275,18 +274,9 @@ def toggle_student_active():
 @bp.route("/anonymize-student", methods=["POST"])
 @admin_required
 def anonymize_student():
-    """Manually triggered, no fixed schedule — replaces a student's name and email
-    with an opaque, untraceable label, and scrubs any email address left behind
-    in that student's own event-log payloads. Irreversible: the original name/
-    email are overwritten, not stored anywhere else, so there's no way back once
-    this runs. Login is also disabled (password hash randomized) since the
-    account can no longer be meaningfully identified by its owner anyway.
-
-    Scope, to be upfront about it: this scrubs the student row and WINK's own
-    system-generated event payloads. It does NOT search conversation text or
-    document content for a name a student may have typed themselves (e.g. "hi,
-    I'm Jane") — that content stays as uploaded/written, since altering it would
-    corrupt the research record it exists to preserve."""
+    """Manually triggered, no fixed schedule — see anonymize_student_record()
+    in services/analytics.py (shared with a student's own account deletion)
+    for exactly what this does and doesn't scrub."""
     try:
         s = g.student
         if not config.DB_URL: return jsonify({"error": "No database"}), 500
@@ -299,26 +289,16 @@ def anonymize_student():
         conn = get_db(); cur = conn.cursor()
         cur.execute("SELECT id, anonymized_at FROM students WHERE id=%s", (target_id,))
         target = cur.fetchone()
+        cur.close()
         if not target:
-            cur.close()
             return jsonify({"error": "Student not found"}), 404
         if target["anonymized_at"]:
-            cur.close()
             return jsonify({"error": "This student has already been anonymized."}), 400
-        code = secrets.token_hex(6)
-        cur.execute("""UPDATE students SET first_name=%s, last_name=%s, email=%s,
-                       password_hash=%s, anonymized_at=NOW() WHERE id=%s""",
-                    ("Anonymized", f"Participant-{code}", f"anon-{code}@anonymized.wink",
-                     generate_password_hash(secrets.token_hex(32)), target_id))
-        # Scrub any email address left behind in this student's event payloads
-        # from before email-in-events was stopped — see the note above about
-        # scope: this handles WINK's own past logging, not free-text a student
-        # may have typed into a conversation or document.
-        cur.execute("""UPDATE events SET payload = (payload::jsonb - 'email')::text
-                       WHERE student_id=%s AND payload::jsonb ? 'email'""", (target_id,))
-        conn.commit(); cur.close()
+        label = anonymize_student_record(target_id)
+        if not label:
+            return jsonify({"error": "Could not anonymize this student."}), 500
         log_event(s["id"], "student_anonymized", {"target_id": target_id})
-        return jsonify({"success": True, "label": f"Participant-{code}"})
+        return jsonify({"success": True, "label": label})
     except Exception as e:
         log_error("admin.anonymize_student", e)
         return jsonify({"error": "Something went wrong on our end. Please try again."}), 500

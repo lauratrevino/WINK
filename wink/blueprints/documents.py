@@ -127,6 +127,18 @@ def upload_file():
                 "no_ocr_warning": ext in config.IMAGE_EXTS_NO_OCR
             })
 
+        # Demo accounts already start with seeded sample documents (see
+        # demo.py's _seed_demo(), inserted directly, not through this
+        # route) — that's enough for a demo to be useful. Letting a demo
+        # account keep adding its own permanent documents beyond that is
+        # unbounded, unauthenticated storage and AI cost (each triggers
+        # deadline-extraction and, if configured, embedding generation)
+        # with no real account behind it. Temporary/session-only uploads
+        # above are unaffected — those are ephemeral and already rate-limited.
+        if s.get("is_demo"):
+            return jsonify({"error": "Demo accounts can't upload additional documents — "
+                                      "create a free account to upload your own."}), 403
+
         course = request.form.get("course", "").strip()[:100]
         crn = request.form.get("crn", "").strip()[:30]
         if not course:
@@ -140,6 +152,13 @@ def upload_file():
         existing = None
         if config.DB_URL:
             conn = get_db(); cur = conn.cursor()
+            # Serializes concurrent uploads from the same student for the
+            # rest of this transaction — without this, two uploads landing
+            # at the same instant (e.g. two browser tabs) could both see
+            # "19 of 20 documents" and both proceed, silently exceeding the
+            # cap. Same pattern already used for rate limiting in
+            # security.py; released automatically on commit/rollback.
+            cur.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (f"upload-count:{s['id']}",))
             cur.execute("""SELECT id, filename FROM documents
                            WHERE student_id=%s AND lower(course)=lower(%s)
                            AND crn=%s AND lower(orig_name)=lower(%s)""",
@@ -166,30 +185,43 @@ def upload_file():
         orig = file.filename
         saved = f"{uuid.uuid4().hex[:8]}_{secure_filename(orig)}"
         path = os.path.join(folder, saved)
-        file.save(path)
-        size = os.path.getsize(path)
-        content = extract_text(path, orig)
-        logger.info("UPLOAD: %s → %d chars extracted", orig, len(content))
         new_doc_id = None
         replaced = False
-        if config.DB_URL:
-            conn = get_db(); cur = conn.cursor()
-            cur.execute("""INSERT INTO documents
-                           (student_id,filename,orig_name,course,crn,size_bytes,content,doc_type)
-                           VALUES(%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
-                        (s["id"], saved, orig, course, crn, size, content, doc_type))
-            new_doc_id = cur.fetchone()["id"]
-            if existing:
-                # The new document is safely inserted — now it's safe to remove
-                # the old one it's replacing.
-                old_fp = os.path.join(config.UPLOAD_FOLDER, str(s["id"]), existing["filename"])
-                if os.path.exists(old_fp):
-                    try: os.remove(old_fp)
-                    except Exception: pass
-                cur.execute("DELETE FROM documents WHERE id=%s", (existing["id"],))
-                replaced = True
-            conn.commit(); cur.close()
-            store_document_chunks(new_doc_id, s["id"], s.get("university"), course, orig, content)
+        try:
+            file.save(path)
+            size = os.path.getsize(path)
+            content = extract_text(path, orig)
+            logger.info("UPLOAD: %s → %d chars extracted", orig, len(content))
+            if config.DB_URL:
+                conn = get_db(); cur = conn.cursor()
+                cur.execute("""INSERT INTO documents
+                               (student_id,filename,orig_name,course,crn,size_bytes,content,doc_type)
+                               VALUES(%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                            (s["id"], saved, orig, course, crn, size, content, doc_type))
+                new_doc_id = cur.fetchone()["id"]
+                if existing:
+                    # The new document is safely inserted — now it's safe to remove
+                    # the old one it's replacing.
+                    old_fp = os.path.join(config.UPLOAD_FOLDER, str(s["id"]), existing["filename"])
+                    if os.path.exists(old_fp):
+                        try: os.remove(old_fp)
+                        except Exception: pass
+                    cur.execute("DELETE FROM documents WHERE id=%s", (existing["id"],))
+                    replaced = True
+                conn.commit(); cur.close()
+                store_document_chunks(new_doc_id, s["id"], s.get("university"), course, orig, content)
+        except Exception:
+            # The file was saved to disk but something after that failed
+            # (extraction, the DB insert, chunk storage) before a document
+            # row exists to reference it — without this, that file sits on
+            # disk forever with nothing pointing to it. Only clean it up on
+            # the NEW file's own path; a failure after the old file was
+            # already deleted above is a separate, rarer case not handled
+            # here (the new insert already committed by that point).
+            if os.path.exists(path) and new_doc_id is None:
+                try: os.remove(path)
+                except Exception: pass
+            raise
 
         deadlines_found = 0
         if new_doc_id and content:

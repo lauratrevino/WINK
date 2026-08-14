@@ -25,6 +25,37 @@ from ..timeutil import utcnow_naive
 
 bp = Blueprint("chat", __name__)
 
+# Demo mode is public and requires no verification — a single IP can start
+# up to 5 demo sessions/hour (see demo.py), and without a tight cap on
+# every AI-consuming action a demo session could otherwise sustain the same
+# usage as a real verified student for hours, entirely unauthenticated.
+# This caps TOTAL AI-consuming actions per demo session — chat messages,
+# practice/study-plan generations, all drawing from one shared budget —
+# rather than giving each endpoint its own separate allowance, since a
+# separate allowance per endpoint doesn't actually bound total cost
+# exposure (a demo user could still rack up 25 chats *and* several rounds
+# of practice generation *and* study plans, each accepted on its own
+# terms). This is what actually bounds cost from an unauthenticated,
+# public feature.
+_DEMO_AI_BUDGET_MAX_CALLS = 25
+_DEMO_AI_BUDGET_WINDOW_SECONDS = 21600  # matches the 6-hour demo session TTL
+
+
+def _check_demo_ai_budget(s):
+    """Returns a Flask response tuple to short-circuit the caller with if a
+    demo account has hit its shared AI-usage budget; returns None (nothing
+    to do) for a real account, or a demo account still within budget."""
+    if not s.get("is_demo"):
+        return None
+    demo_wait = rate_limited(f"demo-ai-total:{s['id']}", max_calls=_DEMO_AI_BUDGET_MAX_CALLS,
+                              window_seconds=_DEMO_AI_BUDGET_WINDOW_SECONDS)
+    if demo_wait:
+        return jsonify({
+            "error": "You've reached the usage limit for this demo session. "
+                     "Create a free account to keep using WINK!",
+        }), 429
+    return None
+
 
 @bp.route("/chat-page")
 @page_login_required
@@ -61,20 +92,9 @@ def chat():
         s = g.student
         if not config.ANTHROPIC_API_KEY:
             return jsonify({"error": "ANTHROPIC_API_KEY not set"}), 500
-        if s.get("is_demo"):
-            # Demo mode is public and requires no verification — a single IP
-            # can start up to 5 demo sessions/hour (see demo.py), and without
-            # a tighter cap here each of those could otherwise sustain the
-            # same 20-messages/minute budget as a real verified student for
-            # hours. This caps total AI usage per demo session instead, which
-            # is what actually bounds cost exposure from an unauthenticated,
-            # public feature.
-            demo_wait = rate_limited(f"demo-chat-total:{s['id']}", max_calls=25, window_seconds=21600)
-            if demo_wait:
-                return jsonify({
-                    "error": "You've reached the message limit for this demo session. "
-                             "Create a free account to keep chatting with WINK!",
-                }), 429
+        demo_blocked = _check_demo_ai_budget(s)
+        if demo_blocked:
+            return demo_blocked
         wait = rate_limited(f"chat:{s['id']}", max_calls=20, window_seconds=60)
         if wait:
             return jsonify({
@@ -276,6 +296,9 @@ def generate_practice():
         s = g.student
         if not config.ANTHROPIC_API_KEY:
             return jsonify({"error": "ANTHROPIC_API_KEY not set"}), 500
+        demo_blocked = _check_demo_ai_budget(s)
+        if demo_blocked:
+            return demo_blocked
         wait = rate_limited(f"practice:{s['id']}", max_calls=5, window_seconds=600)
         if wait:
             return jsonify({
@@ -336,6 +359,9 @@ def generate_study_plan_route():
         s = g.student
         if not config.ANTHROPIC_API_KEY:
             return jsonify({"error": "ANTHROPIC_API_KEY not set"}), 500
+        demo_blocked = _check_demo_ai_budget(s)
+        if demo_blocked:
+            return demo_blocked
         wait = rate_limited(f"study-plan:{s['id']}", max_calls=10, window_seconds=600)
         if wait:
             return jsonify({
@@ -570,7 +596,10 @@ def view_shared_conversation(token):
     if not config.DB_URL: return "Not available.", 404
     try:
         conn = get_db(); cur = conn.cursor()
-        cur.execute("SELECT title, messages FROM conversations WHERE share_token=%s AND deleted_at IS NULL", (token,))
+        cur.execute("""SELECT c.title, c.messages
+                       FROM conversations c JOIN students s ON s.id = c.student_id
+                       WHERE c.share_token=%s AND c.deleted_at IS NULL
+                       AND s.account_deleted_at IS NULL""", (token,))
         row = cur.fetchone(); cur.close()
         if not row: return "This shared conversation could not be found.", 404
         msgs = parse_conversation_messages(row["messages"])

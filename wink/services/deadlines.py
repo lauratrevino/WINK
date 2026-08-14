@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 from .. import config
 from ..errors import log_error
 from ..extensions import get_db, anthropic_client
-from ..timeutil import utcnow_naive
 from .analytics import log_token_usage
 from .json_utils import parse_json_array, strip_json_fence
 
@@ -14,7 +13,15 @@ from .json_utils import parse_json_array, strip_json_fence
 def extract_deadlines(content, today=None, student_id=None):
     if not anthropic_client or not content or not content.strip():
         return []
-    today = today or utcnow_naive().strftime("%Y-%m-%d")
+    # Uses the app's configured local timezone, not UTC — for hours every
+    # day, UTC's "today" is already tomorrow in Mountain Time (see the note
+    # on config.APP_TIMEZONE), which would shift every relative date
+    # ("due next Friday") the AI extracts from a document by a day for any
+    # upload happening late at night local time. None of this function's
+    # callers pass an explicit `today`, so this default is what's actually
+    # used on every single upload.
+    from zoneinfo import ZoneInfo
+    today = today or datetime.now(ZoneInfo(config.APP_TIMEZONE)).strftime("%Y-%m-%d")
     try:
         resp = anthropic_client.messages.create(
             model=config.CHAT_MODEL,
@@ -335,10 +342,13 @@ def get_all_deadlines(sid):
 
 def build_study_plan(sid, weeks_ahead=4):
     from datetime import timedelta
-    from ..timeutil import utcnow_naive
+    from zoneinfo import ZoneInfo
     from .practice import get_due_questions
 
-    today = utcnow_naive().date()
+    # Local timezone, not UTC — see the note on extract_deadlines() above;
+    # "this week" needs to mean the same thing here as it does everywhere
+    # else deadlines are grouped by week.
+    today = datetime.now(ZoneInfo(config.APP_TIMEZONE)).date()
     rows = [r for r in get_all_deadlines(sid) if r.get("due_date")]
     due_questions = get_due_questions(sid, limit=200)
 

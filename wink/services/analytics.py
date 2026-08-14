@@ -1,5 +1,8 @@
 import json
+import secrets
 from datetime import timedelta
+
+from werkzeug.security import generate_password_hash
 
 from .. import config
 from ..errors import log_error
@@ -390,3 +393,57 @@ def compute_engagement_insights(cur):
     out["common_questions"] = [dict(r) for r in cur.fetchall()]
 
     return out
+
+
+def anonymize_student_record(student_id):
+    """Shared by both the admin-triggered anonymization action and a
+    student's own account deletion — replaces identifying fields with an
+    opaque, untraceable label and scrubs the student's original email
+    address from every place WINK logs it independently of the students
+    row itself.
+
+    Irreversible: the original name/email are overwritten, not stored
+    anywhere else. Login is disabled (password hash randomized) since the
+    account can no longer be meaningfully identified by its owner anyway.
+
+    Scope, to be upfront about it: this scrubs the student row, WINK's own
+    system-generated event payloads, and email_events (SES bounce/complaint
+    records, which are keyed by email address independently of the student
+    row and would otherwise keep the original address forever). It does
+    NOT search conversation text or document content for a name a student
+    may have typed themselves (e.g. "hi, I'm Jane") — that content stays
+    as uploaded/written, since altering it would corrupt the research
+    record it exists to preserve.
+
+    Returns the new opaque label (e.g. "Participant-a1b2c3") on success,
+    or None if the student wasn't found or was already anonymized.
+    """
+    if not config.DB_URL:
+        return None
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("SELECT id, email, anonymized_at FROM students WHERE id=%s", (student_id,))
+    target = cur.fetchone()
+    if not target or target["anonymized_at"]:
+        cur.close()
+        return None
+    original_email = target["email"]
+    code = secrets.token_hex(6)
+    cur.execute("""UPDATE students SET first_name=%s, last_name=%s, email=%s,
+                   password_hash=%s, anonymized_at=NOW() WHERE id=%s""",
+                ("Anonymized", f"Participant-{code}", f"anon-{code}@anonymized.wink",
+                 generate_password_hash(secrets.token_hex(32)), student_id))
+    # Scrub any email address left behind in this student's own event
+    # payloads (from before email-in-events was stopped).
+    cur.execute("""UPDATE events SET payload = (payload::jsonb - 'email')::text
+                   WHERE student_id=%s AND payload::jsonb ? 'email'""", (student_id,))
+    # email_events (SES bounce/complaint log) has no foreign key to the
+    # students table — it's keyed by email address alone — so it has to be
+    # scrubbed by matching the original address directly, using the value
+    # captured above before it was overwritten.
+    if original_email:
+        cur.execute("""UPDATE email_events SET email=%s WHERE lower(email)=lower(%s)""",
+                    (f"anon-{code}@anonymized.wink", original_email))
+        cur.execute("""UPDATE email_suppressions SET email=%s WHERE lower(email)=lower(%s)""",
+                    (f"anon-{code}@anonymized.wink", original_email))
+    conn.commit(); cur.close()
+    return f"Participant-{code}"

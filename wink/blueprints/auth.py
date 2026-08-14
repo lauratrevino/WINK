@@ -10,7 +10,7 @@ from .. import config
 from ..errors import log_error
 from ..extensions import csrf, get_db
 from ..security import login_required, rate_limited
-from ..services.analytics import log_event
+from ..services.analytics import anonymize_student_record, log_event
 from ..services.deadlines import extract_deadlines, insert_deadlines
 from ..services.email import send_email
 from ..timeutil import utcnow_naive
@@ -81,6 +81,7 @@ def register():
             # itself or their session.
             session.permanent = True
             session["sid"] = new_id
+            session["pw_changed_at"] = None  # freshly created — no password change yet
             log_event(new_id, "account_created", {"classification": cl, "major": major, "university": university})
             verify_link = url_for("auth.verify_email", token=verify_token, _external=True)
             email_sent = send_email(email, "Verify your WINK email address",
@@ -170,6 +171,8 @@ def login():
                     return render_template("landing.html", error="This account has been deleted.")
                 session.permanent = True  
                 session["sid"] = s["id"]
+                pw_changed = s.get("password_changed_at")
+                session["pw_changed_at"] = pw_changed.isoformat() if pw_changed else None
                 log_event(s["id"], "login")
                 if email == config.ADMIN_EMAIL:
                     return redirect(url_for("admin.analytics_page"))
@@ -328,7 +331,7 @@ def reset_password(token):
                 cur.close()
                 return render_template("landing.html", show_reset_modal=True, reset_password_token=token,
                                        reset_password_error="Passwords do not match.")
-            cur.execute("UPDATE students SET password_hash=%s WHERE id=%s",
+            cur.execute("UPDATE students SET password_hash=%s, password_changed_at=NOW() WHERE id=%s",
                         (generate_password_hash(pw), row["student_id"]))
             cur.execute("UPDATE password_resets SET used=TRUE WHERE id=%s", (row["reset_id"],))
             conn.commit(); cur.close()
@@ -346,12 +349,21 @@ def reset_password(token):
 @bp.route("/account/delete", methods=["POST"])
 @login_required
 def delete_account():
-    """Soft-deletes the student's own account: blocks login and hides them from
-    normal use, but deliberately leaves every related row (documents, conversations,
-    events, answer_logs, deadlines, etc.) intact — this is a research pilot, and that
-    data needs to remain available for research purposes even after a student is
-    done using WINK. This is NOT a full data purge; see the (separate, manually
-    triggered) anonymization action in admin for scrubbing identifying fields."""
+    """Deletes the student's own account: blocks login immediately (via
+    account_deleted_at, same as before — this also excludes them from
+    deadline reminders and other ongoing automated processes, see
+    security.py/calendar.py/documents.py), and additionally anonymizes
+    their identifying information (name, email) using the same routine as
+    the admin-triggered anonymization action — see
+    anonymize_student_record() in services/analytics.py for exactly what
+    that does and doesn't scrub.
+
+    This is a small research pilot (fewer than 10 students) with a
+    deliberately simple policy: deleting your account removes your ability
+    to log in and identifies you as "Participant-xxxx" going forward, but
+    the (now-anonymized) activity data itself is retained for the research
+    study rather than purged, consistent with the consent given at
+    registration and described in the Privacy Policy."""
     s = g.student
     if not config.DB_URL:
         return jsonify({"error": "No database"}), 500
@@ -363,6 +375,7 @@ def delete_account():
         cur.execute("UPDATE students SET account_deleted_at=NOW() WHERE id=%s AND account_deleted_at IS NULL",
                     (s["id"],))
         conn.commit(); cur.close()
+        anonymize_student_record(s["id"])
         log_event(s["id"], "account_deleted")
         session.clear()
         return jsonify({"ok": True})
