@@ -17,8 +17,8 @@ from ..services.analytics import log_event, log_token_usage, parse_conversation_
 from ..services.deadlines import build_deadlines_context
 from ..services.documents import build_doc_context, build_global_doc_context, get_docs, get_global_docs
 from ..services.practice import (generate_practice_questions, generate_practice_summary,
-                                  get_due_questions, grade_quiz_answer, record_attempt,
-                                  store_practice_questions)
+                                  generate_study_plan, get_due_questions, grade_quiz_answer,
+                                  record_attempt, store_practice_questions)
 from ..services.research import log_answer, record_student_feedback
 from ..services.system_prompt import build_chat_instructions
 from ..timeutil import utcnow_naive
@@ -45,12 +45,9 @@ def practice_page():
         s = g.student
         docs = get_docs(s["id"])
         known_courses = sorted({(d.get("course") or "").strip() for d in docs if (d.get("course") or "").strip()})
-        assessment_courses = sorted({(d.get("course") or "").strip() for d in docs
-                                      if d.get("doc_type") == "assessment" and (d.get("course") or "").strip()})
         log_event(s["id"], "page_view", {"page": "practice"})
         return render_template("practice.html", s=s, admin_email=config.ADMIN_EMAIL,
-                               active="practice", known_courses=known_courses,
-                               assessment_courses=assessment_courses)
+                               active="practice", known_courses=known_courses)
     except Exception as e:
         log_error("chat.practice_page", e)
         return "<h2>Something went wrong</h2><p>Please try again, or <form method='POST' action='/logout' style='display:inline'><button type='submit' style='background:none;border:none;padding:0;color:#0645AD;text-decoration:underline;cursor:pointer;font:inherit;'>log out</button></form> and back in.</p>", 500
@@ -293,10 +290,6 @@ def generate_practice():
                                       f"or attach a handout for this session, to generate questions from."}), 400
         assessment_text = "\n\n---\n\n".join((d.get("content") or "").strip() for d in assessment_docs if d.get("content")) or None
 
-        if qtype == "assessment_quiz" and not assessment_text:
-            return jsonify({"error": f"Assessment Quiz needs a past exam or quiz uploaded for {course} and "
-                                      f"tagged as an assessment on the Documents page — upload one first."}), 400
-
         if qtype == "summary":
             summary = generate_practice_summary(material_text, course, student_id=s["id"])
             log_event(s["id"], "practice_summary_generated", {"course": course})
@@ -316,6 +309,53 @@ def generate_practice():
         return jsonify({"questions": questions, "qtype": qtype, "based_on_assessment_style": bool(assessment_text)})
     except Exception as e:
         log_error("chat.generate_practice", e)
+        return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
+
+
+@bp.route("/generate-study-plan", methods=["POST"])
+@login_required
+@verified_required
+def generate_study_plan_route():
+    try:
+        s = g.student
+        if not config.ANTHROPIC_API_KEY:
+            return jsonify({"error": "ANTHROPIC_API_KEY not set"}), 500
+        wait = rate_limited(f"study-plan:{s['id']}", max_calls=10, window_seconds=600)
+        if wait:
+            return jsonify({
+                "error": "Please wait a bit before generating another study plan.",
+                "retry_after": wait
+            }), 429
+
+        data = request.get_json() or {}
+        course = (data.get("course") or "").strip()
+        results = data.get("results")
+        if not course:
+            return jsonify({"error": "Please specify which course."}), 400
+        if not isinstance(results, list) or not results:
+            return jsonify({"error": "No quiz results to build a plan from."}), 400
+
+        clean_results = []
+        for r in results:
+            if isinstance(r, dict) and isinstance(r.get("question"), str) and r.get("question").strip():
+                clean_results.append({"question": r["question"][:1000], "correct": bool(r.get("correct"))})
+        if not clean_results:
+            return jsonify({"error": "No quiz results to build a plan from."}), 400
+
+        docs = [d for d in get_docs(s["id"]) if (d.get("course") or "").strip().lower() == course.lower()]
+        material_docs = [d for d in docs if (d.get("doc_type") or "material") != "assessment"]
+        material_parts = [(d.get("content") or "").strip() for d in material_docs if d.get("content")]
+        material_text = "\n\n---\n\n".join(p for p in material_parts if p)
+        if not material_text.strip():
+            return jsonify({"error": f"No material found for {course} to build a study plan from."}), 400
+
+        plan = generate_study_plan(course, material_text, clean_results, student_id=s["id"])
+        log_event(s["id"], "study_plan_generated", {"course": course, "question_count": len(clean_results)})
+        if not plan:
+            return jsonify({"error": "Couldn't generate a study plan — please try again."}), 500
+        return jsonify({"plan": plan})
+    except Exception as e:
+        log_error("chat.generate_study_plan_route", e)
         return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
 
 
