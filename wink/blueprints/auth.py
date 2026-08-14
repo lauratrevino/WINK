@@ -15,6 +15,7 @@ from ..services.analytics import _anonymize_student_sql, log_event
 from ..services.deadlines import extract_deadlines, insert_deadlines
 from ..services.email import send_email
 from ..timeutil import utcnow_naive
+from ..mfa_crypto import decrypt_mfa_secret, encrypt_mfa_secret
 from .demo import delete_demo_student
 
 bp = Blueprint("auth", __name__)
@@ -341,11 +342,26 @@ def reset_password(token):
                 cur.close()
                 return render_template("landing.html", show_reset_modal=True, reset_password_token=token,
                                        reset_password_error="Passwords do not match.")
+            # Atomically claim the token — WHERE used=FALSE means this
+            # UPDATE only actually claims it for whichever request gets
+            # here first; a second, simultaneous request with the same
+            # token gets 0 rows back and is correctly rejected below,
+            # rather than the earlier pattern where two requests could
+            # both pass a separate "is it used?" check before either had
+            # committed marking it used. Also re-checks expiry at the
+            # same atomic instant, rather than relying on the earlier
+            # read further up which could be stale by now.
+            cur.execute("""UPDATE password_resets SET used=TRUE
+                           WHERE id=%s AND used=FALSE AND expires_at > NOW()
+                           RETURNING student_id""", (row["reset_id"],))
+            claimed = cur.fetchone()
+            if not claimed:
+                conn.commit(); cur.close()
+                return render_template("landing.html", show_reset_modal=True, reset_password_invalid=True)
             cur.execute("UPDATE students SET password_hash=%s, password_changed_at=NOW() WHERE id=%s",
-                        (generate_password_hash(pw), row["student_id"]))
-            cur.execute("UPDATE password_resets SET used=TRUE WHERE id=%s", (row["reset_id"],))
+                        (generate_password_hash(pw), claimed["student_id"]))
             conn.commit(); cur.close()
-            log_event(row["student_id"], "password_reset_completed")
+            log_event(claimed["student_id"], "password_reset_completed")
             return render_template("landing.html", success="Your password has been updated — please sign in.")
 
         cur.close()
@@ -459,7 +475,7 @@ def mfa_setup():
     plain_codes, hashed_codes = _generate_backup_codes()
     conn = get_db(); cur = conn.cursor()
     cur.execute("""UPDATE students SET mfa_secret=%s, mfa_enabled=TRUE, mfa_backup_codes=%s
-                   WHERE id=%s""", (secret, json.dumps(hashed_codes), s["id"]))
+                   WHERE id=%s""", (encrypt_mfa_secret(secret), json.dumps(hashed_codes), s["id"]))
     conn.commit(); cur.close()
     session.pop("mfa_pending_secret", None)
     session["mfa_verified"] = True  # they just proved possession — no need to re-enter immediately
@@ -505,26 +521,38 @@ def mfa_verify_page():
 
     verified = False
     if s.get("mfa_secret"):
-        totp = pyotp.TOTP(s["mfa_secret"])
+        totp = pyotp.TOTP(decrypt_mfa_secret(s["mfa_secret"]))
         verified = totp.verify(code, valid_window=1)
 
     if not verified and code:
         # Fall back to checking backup codes — each one is single-use,
         # for when the authenticator device itself isn't available.
+        # SELECT ... FOR UPDATE locks this row until the transaction
+        # commits below, so a second simultaneous request using the same
+        # code has to wait for this one to finish first, rather than
+        # both reading the same pre-request snapshot of the code list
+        # (via `s`, fetched before this request even started) and both
+        # independently believing they'd successfully consumed it.
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("SELECT mfa_backup_codes FROM students WHERE id=%s FOR UPDATE", (s["id"],))
+        locked_row = cur.fetchone()
         try:
-            hashed_codes = json.loads(s.get("mfa_backup_codes") or "[]")
+            hashed_codes = json.loads((locked_row or {}).get("mfa_backup_codes") or "[]")
         except Exception:
             hashed_codes = []
         for i, h in enumerate(hashed_codes):
             if check_password_hash(h, code):
                 verified = True
                 remaining = hashed_codes[:i] + hashed_codes[i + 1:]
-                conn = get_db(); cur = conn.cursor()
                 cur.execute("UPDATE students SET mfa_backup_codes=%s WHERE id=%s",
                             (json.dumps(remaining), s["id"]))
-                conn.commit(); cur.close()
                 log_event(s["id"], "mfa_backup_code_used")
                 break
+        # Commits (releasing the row lock) whether or not a match was
+        # found — an unmatched attempt didn't change anything, but the
+        # SELECT ... FOR UPDATE above still needs its transaction closed
+        # out promptly rather than held open for the rest of the request.
+        conn.commit(); cur.close()
 
     if not verified:
         return render_template("mfa_verify.html", error="That code wasn't right — please try again.")

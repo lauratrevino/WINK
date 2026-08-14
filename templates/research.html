@@ -100,6 +100,29 @@
       <a href="/privacy">Privacy Policy</a> and <a href="/terms">Terms of Use</a>.</p>
   </section>
 
+  <section>
+    <h2>Export History</h2>
+    <p class="empty" style="margin-top:-6px;">Every research-data export is admin-only already — this is the
+      record of when that access was actually used, not an additional access control.</p>
+    {% if export_history %}
+    <table>
+      <thead><tr><th>When</th><th>Exported by</th><th>What</th><th>Rows</th></tr></thead>
+      <tbody>
+        {% for e in export_history %}
+        <tr>
+          <td>{{ e.created_at }}</td>
+          <td>{{ e.exported_by }}</td>
+          <td>{{ e.export_type }}</td>
+          <td>{{ e.row_count if e.row_count is not none else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="empty">No exports recorded yet.</p>
+    {% endif %}
+  </section>
+
   <div class="disclaimer">
     Everything below this point reports what the system has actually logged and what a reviewer has
     actually rated — not an estimate of accuracy. <strong>accuracy_pct</strong> reflects only the answers

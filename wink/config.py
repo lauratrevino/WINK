@@ -53,6 +53,16 @@ CHAT_MODEL = os.environ.get("WINK_MODEL", "claude-haiku-4-5-20251001")
 CHAT_MAX_TOKENS = 1024
 MAX_DOC_CONTEXT_CHARS = 40000
 MAX_GLOBAL_DOC_CONTEXT_CHARS = 20000
+# A ceiling on the COMBINED size of student documents + global reference
+# material + a temporarily attached file for one message — each of the
+# three above is independently capped, but nothing previously bounded
+# what they add up to together (up to 80,000 chars combined before this).
+# Below the sum of all three individual caps on purpose, so it actually
+# does something: if the combined total would exceed this, global
+# reference material and the temp attachment get trimmed first (least
+# specific to the actual question), keeping the student's own uploaded
+# documents intact, since that's the most directly relevant material.
+MAX_TOTAL_CONTEXT_CHARS = 60000
 DEADLINE_EXTRACTION_MAX_CHARS = 60000
 MAX_TEMP_DOC_CHARS = 20000
 # Used for "what's due today/this week" date-window comparisons (deadline

@@ -327,6 +327,8 @@ def upload_global_document():
             university = "ALL"
         if not university:
             return jsonify({"error": "Please choose which university this document applies to, or select All Universities."}), 400
+        if university != "ALL" and university not in config.UNIVERSITIES:
+            return jsonify({"error": "Please choose a valid university from the list, or select All Universities."}), 400
         if not file or not file.filename:
             return jsonify({"error": "No file selected"}), 400
         ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
@@ -356,29 +358,47 @@ def upload_global_document():
         orig = file.filename
         saved = f"{uuid.uuid4().hex[:8]}_{secure_filename(orig)}"
         path = os.path.join(folder, saved)
-        file.save(path)
-        size = os.path.getsize(path)
-        content = extract_text(path, orig)
-        logger.info("GLOBAL UPLOAD: %s (%s) → %d chars extracted", orig, university, len(content))
         new_doc_id = None
-        if config.DB_URL:
-            conn = get_db(); cur = conn.cursor()
-            cur.execute("""INSERT INTO documents
-                           (student_id,filename,orig_name,course,crn,size_bytes,content,university)
-                           VALUES(NULL,%s,%s,%s,'',%s,%s,%s) RETURNING id""",
-                        (saved, orig, label, size, content, university))
-            new_doc_id = cur.fetchone()["id"]
-            if existing:
-                # The new document is safely inserted — now it's safe to
-                # remove the one it's replacing.
-                cur.execute("DELETE FROM deadlines WHERE document_id=%s", (existing["id"],))
-                old_fp = os.path.join(folder, existing["filename"])
-                if os.path.exists(old_fp):
-                    try: os.remove(old_fp)
-                    except Exception: pass
-                cur.execute("DELETE FROM documents WHERE id=%s", (existing["id"],))
-            conn.commit(); cur.close()
-            store_document_chunks(new_doc_id, None, university, label, orig, content)
+        old_fp = None
+        try:
+            file.save(path)
+            size = os.path.getsize(path)
+            content = extract_text(path, orig)
+            logger.info("GLOBAL UPLOAD: %s (%s) → %d chars extracted", orig, university, len(content))
+            if config.DB_URL:
+                conn = get_db(); cur = conn.cursor()
+                cur.execute("""INSERT INTO documents
+                               (student_id,filename,orig_name,course,crn,size_bytes,content,university)
+                               VALUES(NULL,%s,%s,%s,'',%s,%s,%s) RETURNING id""",
+                            (saved, orig, label, size, content, university))
+                new_doc_id = cur.fetchone()["id"]
+                if existing:
+                    cur.execute("DELETE FROM deadlines WHERE document_id=%s", (existing["id"],))
+                    cur.execute("DELETE FROM documents WHERE id=%s", (existing["id"],))
+                    old_fp = os.path.join(folder, existing["filename"])
+                conn.commit(); cur.close()
+                store_document_chunks(new_doc_id, None, university, label, orig, content)
+        except Exception:
+            # The new file was saved to disk but something after that
+            # failed before a document row exists to reference it — clean
+            # it up rather than leaving it orphaned. Only on the NEW
+            # file's own path; new_doc_id being set means the insert (and
+            # any old-row deletion) already committed successfully, so
+            # there's nothing to undo at that point.
+            if os.path.exists(path) and new_doc_id is None:
+                try: os.remove(path)
+                except Exception: pass
+            raise
+
+        # Only delete the OLD file from disk after the transaction above
+        # has actually committed — deleting it any earlier (e.g. inside
+        # the same block as the DB changes, before commit) would mean a
+        # later failure and rollback leaves the database still
+        # referencing a file that's already gone from disk. This way, if
+        # anything above failed, the old file was never touched at all.
+        if old_fp and os.path.exists(old_fp):
+            try: os.remove(old_fp)
+            except Exception: pass
 
         if new_doc_id and content and config.DB_URL:
             app_obj = current_app._get_current_object()

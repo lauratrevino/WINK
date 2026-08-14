@@ -298,3 +298,39 @@ def get_full_sample(limit=100000):
                 cur.close()
             except Exception:
                 pass
+
+
+def get_export_history(limit=25):
+    """Who exported the research corpus, when, and what — makes the
+    audit trail actually reviewable, not just silently logged. Reads
+    from the same events table log_event() (called at each export site
+    in blueprints/research.py) already writes to."""
+    if not config.DB_URL:
+        return []
+    conn = None
+    cur = None
+    try:
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("""SELECT e.created_at, e.payload, s.email
+                       FROM events e LEFT JOIN students s ON s.id = e.student_id
+                       WHERE e.event_type = 'research_export'
+                       ORDER BY e.created_at DESC LIMIT %s""", (limit,))
+        rows = []
+        for r in cur.fetchall():
+            payload = json.loads(r["payload"] or "{}")
+            rows.append({
+                "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+                "exported_by": payload.get("exported_by") or r["email"] or "unknown",
+                "export_type": payload.get("export_type", "unknown"),
+                "row_count": payload.get("row_count"),
+            })
+        return rows
+    except Exception as e:
+        log_error("services.research.get_export_history", e)
+        return []
+    finally:
+        if cur:
+            try:
+                cur.close()
+            except Exception:
+                pass

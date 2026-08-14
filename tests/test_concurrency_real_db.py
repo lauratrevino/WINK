@@ -1,3 +1,4 @@
+import json
 import threading
 import time
 
@@ -102,3 +103,108 @@ def test_many_concurrent_slow_chats_dont_starve_a_small_pool(app, client, monkey
         f"took {overall_elapsed:.2f}s, suggesting a connection is being held "
         f"during streaming and requests are queuing for the pool"
     )
+
+
+def test_concurrent_password_reset_with_same_token_only_succeeds_once(app, monkeypatch):
+    """Regression test for a real race: two simultaneous requests using the
+    same valid reset token used to both be able to pass the "is it used?"
+    check before either one committed marking it used. Fixed by making the
+    claim atomic (UPDATE ... WHERE used=FALSE RETURNING ...) — this proves
+    it with real concurrent threads, not just by reading the code."""
+    import hashlib
+    import secrets as secrets_mod
+    from wink.extensions import get_db
+
+    with app.app_context():
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("""INSERT INTO students(email,password_hash,first_name,last_name,classification,major,university)
+                       VALUES('racetest@utep.edu','oldhash','Race','Test','Senior','Computer Science',
+                       'University of Texas at El Paso') RETURNING id""")
+        sid = cur.fetchone()["id"]
+        raw_token = secrets_mod.token_urlsafe(32)
+        token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+        cur.execute("""INSERT INTO password_resets(student_id, token, expires_at)
+                       VALUES(%s, %s, NOW() + INTERVAL '1 hour')""", (sid, token_hash))
+        conn.commit(); cur.close()
+
+    results = []
+    lock = threading.Lock()
+
+    def attempt_reset():
+        c = app.test_client()
+        resp = c.post(f"/reset-password/{raw_token}", data={
+            "password": "newpassword123", "confirm_password": "newpassword123",
+        })
+        body = resp.get_data(as_text=True)
+        with lock:
+            results.append("success" if "has been updated" in body else "rejected")
+
+    threads = [threading.Thread(target=attempt_reset) for _ in range(10)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=10)
+
+    assert len(results) == 10
+    assert results.count("success") == 1, (
+        f"expected exactly ONE of 10 simultaneous requests with the same token to succeed, "
+        f"got {results.count('success')} successes: {results}"
+    )
+    assert results.count("rejected") == 9
+
+    with app.app_context():
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("SELECT used FROM password_resets WHERE student_id=%s", (sid,))
+        assert cur.fetchone()["used"] is True
+        cur.close()
+
+
+def test_concurrent_mfa_backup_code_use_only_succeeds_once(app):
+    """Same class of race as the password-reset test above, for MFA backup
+    codes: two simultaneous requests using the same backup code used to
+    both be able to read the same pre-request snapshot of the code list
+    and both believe they'd consumed it. Fixed with SELECT ... FOR UPDATE
+    to lock the row for the check-and-remove sequence."""
+    import pyotp
+    from werkzeug.security import generate_password_hash
+    from wink.extensions import get_db
+
+    plain_code = "raceb4ck"
+    with app.app_context():
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("""INSERT INTO students(email,password_hash,first_name,last_name,classification,major,university,
+                       mfa_enabled, mfa_secret, mfa_backup_codes)
+                       VALUES('mfaracetest@utep.edu',%s,'MFA','Race','Senior','Computer Science',
+                       'University of Texas at El Paso', TRUE, %s, %s) RETURNING id""",
+                    (generate_password_hash("password123"), pyotp.random_base32(),
+                     json.dumps([generate_password_hash(plain_code)])))
+        conn.commit(); cur.close()
+
+    results = []
+    lock = threading.Lock()
+
+    def attempt_verify():
+        c = app.test_client()
+        c.post("/login", data={"email": "mfaracetest@utep.edu", "password": "password123"})
+        resp = c.post("/mfa/verify", data={"code": plain_code}, follow_redirects=False)
+        with lock:
+            results.append("success" if resp.headers.get("Location", "").endswith("dashboard") else "rejected")
+
+    threads = [threading.Thread(target=attempt_verify) for _ in range(10)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=10)
+
+    assert len(results) == 10
+    assert results.count("success") == 1, (
+        f"expected exactly ONE of 10 simultaneous requests with the same backup code to succeed, "
+        f"got {results.count('success')} successes: {results}"
+    )
+
+    with app.app_context():
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("SELECT mfa_backup_codes FROM students WHERE email='mfaracetest@utep.edu'")
+        remaining = json.loads(cur.fetchone()["mfa_backup_codes"])
+        assert remaining == [], f"backup code should be fully consumed, but {len(remaining)} remain"
+        cur.close()

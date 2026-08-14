@@ -4,6 +4,7 @@ from .. import config
 from ..errors import log_error
 from ..security import admin_page_required, admin_required
 from ..services import research as research_service
+from ..services.analytics import log_event
 from ..services.deadlines import get_deadline_confirmation_stats
 
 bp = Blueprint("research", __name__)
@@ -23,6 +24,7 @@ def research_dashboard():
             deadline_stats=get_deadline_confirmation_stats(),
             unrated_sample=research_service.get_unrated_sample(),
             feedback_gap=research_service.get_feedback_vs_accuracy_gap(),
+            export_history=research_service.get_export_history(),
         )
     except Exception as e:
         log_error("research.research_dashboard", e)
@@ -52,12 +54,20 @@ def rate_answer():
 @admin_required
 def export_json():
     try:
+        rated_answers = research_service.get_rated_sample(limit=1000)
+        # Who exported what, when — the export itself is admin-protected
+        # already, but that alone doesn't create a record of it having
+        # happened. This is the same event log used throughout the rest
+        # of the app, not a new mechanism.
+        log_event(g.student["id"], "research_export", {
+            "export_type": "rated_json", "row_count": len(rated_answers), "exported_by": g.student["email"],
+        })
         return jsonify({
             "config_snapshot": research_service.get_config_snapshot(),
             "answer_stats": research_service.get_answer_log_stats(),
             "deadline_stats": get_deadline_confirmation_stats(),
             "feedback_gap": research_service.get_feedback_vs_accuracy_gap(),
-            "rated_answers": research_service.get_rated_sample(limit=1000),
+            "rated_answers": rated_answers,
         })
     except Exception as e:
         log_error("research.export_json", e)
@@ -71,7 +81,11 @@ def export_full_json():
     needs the full corpus rather than just the faculty-reviewed subset
     export_json() above provides."""
     try:
-        return jsonify({"answers": research_service.get_full_sample()})
+        rows = research_service.get_full_sample()
+        log_event(g.student["id"], "research_export", {
+            "export_type": "full_json", "row_count": len(rows), "exported_by": g.student["email"],
+        })
+        return jsonify({"answers": rows})
     except Exception as e:
         log_error("research.export_full_json", e)
         return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
@@ -86,6 +100,9 @@ def export_full_csv():
     import io
     try:
         rows = research_service.get_full_sample()
+        log_event(g.student["id"], "research_export", {
+            "export_type": "full_csv", "row_count": len(rows), "exported_by": g.student["email"],
+        })
         buf = io.StringIO()
         fieldnames = ["id", "student_id", "created_at", "question", "answer_text", "model",
                       "retrieval_backend", "chunk_count", "document_ids", "latency_ms",

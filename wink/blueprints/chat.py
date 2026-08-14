@@ -159,6 +159,22 @@ def chat():
             )
         else:
             temp_doc_ctx = ""
+
+        # Enforce the combined ceiling — each piece above already has its
+        # own individual cap, but nothing previously bounded what they
+        # add up to together. Trim least-specific-to-the-question
+        # material first (global reference material, then the temp
+        # attachment), keeping the student's own uploaded documents
+        # intact since that's most directly relevant to their question.
+        combined_len = len(doc_ctx) + len(global_ctx) + len(temp_doc_ctx)
+        if combined_len > config.MAX_TOTAL_CONTEXT_CHARS:
+            over_by = combined_len - config.MAX_TOTAL_CONTEXT_CHARS
+            trim_from_global = min(len(global_ctx), over_by)
+            global_ctx = global_ctx[:len(global_ctx) - trim_from_global]
+            over_by -= trim_from_global
+            if over_by > 0:
+                temp_doc_ctx = temp_doc_ctx[:max(0, len(temp_doc_ctx) - over_by)]
+
         now = datetime.now(ZoneInfo(config.APP_TIMEZONE))
         today = now.strftime("%A, %B %d, %Y")
         university_display = student_university or "their university"
@@ -195,8 +211,38 @@ def chat():
                     for text in stream.text_stream:
                         full_reply.append(text)
                         yield text
+                    web_search_provenance = ""
                     try:
-                        usage = stream.get_final_message().usage
+                        final_message = stream.get_final_message()
+                        usage = final_message.usage
+                        # Captures what web_search actually returned —
+                        # the queries issued and the title/URL of every
+                        # result — since none of that was preserved
+                        # anywhere before. Without this, a web-grounded
+                        # answer's research record only says the model
+                        # searched the web, with no way to reconstruct
+                        # which pages it actually saw; the pages
+                        # themselves can change or disappear afterward,
+                        # same reasoning as retrieved_context for
+                        # documents. Title/URL only, not full page
+                        # content — Anthropic doesn't return the raw
+                        # fetched page text via this API, only what the
+                        # model was shown as search result snippets.
+                        provenance_lines = []
+                        for block in getattr(final_message, "content", []) or []:
+                            if getattr(block, "type", None) == "server_tool_use" and getattr(block, "name", None) == "web_search":
+                                query = (block.input or {}).get("query", "")
+                                if query:
+                                    provenance_lines.append(f"[web search query] {query}")
+                            elif getattr(block, "type", None) == "web_search_tool_result":
+                                content = getattr(block, "content", None)
+                                if isinstance(content, list):
+                                    for result in content:
+                                        title = getattr(result, "title", "")
+                                        url = getattr(result, "url", "")
+                                        if url:
+                                            provenance_lines.append(f"[web result] {title} — {url}")
+                        web_search_provenance = "\n".join(provenance_lines)
                     except Exception as e:
                         log_error("chat.stream_usage", e)
             except anthropic.RateLimitError as e:
@@ -279,7 +325,8 @@ def chat():
                 # here rather than reconstructed later, since the source
                 # documents this came from can be edited or deleted
                 # afterward but this string can't change retroactively.
-                retrieved_context=(doc_ctx or "") + "\n\n" + (global_ctx or ""),
+                retrieved_context=(doc_ctx or "") + "\n\n" + (global_ctx or "")
+                             + (("\n\n" + web_search_provenance) if web_search_provenance else ""),
             )
             log_token_usage(student_id, "chat", config.CHAT_MODEL, usage)
 
@@ -324,6 +371,15 @@ def generate_practice():
         data = request.get_json() or {}
         course = (data.get("course") or "").strip()
         count = data.get("count", 8)
+        # Malformed count (a non-numeric string, None, a list, etc.) used
+        # to reach int(count) unvalidated deep inside
+        # generate_practice_questions() and raise there — caught by the
+        # outer except-Exception below, but as a generic 500 rather than
+        # the 400 a bad client input should actually get.
+        try:
+            count = int(count)
+        except (TypeError, ValueError):
+            return jsonify({"error": "Invalid question count."}), 400
         qtype = (data.get("qtype") or "review").strip()
         if qtype not in ("flashcard", "review", "quiz", "assessment_quiz", "summary"):
             return jsonify({"error": "Unrecognized question type."}), 400
