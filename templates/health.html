@@ -78,14 +78,24 @@
         "database": "Database",
         "anthropic_api_key": "Anthropic API Key",
         "email_sending": "Email Sending (SES)",
-        "admin_email": "Admin Contact"
+        "admin_email": "Admin Contact",
+        "secret_key": "Session Secret Key",
+        "aws_credentials": "AWS Credentials",
+        "upload_storage": "Upload Storage",
+        "disk_space": "Disk Space",
+        "static_assets": "Static Assets",
+        "environment": "Environment",
+        "python_version": "Python Version",
+        "memory": "Memory"
       } %}
       {% for key, label in labels.items() %}
-        {% set ok, detail = checks[key] %}
-        <div class="check-row">
-          <span class="check-name">{{ label }}</span>
-          <span class="check-status {{ 'ok' if ok else 'fail' }}">{{ detail }}</span>
-        </div>
+        {% if key in checks %}
+          {% set ok, detail = checks[key] %}
+          <div class="check-row">
+            <span class="check-name">{{ label }}</span>
+            <span class="check-status {{ 'ok' if ok else 'fail' }}">{{ detail }}</span>
+          </div>
+        {% endif %}
       {% endfor %}
     </div>
     <div class="footer">
