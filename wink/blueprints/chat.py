@@ -193,7 +193,14 @@ def chat():
                 log_error("chat.stream", e, category="AI_UNKNOWN")
                 yield "\n\nSomething went wrong on our end — please try asking again."
             reply = "".join(full_reply) or "I had trouble finding an answer — please try again."
-            log_event(student_id, "answer_given", {"len": len(reply), "full_answer": reply})
+            # Deliberately NOT storing the full answer text here — it's
+            # already stored in full in both the conversations table (the
+            # live transcript) and answer_logs (research tracking, see
+            # log_answer() below). A third full copy in the events table
+            # was pure storage duplication with no distinct purpose; `len`
+            # is kept in case a future analytics feature wants answer-length
+            # trends without a join.
+            log_event(student_id, "answer_given", {"len": len(reply)})
             message_index = None
             if config.DB_URL and conv_id:
                 try:

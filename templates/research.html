@@ -166,7 +166,13 @@
     {% endif %}
   </section>
 
-  <p><a class="export-link" href="{{ url_for('research.export_json') }}">Export rated data as JSON &rarr;</a></p>
+  <p>
+    <a class="export-link" href="{{ url_for('research.export_json') }}">Export rated data as JSON &rarr;</a>
+    &nbsp;·&nbsp;
+    <a class="export-link" href="{{ url_for('research.export_full_json') }}">Export full corpus (rated + unrated) as JSON &rarr;</a>
+    &nbsp;·&nbsp;
+    <a class="export-link" href="{{ url_for('research.export_full_csv') }}">Export full corpus as CSV &rarr;</a>
+  </p>
 </main>
 
 <script nonce="{{ csp_nonce() }}">

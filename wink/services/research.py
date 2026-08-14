@@ -255,3 +255,45 @@ def get_rated_sample(limit=500):
                 cur.close()
             except Exception:
                 pass
+
+
+def get_full_sample(limit=100000):
+    """Every logged question/answer exchange, rated or not — for content
+    analysis and research purposes that need the full corpus, not just the
+    subset a faculty member has manually reviewed for accuracy. This is the
+    only place the full answer text is stored outside a student's own live
+    conversation history (see the comment on log_event("answer_given", ...)
+    in blueprints/chat.py — a redundant third copy in the events table was
+    removed; this table is the canonical research copy).
+
+    limit defaults high rather than unbounded, as a safety ceiling against
+    an unexpectedly large export rather than a real cap — a research pilot's
+    full semester of data should comfortably fit under it.
+    """
+    if not config.DB_URL:
+        return []
+    conn = None
+    cur = None
+    try:
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("""SELECT id, student_id, question, answer_text, model, retrieval_backend,
+                              chunk_count, document_ids, latency_ms, prompt_version,
+                              student_feedback, faculty_rating, faculty_notes, rated_by, rated_at,
+                              created_at
+                       FROM answer_logs
+                       ORDER BY created_at ASC LIMIT %s""", (limit,))
+        rows = [dict(r) for r in cur.fetchall()]
+        for r in rows:
+            r["document_ids"] = json.loads(r["document_ids"]) if r["document_ids"] else []
+            r["created_at"] = r["created_at"].isoformat() if r["created_at"] else None
+            r["rated_at"] = r["rated_at"].isoformat() if r["rated_at"] else None
+        return rows
+    except Exception as e:
+        log_error("services.research.get_full_sample", e)
+        return []
+    finally:
+        if cur:
+            try:
+                cur.close()
+            except Exception:
+                pass

@@ -1,4 +1,4 @@
-from flask import Blueprint, g, jsonify, render_template, request
+from flask import Blueprint, Response, g, jsonify, render_template, request
 
 from .. import config
 from ..errors import log_error
@@ -61,4 +61,45 @@ def export_json():
         })
     except Exception as e:
         log_error("research.export_json", e)
+        return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
+
+
+@bp.route("/research/export-full.json")
+@admin_required
+def export_full_json():
+    """Every logged exchange, rated or not — for content analysis that
+    needs the full corpus rather than just the faculty-reviewed subset
+    export_json() above provides."""
+    try:
+        return jsonify({"answers": research_service.get_full_sample()})
+    except Exception as e:
+        log_error("research.export_full_json", e)
+        return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
+
+
+@bp.route("/research/export-full.csv")
+@admin_required
+def export_full_csv():
+    """Same full corpus as export_full_json(), as CSV — the format most
+    content-analysis tools (NVivo, Atlas.ti, Excel) actually want."""
+    import csv
+    import io
+    try:
+        rows = research_service.get_full_sample()
+        buf = io.StringIO()
+        fieldnames = ["id", "student_id", "created_at", "question", "answer_text", "model",
+                      "retrieval_backend", "chunk_count", "document_ids", "latency_ms",
+                      "prompt_version", "student_feedback", "faculty_rating", "faculty_notes",
+                      "rated_by", "rated_at"]
+        writer = csv.DictWriter(buf, fieldnames=fieldnames, extrasaction="ignore")
+        writer.writeheader()
+        for r in rows:
+            r = dict(r)
+            r["document_ids"] = ",".join(str(d) for d in (r.get("document_ids") or []))
+            writer.writerow(r)
+        resp = Response(buf.getvalue(), mimetype="text/csv")
+        resp.headers["Content-Disposition"] = 'attachment; filename="wink_answers_full_export.csv"'
+        return resp
+    except Exception as e:
+        log_error("research.export_full_csv", e)
         return jsonify({"error": "Something went wrong on our end. Please try again."}), 500

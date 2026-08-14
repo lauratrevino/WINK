@@ -121,38 +121,31 @@ def analytics_data_full():
                 "ts": row.get("ts", "")
             })
 
+        # Reads from answer_logs rather than pairing up question_asked/
+        # answer_given events — same reasoning as student_conversations()
+        # above: answer_logs has the full question+answer together on one
+        # row, and it's the only place that still holds the full answer
+        # text. (The separate "questions" feed above intentionally keeps
+        # reading the short 200-char snippet from events — that field
+        # serves a distinct purpose, exact-match grouping for the "common
+        # questions" analytics feature, not a full-text display.)
         cur.execute("""
-            SELECT e.id, e.event_type, e.payload, e.created_at,
-                   to_char(e.created_at,'Mon DD HH24:MI') as ts,
+            SELECT al.question, al.answer_text, to_char(al.created_at,'Mon DD HH24:MI') as ts,
                    s.first_name, s.last_name, s.email, s.id as sid
-            FROM events e LEFT JOIN students s ON s.id=e.student_id
-            WHERE e.event_type IN ('question_asked','answer_given')
-            ORDER BY s.id, e.created_at ASC LIMIT 400""")
-        raw_events = [dict(r) for r in cur.fetchall()]
-        conversations = []
-        i = 0
-        while i < len(raw_events):
-            ev = raw_events[i]
-            p = safe_payload(ev.get("payload"))
-            if ev["event_type"] == "question_asked":
-                conv = {
-                    "first_name": ev.get("first_name", ""),
-                    "last_name": ev.get("last_name", ""),
-                    "email": ev.get("email", ""),
-                    "question": p.get("q", ""),
-                    "answer": "",
-                    "ts": ev.get("ts", ""),
-                    "sid": ev.get("sid")
-                }
-                if i+1 < len(raw_events) and raw_events[i+1]["event_type"] == "answer_given" and raw_events[i+1].get("sid") == ev.get("sid"):
-                    ap = safe_payload(raw_events[i+1].get("payload"))
-                    conv["answer"] = ap.get("full_answer", "")
-                    i += 2
-                else:
-                    i += 1
-                conversations.append(conv)
-            else:
-                i += 1
+            FROM answer_logs al LEFT JOIN students s ON s.id = al.student_id
+            ORDER BY s.id, al.created_at ASC LIMIT 200""")
+        conversations = [
+            {
+                "first_name": r.get("first_name", ""),
+                "last_name": r.get("last_name", ""),
+                "email": r.get("email", ""),
+                "question": r.get("question", ""),
+                "answer": r.get("answer_text", ""),
+                "ts": r.get("ts", ""),
+                "sid": r.get("sid"),
+            }
+            for r in cur.fetchall()
+        ]
 
         cur.execute("""
             SELECT e.event_type, e.payload, to_char(e.created_at,'Mon DD HH24:MI') as ts,
@@ -229,29 +222,22 @@ def student_conversations(sid):
     try:
         if not config.DB_URL: return jsonify({"error": "No database"}), 500
         conn = get_db(); cur = conn.cursor()
+        # Reads from answer_logs rather than reconstructing from paired
+        # question_asked/answer_given events — answer_logs already has the
+        # full question and answer together on one row per exchange (no
+        # fragile sequential pairing needed), and it's the only place that
+        # still holds the full answer text (see the comment in chat.py's
+        # log_event("answer_given", ...) call for why).
         cur.execute("""
-            SELECT e.event_type, e.payload, to_char(e.created_at,'Mon DD HH24:MI') as ts
-            FROM events e
-            WHERE e.student_id=%s AND e.event_type IN ('question_asked','answer_given')
-            ORDER BY e.created_at ASC""", (sid,))
-        rows = [dict(r) for r in cur.fetchall()]
+            SELECT question, answer_text, to_char(created_at,'Mon DD HH24:MI') as ts
+            FROM answer_logs
+            WHERE student_id=%s
+            ORDER BY created_at ASC""", (sid,))
+        conversations = [
+            {"question": r["question"], "answer": r["answer_text"], "ts": r["ts"]}
+            for r in cur.fetchall()
+        ]
         cur.close()
-        conversations = []
-        i = 0
-        while i < len(rows):
-            ev = rows[i]
-            p = safe_payload(ev.get("payload"))
-            if ev["event_type"] == "question_asked":
-                conv = {"question": p.get("q", ""), "answer": "", "ts": ev.get("ts", "")}
-                if i+1 < len(rows) and rows[i+1]["event_type"] == "answer_given":
-                    ap = safe_payload(rows[i+1].get("payload"))
-                    conv["answer"] = ap.get("full_answer", "")
-                    i += 2
-                else:
-                    i += 1
-                conversations.append(conv)
-            else:
-                i += 1
         return jsonify({"conversations": conversations})
     except Exception as e:
         log_error("admin.student_conversations", e)
