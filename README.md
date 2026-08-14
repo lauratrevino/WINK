@@ -1,5 +1,7 @@
 # WINK — What I Need to Know
 
+[![Tests](https://github.com/lauratrevino/WINK-temp/actions/workflows/tests.yml/badge.svg)](https://github.com/lauratrevino/WINK-temp/actions/workflows/tests.yml)
+
 WINK is an AI-powered academic support platform for college students. Students upload their own course materials (syllabi, calendars, assignment instructions, notes) and WINK answers questions, tracks deadlines, generates practice questions, and helps with grade calculations — all grounded in what they've actually uploaded, not generic knowledge.
 
 WINK was created by Dr. Laura L. Trevino at the University of Texas at El Paso as part of a research pilot studying how AI can support student success during the first year of college.
