@@ -4,6 +4,20 @@ from flask import Blueprint, g, jsonify, render_template
 
 from .. import config
 from ..errors import log_error
+from ..extensions import get_db
+from ..security import page_login_required
+from ..services.analytics import log_event
+
+bp = Blueprint("misc", __name__)
+
+
+@bp.route("/")
+def landing():
+    try:
+        return render_template("landing.html")
+    except Exception as e:
+        log_error("misc.landing", e)
+        return render_template("landing.html")
 
 
 @bp.route("/privacy")
