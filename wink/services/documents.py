@@ -1,7 +1,5 @@
 import json
 import logging
-import threading
-import time
 
 from .. import config
 from ..errors import log_error
@@ -156,29 +154,32 @@ def extract_text(filepath, orig_name):
     return text.strip()
 
 
-_student_docs_cache = {}
-_student_docs_cache_lock = threading.Lock()
-
-
 def invalidate_student_docs_cache(sid):
-    with _student_docs_cache_lock:
-        _student_docs_cache.pop(sid, None)
+    """No-op, kept so every existing call site (documents.py routes) keeps
+    working unchanged. get_docs() no longer caches — see the note there for
+    why: this cache used to be a plain in-memory dict, which is only safe
+    with a single worker process. This app runs multiple gunicorn workers
+    (see Dockerfile's --workers), and each worker has its own separate
+    copy of that dict — invalidating one worker's copy after an upload
+    never touched any other worker's copy, so a request that happened to
+    land on a different worker could keep serving an old or missing
+    document list indefinitely. That's a correctness bug, not just a
+    performance one, so the cache was removed rather than patched."""
+    pass
 
 
 def get_docs(sid):
+    """Always reads from the database — no in-memory caching (see
+    invalidate_student_docs_cache() for why). A student's document count
+    is small and capped (config.MAX_DOCS_PER_STUDENT), so a single indexed
+    SELECT is fast; it isn't worth a caching layer that can silently go
+    stale across worker processes."""
     if not config.DB_URL:
         return []
-    now = time.time()
-    with _student_docs_cache_lock:
-        cached = _student_docs_cache.get(sid)
-        if cached and now - cached[0] < config.STUDENT_DOCS_CACHE_TTL_SECONDS:
-            return cached[1]
     try:
         conn = get_db(); cur = conn.cursor()
         cur.execute("SELECT * FROM documents WHERE student_id=%s ORDER BY uploaded_at DESC", (sid,))
         docs = [dict(r) for r in cur.fetchall()]; cur.close()
-        with _student_docs_cache_lock:
-            _student_docs_cache[sid] = (now, docs)
         return docs
     except Exception as e:
         log_error("services.documents.get_docs", e); return []
@@ -349,28 +350,21 @@ def build_doc_context(docs, question=None, sid=None):
     return ctx
 
 
-_global_docs_cache = {}
-_global_docs_cache_lock = threading.Lock()
-
-
 def invalidate_global_docs_cache(university=None):
-    with _global_docs_cache_lock:
-        if university is None:
-            _global_docs_cache.clear()
-        else:
-            _global_docs_cache.pop((university or "").lower(), None)
-            _global_docs_cache.pop(None, None)  
+    """No-op, kept so every existing call site keeps working unchanged.
+    get_global_docs() no longer caches — same cross-worker staleness
+    problem as invalidate_student_docs_cache() above, and this one is
+    higher-stakes: it's read on every single chat message, so a stale
+    worker could keep feeding students an outdated or removed reference
+    document indefinitely."""
+    pass
 
 
 def get_global_docs(university=None):
+    """Always reads from the database — no in-memory caching (see
+    invalidate_global_docs_cache() for why)."""
     if not config.DB_URL:
         return []
-    cache_key = (university or "").lower() or None
-    now = time.time()
-    with _global_docs_cache_lock:
-        cached = _global_docs_cache.get(cache_key)
-        if cached and now - cached[0] < config.GLOBAL_DOCS_CACHE_TTL_SECONDS:
-            return cached[1]
     try:
         conn = get_db(); cur = conn.cursor()
         if university:
@@ -381,8 +375,6 @@ def get_global_docs(university=None):
         else:
             cur.execute("SELECT * FROM documents WHERE student_id IS NULL ORDER BY uploaded_at DESC")
         docs = [dict(r) for r in cur.fetchall()]; cur.close()
-        with _global_docs_cache_lock:
-            _global_docs_cache[cache_key] = (now, docs)
         return docs
     except Exception as e:
         log_error("services.documents.get_global_docs", e); return []
