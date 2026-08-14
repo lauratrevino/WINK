@@ -54,6 +54,8 @@ def update_profile():
             return jsonify({"error": "All fields are required."}), 400
         if classification not in config.CLASSIFICATIONS or major not in config.MAJORS:
             return jsonify({"error": "Please choose a valid classification and major."}), 400
+        if university not in config.UNIVERSITIES:
+            return jsonify({"error": "Please choose your university from the list."}), 400
         if preferred_language is not None and preferred_language and preferred_language not in config.PREFERRED_LANGUAGES:
             return jsonify({"error": "Please choose a supported language."}), 400
         if not config.DB_URL:

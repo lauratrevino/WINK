@@ -62,7 +62,7 @@ def test_many_concurrent_slow_chats_dont_starve_a_small_pool(app, client, monkey
         r = c.post("/register", data={
             "email": email, "password": "password123",
             "first_name": "Load", "last_name": f"Test{i}",
-            "classification": "Senior", "major": "Computer Science", "university": "UTEP",
+            "classification": "Senior", "major": "Computer Science", "university": "University of Texas at El Paso",
             "terms_agree": "on", "research_agree": "on",
         })
         assert r.status_code == 302

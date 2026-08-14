@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Verify — WINK</title>
+<style nonce="{{ csp_nonce() }}">
+  :root {
+    --navy: #002855; --navy-deep: #001833; --orange: #FF8200;
+    --light-bg: #f4f6fb; --muted: #6b7a99; --border: #dde3f0; --gray-text: #2d3548; --bad: #b91c1c;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+    background: var(--light-bg); color: var(--gray-text); min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  header.top { background: var(--navy); padding: 18px 24px; display: flex; align-items: center; }
+  header.top a { color: #fff; font-size: 22px; font-weight: 800; text-decoration: none; }
+  header.top a span { color: var(--orange); }
+  .page-shell { max-width: 400px; margin: 60px auto 0; padding: 0 24px; text-align: center; }
+  h1 { font-size: 22px; font-weight: 800; color: var(--navy); margin-bottom: 10px; }
+  p { font-size: 14.5px; line-height: 1.6; color: var(--gray-text); margin-bottom: 20px; }
+  .card { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 28px; }
+  input[type="text"] {
+    width: 100%; padding: 14px; border: 1.5px solid var(--border); border-radius: 8px;
+    font-size: 22px; letter-spacing: 6px; text-align: center; margin-bottom: 14px;
+  }
+  button {
+    width: 100%; padding: 12px; border-radius: 8px; font-size: 14px; font-weight: 700;
+    background: var(--navy); color: #fff; border: none; cursor: pointer;
+  }
+  button:hover { background: var(--navy-deep); }
+  .error { color: var(--bad); font-size: 13.5px; margin-bottom: 12px; }
+  .hint { font-size: 12.5px; color: var(--muted); margin-top: 16px; }
+</style>
+</head>
+<body>
+<header class="top"><a href="/">WINK<span>.</span></a></header>
+<main class="page-shell">
+  <h1>Enter your code</h1>
+  <p>Open your authenticator app and enter the current 6-digit code.</p>
+  <div class="card">
+    {% if error %}<div class="error">{{ error }}</div>{% endif %}
+    <form method="POST" action="/mfa/verify">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="text" name="code" inputmode="numeric" placeholder="000000" maxlength="8" autofocus required autocomplete="one-time-code">
+      <button type="submit">Verify</button>
+    </form>
+    <p class="hint">Lost your device? Use one of your saved backup codes instead — enter it in the same box above.</p>
+  </div>
+</main>
+</body>
+</html>

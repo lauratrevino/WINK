@@ -4,10 +4,11 @@ import os
 import shutil
 from datetime import date, datetime, timedelta
 
-from flask import Blueprint, redirect, session, url_for
+from flask import Blueprint, jsonify, redirect, request, session, url_for
 from werkzeug.security import generate_password_hash
 
 from .. import config
+from ..errors import log_error
 from ..extensions import csrf, get_db
 from ..security import rate_limited
 
@@ -156,7 +157,15 @@ def _seed_demo(cur, sid):
 def start_demo():
     if not config.DB_URL:
         return "Demo mode requires the database.", 503
-    wait = rate_limited(f"demo-start:{__import__('flask').request.remote_addr}", max_calls=5, window_seconds=3600)
+    # 5/hour previously — tightened to reduce the worst-case AI-cost
+    # exposure from a single IP (5 sessions x the 25-call shared budget
+    # in chat.py = up to 125 calls/hour before this change). Note this
+    # is a meaningful reduction, not a complete fix — IP-based limits
+    # are inherently weak against VPNs/proxies/distributed requests; a
+    # sufficiently motivated abuser can still route around this. 3/hour
+    # is still generous for a real visitor restarting a demo they
+    # messed up, while cutting the single-IP worst case by 40%.
+    wait = rate_limited(f"demo-start:{__import__('flask').request.remote_addr}", max_calls=3, window_seconds=3600)
     if wait:
         return "Too many demo sessions started from this connection. Please try again later.", 429
     old_sid=session.get("sid") if session.get("is_demo") else None
@@ -175,3 +184,57 @@ def start_demo():
     session.clear(); session.permanent=False
     session["sid"]=sid; session["is_demo"]=True
     return redirect(url_for("dashboard.dashboard"))
+
+
+@bp.route("/purge-expired-demos", methods=["POST"])
+@csrf.exempt
+def purge_expired_demos_cron():
+    """Independently, reliably cleans up expired demo accounts on a
+    schedule — previously this only happened opportunistically, when
+    someone else started a NEW demo (_purge_expired() was called as a
+    side effect of start_demo() above) or when an expired demo's own
+    session happened to be accessed again. If neither of those things
+    happened — a quiet period with no new demo visitors — an expired
+    demo account could sit in the database indefinitely with no
+    guaranteed cleanup. Meant to be called by an external scheduler,
+    same pattern as /send-deadline-reminders, /send-weekly-digest, and
+    /purge-deleted-conversations — same header-based auth, same run
+    logging via cron_runs."""
+    provided = request.headers.get("X-WINK-Cron-Secret", "")
+    if not provided:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            provided = auth_header[len("Bearer "):]
+    if not config.CRON_SECRET or not secrets.compare_digest(provided, config.CRON_SECRET):
+        return jsonify({"error": "Not authorized"}), 403
+    if not config.DB_URL:
+        return jsonify({"error": "No database"}), 500
+
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("INSERT INTO cron_runs(job_name) VALUES('purge_expired_demos') RETURNING id")
+    run_id = cur.fetchone()["id"]
+    conn.commit(); cur.close()
+
+    try:
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("SELECT id FROM students WHERE is_demo=TRUE AND demo_expires_at < NOW()")
+        expired_count = len(cur.fetchall())
+        _purge_expired(cur)
+        conn.commit(); cur.close()
+
+        conn = get_db(); cur = conn.cursor()
+        cur.execute("UPDATE cron_runs SET completed_at=NOW(), number_processed=%s WHERE id=%s",
+                    (expired_count, run_id))
+        conn.commit(); cur.close()
+
+        return jsonify({"purged": expired_count})
+    except Exception as e:
+        log_error("demo.purge_expired_demos_cron", e)
+        try:
+            conn = get_db(); cur = conn.cursor()
+            cur.execute("UPDATE cron_runs SET completed_at=NOW(), last_error=%s WHERE id=%s",
+                        (str(e)[:500], run_id))
+            conn.commit(); cur.close()
+        except Exception:
+            pass
+        return jsonify({"error": "Something went wrong on our end. Please try again."}), 500

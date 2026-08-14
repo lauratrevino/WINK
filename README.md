@@ -8,7 +8,7 @@ WINK was created by Dr. Laura L. Trevino at the University of Texas at El Paso a
 
 ## What it does
 
-- **Chat** — Ask questions about course material with citations back to the specific uploaded document; conversations are saved, exportable, and shareable
+- **Chat** — Ask questions about course material; the AI names the specific uploaded document it drew from (shown in the UI as "mentioned by name — not an independently verified citation," since it's the model naming a source, not a verified link to an exact passage); conversations are saved, exportable, and shareable
 - **Deadlines & Calendar** — Automatically extracts deadlines from uploaded documents, with a full calendar view, conflict detection, and reminder emails
 - **Practice & Assessment** — Generates study materials, flashcards, and quizzes from course material; an Assessment Quiz mode checks current knowledge and builds a personalized study plan
 - **Grade Calculator** — Pulls grading breakdowns from an uploaded syllabus and calculates what's needed on remaining work

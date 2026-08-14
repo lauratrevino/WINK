@@ -1,0 +1,74 @@
+name: Tests
+
+# Runs on every push and every pull request, so a broken change is caught
+# before it's merged or deployed — not after a student hits it live.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    # A real PostgreSQL instance, not a mock — matches how the test suite
+    # already runs locally (tests/conftest.py truncates real tables against
+    # a real database; there's no SQLite/mock fallback in this codebase).
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: wink_test
+        ports:
+          - 5432:5432
+        # Waits for Postgres to actually be ready to accept connections
+        # before any later step tries to use it.
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://postgres:testpass@localhost:5432/wink_test
+      SECRET_KEY: ci-test-secret-key-not-used-anywhere-real
+      ADMIN_EMAIL: admin@utep.edu
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"  # matches Dockerfile — CI should test the
+                                    # same version that actually runs in production
+
+      - name: Install tesseract-ocr
+        # Matches Dockerfile — needed for the image-OCR code path some
+        # tests exercise. Without it, OCR silently falls back to a
+        # placeholder rather than actually testing extraction.
+        run: sudo apt-get update && sudo apt-get install -y tesseract-ocr
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Verify Alembic migrations replay cleanly from scratch
+        # This is a real check, not a formality: it directly verifies the
+        # migrations/ setup against a genuinely fresh database on every
+        # push, catching a broken or out-of-order future migration
+        # immediately — the same class of bug the baseline migration
+        # itself caught once already (an index created before its column
+        # existed, silently masked on every database that already had
+        # the column).
+        run: alembic upgrade head
+
+      - name: Run tests
+        # init_db() (called automatically when the app is created) runs
+        # again here on top of the now-migrated database — idempotent, so
+        # this also continuously verifies init_db() and the Alembic
+        # baseline stay compatible with each other, not just that each
+        # works in isolation.
+        run: pytest -v

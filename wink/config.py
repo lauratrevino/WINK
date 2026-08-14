@@ -104,6 +104,8 @@ PREFERRED_LANGUAGES = [
 
 DOC_TYPES = ["syllabus", "course_calendar", "assignment_instructions", "notes", "slides", "handout", "assessment", "other"]
 
+from .universities_list import UNIVERSITIES  # noqa: E402 — see that file for why this is separate
+
 TERMS_VERSION = "2026-08-17"
 
 PRACTICE_MATERIAL_MAX_CHARS = 30000

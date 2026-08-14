@@ -174,6 +174,16 @@ def init_db():
         # a password (e.g. after a suspected compromise) doesn't actually
         # revoke any session that was already logged in with the old one.
         cur.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMP")
+        # Admin authorization is otherwise just "does the logged-in
+        # email match ADMIN_EMAIL" — a single password is the entire
+        # barrier between anyone and full access to (anonymized, but
+        # still real) student research data. MFA closes the specific
+        # gap that matters: if that one password is ever phished,
+        # guessed, or reused from a breached site, this is the second
+        # factor standing in the way.
+        cur.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS mfa_secret TEXT")
+        cur.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS mfa_enabled BOOLEAN NOT NULL DEFAULT FALSE")
+        cur.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS mfa_backup_codes TEXT DEFAULT '[]'")
         cur.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS is_demo BOOLEAN DEFAULT FALSE")
         cur.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS demo_expires_at TIMESTAMP")
         cur.execute("""CREATE TABLE IF NOT EXISTS documents (
@@ -300,6 +310,10 @@ def init_db():
         cur.execute("CREATE INDEX IF NOT EXISTS idx_answer_logs_student_id ON answer_logs(student_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_answer_logs_created_at ON answer_logs(created_at)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_answer_logs_rating ON answer_logs(faculty_rating)")
+        # Verbatim snapshot of what the AI actually saw for this answer
+        # (the exact retrieved document context, not just document IDs) —
+        # see migrations/versions/6535ed24cbc8_... for the full reasoning.
+        cur.execute("ALTER TABLE answer_logs ADD COLUMN IF NOT EXISTS retrieved_context TEXT DEFAULT ''")
 
         cur.execute("""
             CREATE TABLE IF NOT EXISTS course_colors (

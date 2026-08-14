@@ -395,36 +395,21 @@ def compute_engagement_insights(cur):
     return out
 
 
-def anonymize_student_record(student_id):
-    """Shared by both the admin-triggered anonymization action and a
-    student's own account deletion — replaces identifying fields with an
-    opaque, untraceable label and scrubs the student's original email
-    address from every place WINK logs it independently of the students
-    row itself.
+def _anonymize_student_sql(cur, student_id):
+    """The actual SQL work of anonymize_student_record() below, using a
+    cursor the caller already has open — no connection handling, no
+    commit. Exists so a caller that needs anonymization to happen
+    atomically alongside something else in the same transaction (see
+    auth.py's delete_account(), which must not commit "account deleted"
+    without anonymization actually having happened too) can do so,
+    without duplicating this SQL.
 
-    Irreversible: the original name/email are overwritten, not stored
-    anywhere else. Login is disabled (password hash randomized) since the
-    account can no longer be meaningfully identified by its owner anyway.
-
-    Scope, to be upfront about it: this scrubs the student row, WINK's own
-    system-generated event payloads, and email_events (SES bounce/complaint
-    records, which are keyed by email address independently of the student
-    row and would otherwise keep the original address forever). It does
-    NOT search conversation text or document content for a name a student
-    may have typed themselves (e.g. "hi, I'm Jane") — that content stays
-    as uploaded/written, since altering it would corrupt the research
-    record it exists to preserve.
-
-    Returns the new opaque label (e.g. "Participant-a1b2c3") on success,
-    or None if the student wasn't found or was already anonymized.
-    """
-    if not config.DB_URL:
-        return None
-    conn = get_db(); cur = conn.cursor()
+    Returns the new opaque label on success, or None if the student
+    wasn't found or was already anonymized — same contract as the
+    public function below."""
     cur.execute("SELECT id, email, anonymized_at FROM students WHERE id=%s", (student_id,))
     target = cur.fetchone()
     if not target or target["anonymized_at"]:
-        cur.close()
         return None
     original_email = target["email"]
     code = secrets.token_hex(6)
@@ -445,5 +430,45 @@ def anonymize_student_record(student_id):
                     (f"anon-{code}@anonymized.wink", original_email))
         cur.execute("""UPDATE email_suppressions SET email=%s WHERE lower(email)=lower(%s)""",
                     (f"anon-{code}@anonymized.wink", original_email))
-    conn.commit(); cur.close()
     return f"Participant-{code}"
+
+
+def anonymize_student_record(student_id):
+    """Shared by both the admin-triggered anonymization action and a
+    student's own account deletion — replaces identifying fields with an
+    opaque, untraceable label and scrubs the student's original email
+    address from every place WINK logs it independently of the students
+    row itself.
+
+    Irreversible: the original name/email are overwritten, not stored
+    anywhere else. Login is disabled (password hash randomized) since the
+    account can no longer be meaningfully identified by its owner anyway.
+
+    Scope, to be upfront about it: this scrubs the student row, WINK's own
+    system-generated event payloads, and email_events (SES bounce/complaint
+    records, which are keyed by email address independently of the student
+    row and would otherwise keep the original address forever). It does
+    NOT search conversation text or document content for a name a student
+    may have typed themselves (e.g. "hi, I'm Jane") — that content stays
+    as uploaded/written, since altering it would corrupt the research
+    record it exists to preserve.
+
+    This function manages its own connection/commit — fine for the
+    admin-triggered action, which has nothing else that needs to succeed
+    or fail together with it. If you need anonymization to happen
+    atomically alongside something else (see delete_account() in
+    auth.py), use _anonymize_student_sql() directly on your own cursor
+    instead of this wrapper.
+
+    Returns the new opaque label (e.g. "Participant-a1b2c3") on success,
+    or None if the student wasn't found or was already anonymized.
+    """
+    if not config.DB_URL:
+        return None
+    conn = get_db(); cur = conn.cursor()
+    label = _anonymize_student_sql(cur, student_id)
+    if label is None:
+        cur.close()
+        return None
+    conn.commit(); cur.close()
+    return label

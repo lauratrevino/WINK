@@ -89,8 +89,8 @@ def export_full_csv():
         buf = io.StringIO()
         fieldnames = ["id", "student_id", "created_at", "question", "answer_text", "model",
                       "retrieval_backend", "chunk_count", "document_ids", "latency_ms",
-                      "prompt_version", "student_feedback", "faculty_rating", "faculty_notes",
-                      "rated_by", "rated_at"]
+                      "prompt_version", "retrieved_context", "student_feedback", "faculty_rating",
+                      "faculty_notes", "rated_by", "rated_at"]
         writer = csv.DictWriter(buf, fieldnames=fieldnames, extrasaction="ignore")
         writer.writeheader()
         for r in rows:

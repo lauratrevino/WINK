@@ -103,6 +103,16 @@ def chat():
             }), 429
         data = request.get_json() or {}
         messages = data.get("messages", [])
+        # Malformed input here previously fell through to the generic
+        # except-Exception handler further down and returned a 500 —
+        # safe (no crash, no stack trace leaked), but the wrong status
+        # code: a client sending garbage is a bad request (400), not a
+        # server error (500), and 500s are what error-tracking/alerting
+        # typically treats as "something is actually broken here."
+        if not isinstance(messages, list):
+            return jsonify({"error": "Invalid request format."}), 400
+        if messages and not (isinstance(messages[-1], dict) and isinstance(messages[-1].get("content"), str)):
+            return jsonify({"error": "Invalid message format."}), 400
         user_msg = messages[-1]["content"] if messages else ""
         if isinstance(user_msg, str) and len(user_msg) > config.MAX_USER_MESSAGE_CHARS:
             return jsonify({"error": f"That message is too long (max {config.MAX_USER_MESSAGE_CHARS} characters). Please shorten it and try again."}), 400
@@ -265,6 +275,11 @@ def chat():
                 chunk_count=config.RETRIEVAL_TOP_N_STUDENT_DOCS if used_retrieval else 0,
                 document_ids=[d["id"] for d in docs],
                 latency_ms=int((time.time() - start_time) * 1000),
+                # Verbatim snapshot of what the AI actually saw — captured
+                # here rather than reconstructed later, since the source
+                # documents this came from can be edited or deleted
+                # afterward but this string can't change retroactively.
+                retrieved_context=(doc_ctx or "") + "\n\n" + (global_ctx or ""),
             )
             log_token_usage(student_id, "chat", config.CHAT_MODEL, usage)
 

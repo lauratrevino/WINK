@@ -12,7 +12,7 @@ def register(client, email="student@utep.edu"):
     resp = client.post("/register", data={
         "email": email, "password": "password123",
         "first_name": "Ada", "last_name": "Lovelace",
-        "classification": "Senior", "major": "Computer Science", "university": "UTEP",
+        "classification": "Senior", "major": "Computer Science", "university": "University of Texas at El Paso",
         "terms_agree": "on", "research_agree": "on",
     })
     mark_email_verified(email)
@@ -192,7 +192,7 @@ class TestChatAccessibility:
         from flask import render_template, g
         import app as app_module
         mock_student = {"id": 1, "email": "test@utep.edu", "first_name": "Test", "last_name": "Student",
-                        "classification": "Senior", "major": "Computer Science", "university": "UTEP",
+                        "classification": "Senior", "major": "Computer Science", "university": "University of Texas at El Paso",
                         "is_active": True, "email_verified": True}
         with app_module.app.test_request_context("/"):
             g.csp_nonce = "test-nonce"
@@ -218,7 +218,7 @@ class TestCommonQuestions:
             client.post("/register", data={
                 "email": email, "password": "password123",
                 "first_name": "S", "last_name": str(i),
-                "classification": "Senior", "major": "Computer Science", "university": "UTEP",
+                "classification": "Senior", "major": "Computer Science", "university": "University of Texas at El Paso",
                 "terms_agree": "on", "research_agree": "on",
             })
         with app.app_context():

@@ -6,7 +6,7 @@ def register_unverified(client, email="student@utep.edu"):
     return client.post("/register", data={
         "email": email, "password": "password123",
         "first_name": "Ada", "last_name": "Lovelace",
-        "classification": "Senior", "major": "Computer Science", "university": "UTEP",
+        "classification": "Senior", "major": "Computer Science", "university": "University of Texas at El Paso",
         "terms_agree": "on", "research_agree": "on",
     })
 

@@ -1,16 +1,17 @@
 import hashlib
+import json
 import logging
 import secrets
 from datetime import timedelta
 
-from flask import Blueprint, current_app, g, jsonify, redirect, render_template, request, session, url_for
+from flask import Blueprint, abort, current_app, g, jsonify, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from .. import config
 from ..errors import log_error
 from ..extensions import csrf, get_db
 from ..security import login_required, rate_limited
-from ..services.analytics import anonymize_student_record, log_event
+from ..services.analytics import _anonymize_student_sql, log_event
 from ..services.deadlines import extract_deadlines, insert_deadlines
 from ..services.email import send_email
 from ..timeutil import utcnow_naive
@@ -50,6 +51,8 @@ def register():
                 return err("Please choose a valid preferred language.")
             if cl not in config.CLASSIFICATIONS or major not in config.MAJORS:
                 return err("Please choose a valid classification and major.")
+            if university not in config.UNIVERSITIES:
+                return err("Please choose your university from the list.")
             if not config.EMAIL_RE.match(email):
                 return err("Please enter a valid email address.")
             if len(pw) < 8:
@@ -174,6 +177,13 @@ def login():
                 pw_changed = s.get("password_changed_at")
                 session["pw_changed_at"] = pw_changed.isoformat() if pw_changed else None
                 log_event(s["id"], "login")
+                if s.get("mfa_enabled"):
+                    # Password alone isn't enough for this account — the
+                    # session is real (sid is set) but mfa_verified is
+                    # deliberately left unset, so admin_required/
+                    # admin_page_required won't grant access until the
+                    # code is checked at /mfa/verify.
+                    return redirect(url_for("auth.mfa_verify_page"))
                 if email == config.ADMIN_EMAIL:
                     return redirect(url_for("admin.analytics_page"))
                 return redirect(url_for("dashboard.dashboard"))
@@ -352,11 +362,19 @@ def delete_account():
     """Deletes the student's own account: blocks login immediately (via
     account_deleted_at, same as before — this also excludes them from
     deadline reminders and other ongoing automated processes, see
-    security.py/calendar.py/documents.py), and additionally anonymizes
-    their identifying information (name, email) using the same routine as
-    the admin-triggered anonymization action — see
-    anonymize_student_record() in services/analytics.py for exactly what
-    that does and doesn't scrub.
+    security.py/calendar.py/documents.py), and atomically anonymizes
+    their identifying information (name, email) in the SAME transaction
+    — see _anonymize_student_sql() in services/analytics.py for exactly
+    what that does and doesn't scrub.
+
+    These two things happen in one transaction on purpose: if they were
+    two separate commits (as this used to be) and the second one failed
+    for any reason, the account would end up disabled — the student
+    logged out, unable to log back in — while their real name and email
+    were still sitting in the database, un-anonymized. Either both
+    changes land together, or neither does; there's no partial state
+    where deletion "succeeded" from the account's perspective but the
+    anonymization it promised silently didn't happen.
 
     This is a small research pilot (fewer than 10 students) with a
     deliberately simple policy: deleting your account removes your ability
@@ -374,11 +392,167 @@ def delete_account():
         conn = get_db(); cur = conn.cursor()
         cur.execute("UPDATE students SET account_deleted_at=NOW() WHERE id=%s AND account_deleted_at IS NULL",
                     (s["id"],))
+        _anonymize_student_sql(cur, s["id"])
         conn.commit(); cur.close()
-        anonymize_student_record(s["id"])
         log_event(s["id"], "account_deleted")
         session.clear()
         return jsonify({"ok": True})
     except Exception as e:
         log_error("auth.delete_account", e)
         return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
+
+
+# --- Two-factor authentication (TOTP) ---------------------------------
+#
+# Admin access was otherwise gated purely by "does the logged-in email
+# match ADMIN_EMAIL" — a single password standing between anyone and
+# full access to (anonymized, but still real) student research data.
+# This adds a second factor: an authenticator-app code, checked at
+# /mfa/verify after a normal password login, before admin_required or
+# admin_page_required (see security.py) will grant access. The
+# mechanism itself isn't hard-restricted to the admin account — any
+# account can enable it — but enforcement in security.py only actually
+# blocks anything for an account that has mfa_enabled=True, so today
+# that's effectively just whichever account you turn it on for.
+
+
+def _generate_backup_codes(n=8):
+    """Returns (plain_codes_to_show_once, hashed_codes_to_store)."""
+    plain = [secrets.token_hex(4) for _ in range(n)]
+    hashed = [generate_password_hash(c) for c in plain]
+    return plain, hashed
+
+
+@bp.route("/mfa/setup", methods=["GET", "POST"])
+@login_required
+def mfa_setup():
+    import pyotp
+    s = g.student
+    if request.method == "GET":
+        if s.get("mfa_enabled"):
+            return render_template("mfa_setup.html", already_enabled=True)
+        # A pending secret lives only in the session until confirmed —
+        # never written to the database until the user proves they can
+        # actually generate a valid code with it. Reused across repeated
+        # GETs during setup so the QR code and the code they eventually
+        # submit refer to the same secret.
+        if not session.get("mfa_pending_secret"):
+            session["mfa_pending_secret"] = pyotp.random_base32()
+        secret = session["mfa_pending_secret"]
+        totp = pyotp.TOTP(secret)
+        provisioning_uri = totp.provisioning_uri(name=s["email"], issuer_name="WINK Admin")
+        return render_template("mfa_setup.html", already_enabled=False,
+                                secret=secret, provisioning_uri=provisioning_uri)
+
+    # POST — verify the code against the pending secret, then enable
+    code = request.form.get("code", "").strip()
+    secret = session.get("mfa_pending_secret")
+    if not secret:
+        return render_template("mfa_setup.html", already_enabled=False,
+                                error="Your setup session expired — please start again.")
+    totp = pyotp.TOTP(secret)
+    if not totp.verify(code, valid_window=1):
+        provisioning_uri = pyotp.TOTP(secret).provisioning_uri(name=s["email"], issuer_name="WINK Admin")
+        return render_template("mfa_setup.html", already_enabled=False,
+                                secret=secret, provisioning_uri=provisioning_uri,
+                                error="That code didn't match — check your authenticator app and try again.")
+    plain_codes, hashed_codes = _generate_backup_codes()
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""UPDATE students SET mfa_secret=%s, mfa_enabled=TRUE, mfa_backup_codes=%s
+                   WHERE id=%s""", (secret, json.dumps(hashed_codes), s["id"]))
+    conn.commit(); cur.close()
+    session.pop("mfa_pending_secret", None)
+    session["mfa_verified"] = True  # they just proved possession — no need to re-enter immediately
+    log_event(s["id"], "mfa_enabled")
+    return render_template("mfa_setup.html", already_enabled=True, just_enabled=True,
+                            backup_codes=plain_codes)
+
+
+@bp.route("/mfa/qr-code")
+@login_required
+def mfa_qr_code():
+    import io
+    import pyotp
+    import qrcode
+    s = g.student
+    secret = session.get("mfa_pending_secret")
+    if not secret:
+        abort(404)
+    totp = pyotp.TOTP(secret)
+    uri = totp.provisioning_uri(name=s["email"], issuer_name="WINK Admin")
+    img = qrcode.make(uri)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+    return current_app.response_class(buf.read(), mimetype="image/png")
+
+
+@bp.route("/mfa/verify", methods=["GET", "POST"])
+@login_required
+def mfa_verify_page():
+    import pyotp
+    s = g.student
+    if not s.get("mfa_enabled"):
+        # Nothing to verify for this account — don't leave them stuck
+        # on a page that can never succeed.
+        return redirect(url_for("dashboard.dashboard"))
+    if request.method == "GET":
+        return render_template("mfa_verify.html")
+
+    code = request.form.get("code", "").strip()
+    if rate_limited(f"mfa-verify:{s['id']}", max_calls=5, window_seconds=60):
+        return render_template("mfa_verify.html", error="Too many attempts — please wait a minute and try again.")
+
+    verified = False
+    if s.get("mfa_secret"):
+        totp = pyotp.TOTP(s["mfa_secret"])
+        verified = totp.verify(code, valid_window=1)
+
+    if not verified and code:
+        # Fall back to checking backup codes — each one is single-use,
+        # for when the authenticator device itself isn't available.
+        try:
+            hashed_codes = json.loads(s.get("mfa_backup_codes") or "[]")
+        except Exception:
+            hashed_codes = []
+        for i, h in enumerate(hashed_codes):
+            if check_password_hash(h, code):
+                verified = True
+                remaining = hashed_codes[:i] + hashed_codes[i + 1:]
+                conn = get_db(); cur = conn.cursor()
+                cur.execute("UPDATE students SET mfa_backup_codes=%s WHERE id=%s",
+                            (json.dumps(remaining), s["id"]))
+                conn.commit(); cur.close()
+                log_event(s["id"], "mfa_backup_code_used")
+                break
+
+    if not verified:
+        return render_template("mfa_verify.html", error="That code wasn't right — please try again.")
+
+    session["mfa_verified"] = True
+    log_event(s["id"], "mfa_verified")
+    if s["email"].lower() == config.ADMIN_EMAIL:
+        return redirect(url_for("admin.analytics_page"))
+    return redirect(url_for("dashboard.dashboard"))
+
+
+@bp.route("/mfa/disable", methods=["POST"])
+@login_required
+def mfa_disable():
+    s = g.student
+    if not s.get("mfa_enabled"):
+        return jsonify({"error": "MFA isn't enabled on this account."}), 400
+    # Requires BOTH an already-MFA-verified session AND the password
+    # again — someone who only has the password (the exact thing MFA is
+    # meant to add a layer beyond) shouldn't be able to turn it back off.
+    if not session.get("mfa_verified"):
+        return jsonify({"error": "Please verify your current code before disabling MFA."}), 403
+    pw = request.form.get("password", "").strip()
+    if not pw or not check_password_hash(s["password_hash"], pw):
+        return jsonify({"error": "Incorrect password."}), 400
+    conn = get_db(); cur = conn.cursor()
+    cur.execute("""UPDATE students SET mfa_secret=NULL, mfa_enabled=FALSE, mfa_backup_codes='[]'
+                   WHERE id=%s""", (s["id"],))
+    conn.commit(); cur.close()
+    log_event(s["id"], "mfa_disabled")
+    return jsonify({"ok": True})

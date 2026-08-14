@@ -7,7 +7,7 @@ FIXTURES_DIR = os.path.join(os.path.dirname(__file__), "fixtures")
 
 def register(client, email="student@utep.edu", password="password123",
              first_name="Ada", last_name="Lovelace", classification="Senior",
-             major="Computer Science", university="UTEP"):
+             major="Computer Science", university="University of Texas at El Paso"):
     from conftest import mark_email_verified
     resp = client.post("/register", data={
         "email": email, "password": password, "first_name": first_name,
@@ -36,7 +36,7 @@ class TestRegistrationAndLogin:
             row = cur.fetchone(); cur.close()
         assert row is not None, "student row should actually exist in Postgres"
         assert row["first_name"] == "Ada"
-        assert row["university"] == "UTEP"
+        assert row["university"] == "University of Texas at El Paso"
         assert row["password_hash"] != "password123", "password must be hashed, never stored raw"
 
         dash = client.get("/dashboard")

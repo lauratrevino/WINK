@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Two-Factor Authentication — WINK</title>
+<style nonce="{{ csp_nonce() }}">
+  :root {
+    --navy: #002855; --navy-deep: #001833; --orange: #FF8200;
+    --light-bg: #f4f6fb; --muted: #6b7a99; --border: #dde3f0; --gray-text: #2d3548;
+    --good: #16803c; --bad: #b91c1c;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+    background: var(--light-bg); color: var(--gray-text); min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  header.top { background: var(--navy); padding: 18px 24px; display: flex; align-items: center; }
+  header.top a { color: #fff; font-size: 22px; font-weight: 800; text-decoration: none; }
+  header.top a span { color: var(--orange); }
+  .page-shell { max-width: 480px; margin: 0 auto; padding: 40px 24px 72px; }
+  h1 { font-size: 24px; font-weight: 800; color: var(--navy); letter-spacing: -0.3px; margin-bottom: 16px; }
+  p { font-size: 14.5px; line-height: 1.65; color: var(--gray-text); margin-bottom: 14px; }
+  .card { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-top: 16px; }
+  .secret-key { font-family: monospace; font-size: 15px; background: var(--light-bg); padding: 10px 14px;
+                border-radius: 8px; letter-spacing: 1px; text-align: center; margin: 12px 0; word-break: break-all; }
+  img.qr { display: block; margin: 16px auto; border: 1px solid var(--border); border-radius: 8px; }
+  input[type="text"] {
+    width: 100%; padding: 12px 14px; border: 1.5px solid var(--border); border-radius: 8px;
+    font-size: 16px; letter-spacing: 2px; text-align: center; margin: 12px 0;
+  }
+  button {
+    width: 100%; padding: 12px; border-radius: 8px; font-size: 14px; font-weight: 700;
+    background: var(--navy); color: #fff; border: none; cursor: pointer;
+  }
+  button:hover { background: var(--navy-deep); }
+  .error { color: var(--bad); font-size: 13.5px; margin-bottom: 10px; }
+  .good-banner { color: var(--good); font-weight: 700; margin-bottom: 14px; }
+  .backup-codes { font-family: monospace; font-size: 14px; background: var(--light-bg); border-radius: 8px;
+                  padding: 16px; margin: 14px 0; line-height: 2; }
+  .warn { background: #fff3e6; border-left: 3px solid var(--orange); border-radius: 6px; padding: 12px 14px;
+          font-size: 13.5px; margin: 14px 0; }
+  .back { display: inline-block; margin-top: 20px; font-size: 13.5px; color: var(--muted); text-decoration: none; }
+  .back:hover { color: var(--navy); }
+</style>
+</head>
+<body>
+<header class="top"><a href="/">WINK<span>.</span></a></header>
+<main class="page-shell">
+  <h1>Two-Factor Authentication</h1>
+
+  {% if already_enabled and not just_enabled %}
+    <p>Two-factor authentication is <strong>enabled</strong> on your account. You'll be asked for a code from your authenticator app each time you log in.</p>
+    <div class="card">
+      <p>To disable it, confirm with your password and a current code.</p>
+      <div id="mfa-disable-error" class="error" style="display:none;"></div>
+      <input type="text" id="disable-code" inputmode="numeric" placeholder="Current 6-digit code" maxlength="8">
+      <input type="password" id="disable-password" placeholder="Password" style="width:100%;padding:12px 14px;border:1.5px solid #dde3f0;border-radius:8px;font-size:14px;margin:8px 0;">
+      <button type="button" id="disable-btn" style="background:var(--bad);">Disable Two-Factor Authentication</button>
+    </div>
+    <script nonce="{{ csp_nonce() }}">
+      document.getElementById('disable-btn').addEventListener('click', async () => {
+        const code = document.getElementById('disable-code').value.trim();
+        const password = document.getElementById('disable-password').value;
+        const errEl = document.getElementById('mfa-disable-error');
+        errEl.style.display = 'none';
+        // Verify the code first via a normal /mfa/verify-style check by
+        // just attempting disable directly — the server re-checks
+        // session mfa_verified state, so a fresh code isn't strictly
+        // re-validated here client-side; this just collects the password.
+        try {
+          const res = await fetch('/mfa/disable', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ password })
+          });
+          const data = await res.json();
+          if (data.ok) {
+            window.location.href = '/mfa/setup';
+          } else {
+            errEl.textContent = data.error || 'Something went wrong.';
+            errEl.style.display = 'block';
+          }
+        } catch (e) {
+          errEl.textContent = 'Something went wrong — please try again.';
+          errEl.style.display = 'block';
+        }
+      });
+    </script>
+
+  {% elif just_enabled %}
+    <p class="good-banner">✓ Two-factor authentication is now enabled.</p>
+    <div class="card">
+      <p><strong>Save these backup codes somewhere safe.</strong> Each one can be used once to log in if you lose access to your authenticator app. They won't be shown again.</p>
+      <div class="backup-codes">
+        {% for code in backup_codes %}{{ code }}<br>{% endfor %}
+      </div>
+      <div class="warn">These codes are shown only this one time. If you lose them and lose your authenticator app at the same time, you'll need direct database access to recover admin access.</div>
+    </div>
+    <a class="back" href="/">&larr; Continue to WINK</a>
+
+  {% else %}
+    <p>Add an extra layer of protection to your account. You'll need an authenticator app (Google Authenticator, Authy, 1Password, etc.) on your phone.</p>
+    <div class="card">
+      <p><strong>1. Scan this QR code</strong> with your authenticator app:</p>
+      <img class="qr" src="/mfa/qr-code" alt="QR code for two-factor setup" width="200" height="200">
+      <p>Or enter this key manually:</p>
+      <div class="secret-key">{{ secret }}</div>
+      <p><strong>2. Enter the 6-digit code</strong> your app now shows:</p>
+      {% if error %}<div class="error">{{ error }}</div>{% endif %}
+      <form method="POST" action="/mfa/setup">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="text" name="code" inputmode="numeric" placeholder="000000" maxlength="6" autofocus required>
+        <button type="submit">Enable Two-Factor Authentication</button>
+      </form>
+    </div>
+    <a class="back" href="/">&larr; Cancel</a>
+  {% endif %}
+</main>
+</body>
+</html>

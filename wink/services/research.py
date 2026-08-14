@@ -9,7 +9,7 @@ _VALID_RATINGS = {"correct", "incorrect", "unsure"}
 
 def log_answer(student_id, question, answer_text="", conversation_id=None, message_index=None,
                 retrieval_backend="full_context", chunk_count=0,
-                document_ids=None, latency_ms=None, prompt_version="v1"):
+                document_ids=None, latency_ms=None, prompt_version="v1", retrieved_context=""):
     if not config.DB_URL:
         return None
     conn = None
@@ -18,11 +18,12 @@ def log_answer(student_id, question, answer_text="", conversation_id=None, messa
         conn = get_db(); cur = conn.cursor()
         cur.execute("""INSERT INTO answer_logs
                        (student_id, conversation_id, message_index, question, answer_text, model,
-                        retrieval_backend, chunk_count, document_ids, latency_ms, prompt_version)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
-                    (student_id, conversation_id, message_index, (question or "")[:2000], (answer_text or "")[:4000],
+                        retrieval_backend, chunk_count, document_ids, latency_ms, prompt_version,
+                        retrieved_context)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
+                    (student_id, conversation_id, message_index, question or "", answer_text or "",
                      config.CHAT_MODEL, retrieval_backend, chunk_count,
-                     json.dumps(document_ids or []), latency_ms, prompt_version))
+                     json.dumps(document_ids or []), latency_ms, prompt_version, retrieved_context or ""))
         new_id = cur.fetchone()["id"]
         conn.commit()
         return new_id
@@ -279,7 +280,7 @@ def get_full_sample(limit=100000):
         cur.execute("""SELECT id, student_id, question, answer_text, model, retrieval_backend,
                               chunk_count, document_ids, latency_ms, prompt_version,
                               student_feedback, faculty_rating, faculty_notes, rated_by, rated_at,
-                              created_at
+                              created_at, retrieved_context
                        FROM answer_logs
                        ORDER BY created_at ASC LIMIT %s""", (limit,))
         rows = [dict(r) for r in cur.fetchall()]

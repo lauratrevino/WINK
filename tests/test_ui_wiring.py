@@ -7,7 +7,7 @@ def register(client, email="student@utep.edu"):
     resp = client.post("/register", data={
         "email": email, "password": "password123",
         "first_name": "Ada", "last_name": "Lovelace",
-        "classification": "Senior", "major": "Computer Science", "university": "UTEP",
+        "classification": "Senior", "major": "Computer Science", "university": "University of Texas at El Paso",
         "terms_agree": "on", "research_agree": "on",
     })
     mark_email_verified(email)
@@ -66,7 +66,7 @@ class TestNewUIWiring:
         resp = client.post("/update-profile", json={
             "first_name": "Ada", "last_name": "Lovelace",
             "classification": "Senior", "major": "Computer Science",
-            "university": "UTEP", "preferred_language": "Spanish",
+            "university": "University of Texas at El Paso", "preferred_language": "Spanish",
         })
         assert resp.status_code == 200
         r = client.get("/dashboard")

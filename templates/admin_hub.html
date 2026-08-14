@@ -66,6 +66,11 @@
       <div class="admin-card-title">Privacy Policy</div>
       <div class="admin-card-desc">The public-facing privacy page — opens in a new tab.</div>
     </a>
+    <a href="/mfa/setup" class="admin-card">
+      <div class="admin-card-icon">🔐</div>
+      <div class="admin-card-title">Two-Factor Authentication</div>
+      <div class="admin-card-desc">{{ "Manage — currently enabled" if s.mfa_enabled else "Set up an authenticator app for admin login" }}</div>
+    </a>
   </div>
 </main>
 </body>

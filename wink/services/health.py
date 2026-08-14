@@ -182,6 +182,7 @@ def run_health_checks():
     checks["reminders_cron"] = _check_cron_job("send_deadline_reminders", "Deadline reminders")
     checks["weekly_digest_cron"] = _check_cron_job("send_weekly_digest", "Weekly digest")
     checks["purge_cron"] = _check_cron_job("purge_deleted_conversations", "Conversation purge")
+    checks["demo_purge_cron"] = _check_cron_job("purge_expired_demos", "Expired demo cleanup")
 
     # --- Document parsing libraries + OCR ------------------------------
     try:
