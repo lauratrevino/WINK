@@ -38,7 +38,7 @@ def _check_cron_job(job_name, label):
     generic 'last cron run' check that could hide a job silently going
     stale simply because a different job happened to run more recently."""
     if not getattr(config, "CRON_SECRET", None):
-        return ("warn", f"No CRON_SECRET set — {job_name} is unreachable, so nothing can trigger it.")
+        return ("warn", f"No CRON_SECRET set — {label} is unreachable, so nothing can trigger it.")
     if not config.DB_URL:
         return ("warn", "Endpoint is configured, but no database is available to check its run history.")
     try:
@@ -49,7 +49,7 @@ def _check_cron_job(job_name, label):
         row = cur.fetchone()
         cur.close()
         if not row:
-            return ("warn", "Configured, but has never been called yet — confirm your external scheduler is set up.")
+            return ("warn", f"{label} is configured, but has never been called yet — confirm your external scheduler is set up.")
         if row["last_error"]:
             return ("fail", f"Last run at {row['started_at']} failed: {str(row['last_error'])[:150]}")
         if not row["completed_at"]:
@@ -237,7 +237,7 @@ def run_health_checks():
 
     # --- Disk space -----------------------------------------------------
     try:
-        total, used, free = shutil.disk_usage("/")
+        total, _, free = shutil.disk_usage("/")
         free_pct = round((free / total) * 100)
         if free_pct > 20:
             status = "ok"

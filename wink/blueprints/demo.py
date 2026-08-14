@@ -56,21 +56,26 @@ def delete_demo_student(student_id, reason="logout"):
 
 def _seed_demo(cur, sid):
     today = date.today()
+    # 4th field is a doc_type — must be one of config.DOC_TYPES' actual slugs
+    # (lowercase/underscored), not a display label, since it's now stored
+    # as-is rather than hardcoded (see the INSERT below). "Study Guide" has
+    # no matching slug in DOC_TYPES, so it maps to "other" rather than
+    # inventing a category the rest of the app doesn't recognize.
     docs = [
-        ("UNIV 1301", "12345", "UNIV1301_Syllabus.txt", "Syllabus",
+        ("UNIV 1301", "12345", "UNIV1301_Syllabus.txt", "syllabus",
          "UNIV 1301 Seminar in Critical Inquiry. Attendance 10%, Edge Activities 20%, Reflection Assignments 30%, Ethnography Project 40%. Office hours Tuesday 2-4 PM. Students should use tutoring and advising resources when needed."),
-        ("MATH 1324", "23456", "MATH1324_Syllabus.txt", "Syllabus",
+        ("MATH 1324", "23456", "MATH1324_Syllabus.txt", "syllabus",
          "MATH 1324 Mathematics for Business. Homework 25%, Quizzes 15%, Midterm Exams 35%, Final Exam 25%. Chapters 1-5 cover equations, functions, systems, matrices, and finance applications."),
-        ("HIST 1301", "34567", "HIST1301_Calendar.txt", "Course Calendar",
+        ("HIST 1301", "34567", "HIST1301_Calendar.txt", "course_calendar",
          "HIST 1301 U.S. History. Reading responses 20%, Primary Source Analysis 25%, Midterm 25%, Final Project 30%. Topics include colonization, revolution, the early republic, expansion, slavery, and the Civil War."),
-        ("BIOL 1305", "45678", "BIOL1305_Study_Guide.txt", "Study Guide",
+        ("BIOL 1305", "45678", "BIOL1305_Study_Guide.txt", "other",
          "BIOL 1305 General Biology study guide: scientific method, cell structure, membranes, metabolism, DNA, genetics, evolution, and ecology. Lab safety and vocabulary review are required."),
     ]
     doc_ids = []
     for course, crn, name, dtype, content in docs:
         cur.execute("""INSERT INTO documents(student_id,filename,orig_name,course,crn,size_bytes,content,doc_type)
-                       VALUES(%s,%s,%s,%s,%s,%s,%s,'material') RETURNING id""",
-                    (sid, f"demo_{sid}_{name}", name, course, crn, len(content.encode()), content))
+                       VALUES(%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                    (sid, f"demo_{sid}_{name}", name, course, crn, len(content.encode()), content, dtype))
         doc_ids.append(cur.fetchone()["id"])
         demo_dir = os.path.join(config.UPLOAD_FOLDER, str(sid))
         os.makedirs(demo_dir, exist_ok=True)
@@ -162,8 +167,8 @@ def start_demo():
     token=secrets.token_hex(8)
     email=f"demo-{token}@wink-demo.invalid"
     cur.execute("""INSERT INTO students(email,password_hash,first_name,last_name,classification,major,university,preferred_language,email_verified,is_active,is_demo,demo_expires_at)
-                   VALUES(%s,%s,'Winkling','Demo','Freshman','Business','University of Texas at El Paso','',TRUE,TRUE,TRUE,NOW()+INTERVAL '6 hours') RETURNING id""",
-                (email,generate_password_hash(secrets.token_urlsafe(24))))
+                   VALUES(%s,%s,'Winkling','Demo','Freshman','Business','University of Texas at El Paso','',TRUE,TRUE,TRUE,NOW() + %s * INTERVAL '1 hour') RETURNING id""",
+                (email,generate_password_hash(secrets.token_urlsafe(24)),DEMO_TTL_HOURS))
     sid=cur.fetchone()["id"]
     _seed_demo(cur,sid)
     conn.commit(); cur.close()
