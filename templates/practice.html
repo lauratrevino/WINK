@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Practice — WINK</title>
+  <title>Practice Center — WINK</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/nav.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/practice.css') }}">
   <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -37,28 +37,38 @@
     .summary-block h3:first-child { margin-top: 0; }
     .summary-block ul { margin: 6px 0 12px 20px; }
     .summary-block p { margin: 8px 0; }
+    .course-dropdown-wrap { position: relative; }
+    .course-dropdown-wrap input#course-input { padding-right: 30px; width: 100%; box-sizing: border-box; }
+    .course-dropdown-arrow {
+      position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+      pointer-events: none; color: #6b7a99; font-size: 13px;
+    }
 </style>
 </head>
 <body>
 
   {% include "_nav.html" %}
+  <script src="{{ url_for('static', filename='js/scroll-reset.js') }}"></script>
 
   <div class="page-shell">
     <div class="page-header">
-      <h1>🧠 Practice &amp; Review</h1>
-      <p>Generate new practice questions from your course material, or review what's due today.</p>
+      <h1>🧠 Practice Center</h1>
+      <p>Generate new study materials from your course material.</p>
     </div>
 
     <div class="card">
-      <h2>Generate practice questions</h2>
-      <div class="card-sub">Uses your uploaded material for a course. If you've also uploaded a past exam or quiz and tagged it as an assessment, its format is used as a style guide.</div>
+      <h2>Generate study materials</h2>
+      <div class="card-sub">Uses your uploaded material for a course.</div>
 
       <div id="generate-error" class="alert alert-danger" style="display:none;"></div>
 
       <div class="form-row">
         <div class="form-group">
           <label for="course-input">Course</label>
-          <input type="text" id="course-input" list="known-courses" placeholder="e.g. CS 2302" autocomplete="off">
+          <div class="course-dropdown-wrap">
+            <input type="text" id="course-input" list="known-courses" placeholder="e.g. CS 2302" autocomplete="off">
+            <span class="course-dropdown-arrow" aria-hidden="true">▾</span>
+          </div>
           <datalist id="known-courses">
             {% for c in known_courses %}
             <option value="{{ c }}">
@@ -111,29 +121,20 @@
       return div.innerHTML;
     }
 
-    // Courses that have at least one document tagged as an assessment —
-    // Assessment Quiz needs one for whatever course is selected; see
-    // onQtypeChange() below for the upfront warning this powers.
-    const ASSESSMENT_COURSES = new Set({{ assessment_courses | tojson }});
-
     const QTYPE_NOTES = {
       flashcard: 'Short front/back cards for quick recall — self-graded.',
       review: 'Open-ended short-answer and multiple-choice questions — self-graded.',
       quiz: 'Multiple choice, auto-graded — pick an answer and see your score with an explanation immediately.',
       summary: 'A study summary of your material — not a question set, nothing to grade.',
-      assessment_quiz: 'Multiple choice styled after a past exam/quiz you\'ve uploaded and tagged as an assessment for this course, auto-graded.',
+      assessment_quiz: 'Determines how much you already know about this course, then builds a personalized study plan based on your current knowledge.',
     };
 
     function onQtypeChange() {
       const qtype = document.getElementById('qtype-input').value;
-      const course = document.getElementById('course-input').value.trim();
       const note = document.getElementById('qtype-note');
       const countGroup = document.getElementById('count-group');
       countGroup.style.display = (qtype === 'summary') ? 'none' : '';
-      let text = QTYPE_NOTES[qtype] || '';
-      if (qtype === 'assessment_quiz' && course && !ASSESSMENT_COURSES.has(course)) {
-        text += ' ⚠️ No assessment uploaded for ' + course + ' yet — upload one on the Documents page first.';
-      }
+      const text = QTYPE_NOTES[qtype] || '';
       note.textContent = text;
       note.style.display = text ? 'block' : 'none';
     }
@@ -382,7 +383,7 @@
         const data = await resp.json();
         loading.style.display = 'none';
         if (!data.questions || !data.questions.length) {
-          results.innerHTML = '<div class="empty-state">Nothing due for review right now — generate some practice questions above, or check back later.</div>';
+          results.innerHTML = '<div class="empty-state">Nothing due for review right now — generate some study materials above, or check back later.</div>';
           return;
         }
 

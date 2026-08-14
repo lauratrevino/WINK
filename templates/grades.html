@@ -11,11 +11,12 @@
 <body>
 
   {% include "_nav.html" %}
+  <script src="{{ url_for('static', filename='js/scroll-reset.js') }}"></script>
 
   <div class="page-shell">
     <div class="gc-header">
       <h1>🧮 Grade Calculator</h1>
-      <p>Pull your grading breakdown from an uploaded syllabus, then plug in scores to see where you stand — or what you still need.</p>
+      <p>Pull your grading breakdown from an uploaded course document, then plug in scores to see where you stand — or what you still need.</p>
     </div>
 
     <div class="card">
@@ -28,9 +29,9 @@
             <option value="" disabled selected>No courses uploaded yet</option>
           {% endif %}
         </select>
-        <button class="btn btn-primary" id="extract-btn" onclick="extractWeights()" {% if not known_courses %}disabled{% endif %}>Pull weights from my syllabus</button>
+        <button class="btn btn-primary" id="extract-btn" onclick="extractWeights()" {% if not known_courses %}disabled{% endif %}>Pull Grade Weights</button>
       </div>
-      <div class="extract-note">Uses whatever you've uploaded for this course on the Documents page — upload a syllabus there first if nothing comes back.</div>
+      <div class="extract-note">Uses whatever you've uploaded for this course on the Documents page — upload a syllabus or other course document with grading info there first if nothing comes back.</div>
       <div class="extract-msg" id="extract-msg"></div>
     </div>
 
@@ -47,7 +48,7 @@
           </tr>
         </tfoot>
       </table>
-      <div class="weights-empty" id="weights-empty" style="display:none;">No categories yet — extract from a syllabus above, or add one manually.</div>
+      <div class="weights-empty" id="weights-empty" style="display:none;">No categories yet — extract from a course document above, or add one manually.</div>
       <button class="btn btn-secondary add-row-btn" onclick="addRow('', '', '')">+ Add category</button>
     </div>
 
@@ -305,7 +306,7 @@
       const btn = document.getElementById('extract-btn');
       btn.disabled = true;
       const originalLabel = btn.textContent;
-      btn.textContent = 'Reading your syllabus…';
+      btn.textContent = 'Reading your course document…';
       hideExtractMessage();
       try {
         const res = await fetch('/extract-grading-weights', {

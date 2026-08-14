@@ -122,6 +122,7 @@
       position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
       background: none; border: none; cursor: pointer; padding: 4px 6px;
       font-size: 13px; line-height: 1; color: #6b7a99; border-radius: 4px;
+      display: inline-flex; align-items: center; justify-content: center;
     }
     .field-icon-btn:hover { color: #002855; background: rgba(0,40,85,0.06); }
 
@@ -238,6 +239,7 @@
 </style>
 </head>
 <body>
+<script src="{{ url_for('static', filename='js/scroll-reset.js') }}"></script>
   <div class="register-bg"></div>
   <div class="register-bg-overlay"></div>
   <a href="#register-form" class="skip-link">Skip to registration form</a>
@@ -2635,7 +2637,17 @@
             <div class="field-with-icon">
               <input type="password" id="password" name="password" placeholder="At least 8 characters" required aria-required="true" minlength="8"
                      autocomplete="new-password" aria-describedby="password-hint">
-              <button type="button" class="field-icon-btn" id="toggle-password-btn" aria-label="Show password">👁️</button>
+              <button type="button" class="field-icon-btn" id="toggle-password-btn" aria-label="Show password">
+                <svg id="eye-icon-visible" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+                <svg id="eye-icon-hidden" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:none;">
+                  <path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a21.86 21.86 0 0 1 5.06-6.06M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a21.8 21.8 0 0 1-3.22 4.51"></path>
+                  <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"></path>
+                  <path d="M1 1l22 22"></path>
+                </svg>
+              </button>
             </div>
             <ul class="pw-hint" id="password-hint">
               <li>At least 8 characters</li>
@@ -2695,7 +2707,7 @@
 
         <h3>Information We Collect</h3>
         <div class="terms-data-box">
-          <strong>WINK collects and may store information about your use of the system, including:</strong>
+          <strong>WINK Collects and Stores information about your use of the system, including:</strong>
           <ul>
             <li>Account and profile information you provide</li>
             <li>Course and academic information</li>
@@ -2752,11 +2764,16 @@
     (function setupPasswordToggle() {
       const btn = document.getElementById('toggle-password-btn');
       const input = document.getElementById('password');
+      const iconVisible = document.getElementById('eye-icon-visible');
+      const iconHidden = document.getElementById('eye-icon-hidden');
       if (!btn || !input) return;
       btn.addEventListener('click', () => {
         const showing = input.type === 'text';
         input.type = showing ? 'password' : 'text';
-        btn.textContent = showing ? '👁️' : '🙈';
+        if (iconVisible && iconHidden) {
+          iconVisible.style.display = showing ? '' : 'none';
+          iconHidden.style.display = showing ? 'none' : '';
+        }
         btn.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
       });
     })();

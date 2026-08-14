@@ -4,7 +4,7 @@ import shutil
 import sys
 import tempfile
 import time
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 
 from flask import Blueprint, current_app, g, jsonify, render_template
 
@@ -166,6 +166,9 @@ def landing():
         return render_template("landing.html")
 
 
+PRIVACY_EFFECTIVE_DATE = "Monday, August 17th, 2026"
+
+
 @bp.route("/privacy")
 def privacy():
     # Intentionally public (no login_required) — AWS SES reviewers and
@@ -174,11 +177,11 @@ def privacy():
         return render_template(
             "privacy.html",
             admin_email=config.ADMIN_EMAIL,
-            updated_date=date.today().strftime("%B %-d, %Y"),
+            updated_date=PRIVACY_EFFECTIVE_DATE,
         )
     except Exception as e:
         log_error("misc.privacy", e)
-        return render_template("privacy.html", admin_email=config.ADMIN_EMAIL, updated_date="")
+        return render_template("privacy.html", admin_email=config.ADMIN_EMAIL, updated_date=PRIVACY_EFFECTIVE_DATE)
 
 
 @bp.route("/manual")
