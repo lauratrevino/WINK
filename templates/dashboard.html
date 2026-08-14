@@ -164,8 +164,8 @@
               <div class="profile-label">Name</div>
               <div class="profile-value" id="profile-view-name">{{ s.first_name }} {{ s.last_name }}</div>
               <div class="profile-edit" style="display:none;gap:8px;">
-                <input type="text" id="profile-input-first" class="profile-input" value="{{ s.first_name }}" placeholder="First name">
-                <input type="text" id="profile-input-last" class="profile-input" value="{{ s.last_name }}" placeholder="Last name">
+                <input type="text" id="profile-input-first" class="profile-input" value="{{ s.first_name }}" placeholder="First name" aria-label="First name">
+                <input type="text" id="profile-input-last" class="profile-input" value="{{ s.last_name }}" placeholder="Last name" aria-label="Last name">
               </div>
             </div>
             <div class="profile-row">
@@ -2578,7 +2578,7 @@
           and uploaded materials are retained for the research described in the
           Terms of Use — this does not erase that history, it only ends your access.
         </p>
-        <input type="password" id="delete-account-password" placeholder="Enter your password to confirm"
+        <input type="password" id="delete-account-password" placeholder="Enter your password to confirm" aria-label="Password to confirm account deletion"
                style="width:100%;padding:9px 12px;border:1.5px solid #dde3f0;border-radius:8px;font-size:14px;margin-bottom:8px;">
         <div id="delete-account-error" style="color:#b91c1c;font-size:12px;margin-bottom:10px;display:none;"></div>
         <div style="display:flex;gap:10px;justify-content:flex-end;">

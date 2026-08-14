@@ -24,6 +24,7 @@ def landing():
 
 
 PRIVACY_EFFECTIVE_DATE = "Monday, August 17th, 2026"
+TERMS_EFFECTIVE_DATE = "Monday, August 17th, 2026"
 
 
 @bp.route("/privacy")
@@ -39,6 +40,21 @@ def privacy():
     except Exception as e:
         log_error("misc.privacy", e)
         return render_template("privacy.html", admin_email=config.ADMIN_EMAIL, updated_date=PRIVACY_EFFECTIVE_DATE)
+
+
+@bp.route("/terms")
+def terms():
+    # Intentionally public (no login_required) — same reasoning as /privacy
+    # above: this needs to be readable without an account, and it's the
+    # single canonical version linked from the landing page footer. The
+    # interactive consent checkboxes students actually agree to at
+    # registration live separately in register.html, but should never
+    # contain terms that contradict what's published here.
+    try:
+        return render_template("terms.html", updated_date=TERMS_EFFECTIVE_DATE)
+    except Exception as e:
+        log_error("misc.terms", e)
+        return render_template("terms.html", updated_date=TERMS_EFFECTIVE_DATE)
 
 
 @bp.route("/manual")

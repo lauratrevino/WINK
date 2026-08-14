@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Terms of Use — WINK</title>
+<style nonce="{{ csp_nonce() }}">
+  :root {
+    --navy: #002855; --navy-deep: #001833; --orange: #FF8200;
+    --light-bg: #f4f6fb; --muted: #6b7a99; --border: #dde3f0; --gray-text: #2d3548;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+    background: var(--light-bg); color: var(--gray-text); min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  header.top {
+    background: var(--navy); padding: 18px 24px; display: flex; align-items: center;
+  }
+  header.top a { color: #fff; font-size: 22px; font-weight: 800; text-decoration: none; }
+  header.top a span { color: var(--orange); }
+  .page-shell { max-width: 760px; margin: 0 auto; padding: 40px 24px 72px; }
+  h1 { font-size: 28px; font-weight: 800; color: var(--navy); letter-spacing: -0.3px; margin-bottom: 6px; }
+  .updated { font-size: 13px; color: var(--muted); margin-bottom: 32px; }
+  h2 { font-size: 18px; font-weight: 700; color: var(--navy); margin: 28px 0 10px; }
+  p, li { font-size: 14.5px; line-height: 1.65; color: var(--gray-text); }
+  ul { margin: 8px 0 8px 22px; }
+  li { margin-bottom: 6px; }
+  a.inline { color: var(--navy); font-weight: 600; }
+  .research-highlight { background: #fff3e6; border-left: 3px solid var(--orange); border-radius: 6px; padding: 14px 16px; margin: 8px 0; }
+  .back { display: inline-block; margin-top: 36px; font-size: 13.5px; color: var(--muted); text-decoration: none; }
+  .back:hover { color: var(--navy); }
+</style>
+</head>
+<body>
+<header class="top">
+  <a href="/">WINK<span>.</span></a>
+</header>
+<main class="page-shell">
+  <h1>Terms of Use</h1>
+  <p class="updated">Effective Date: {{ updated_date }}</p>
+
+  <p>These Terms of Use govern access to and use of WINK. By creating an account, accessing WINK, or using its services, you agree to these Terms.</p>
+
+  <h2>1. WINK Research Pilot</h2>
+  <p>WINK is an experimental AI-powered student success platform being evaluated as part of a research project. Access is provided free of charge during the Fall 2026 pilot period, currently scheduled from August 17, 2026 through December 20, 2026.</p>
+
+  <h2>2. Use of WINK</h2>
+  <p>WINK is intended to assist students with academic organization and information. Users agree not to misuse WINK, interfere with its operation, attempt unauthorized access, introduce malicious software, impersonate another person, or use the service for unlawful purposes.</p>
+
+  <h2>3. User Responsibility</h2>
+  <p>Students remain responsible for their own academic work, decisions, deadlines, registrations, submissions, attendance, and compliance with course and university requirements. Important information should be verified through official sources.</p>
+
+  <h2>4. Artificial Intelligence</h2>
+  <p>AI systems can make mistakes. WINK may provide information that is inaccurate, incomplete, outdated, or based on an incorrect interpretation of uploaded materials.</p>
+
+  <h2>5. Academic Integrity</h2>
+  <p>Users are responsible for complying with the academic integrity requirements of their institution and individual courses. WINK should not be used for cheating, plagiarism, unauthorized collaboration, or other prohibited conduct.</p>
+
+  <h2>6. Uploaded Content</h2>
+  <p>Users retain responsibility for materials they upload. By uploading content, users authorize WINK to store, process, and analyze that content as necessary to provide the service and conduct the approved research associated with the pilot.</p>
+
+  <h2>7. Research Participation and Data</h2>
+  <div class="research-highlight">
+    <p>During the research pilot, interactions with WINK may be recorded and analyzed, including questions, AI-generated responses, uploaded information, and use of WINK's features. Access to research data is limited to Dr. Laura Trevino and the small number of research team members who need it to conduct the study, and it will be anonymized before use in research publications or presentations.</p>
+  </div>
+
+  <h2>8. Availability</h2>
+  <p>WINK is provided on an experimental basis. Continuous or uninterrupted access is not guaranteed.</p>
+
+  <h2>9. No Guarantee of Results</h2>
+  <p>Use of WINK does not guarantee improved grades, academic performance, course completion, retention, graduation, or any other academic outcome.</p>
+
+  <h2>10. Limitation of Reliance</h2>
+  <p>Users should not rely on WINK for emergency, medical, mental health, legal, financial, or other professional advice.</p>
+
+  <h2>11. Account Security</h2>
+  <p>Users are responsible for maintaining the confidentiality of their account credentials and for activity conducted through their accounts.</p>
+
+  <h2>12. Suspension or Termination</h2>
+  <p>Access may be limited, suspended, or terminated when necessary to protect users, maintain system security, enforce these Terms, comply with legal or institutional requirements, or operate the research project.</p>
+
+  <h2>13. Changes to WINK</h2>
+  <p>WINK is under active development. Features may be added, modified, removed, or temporarily unavailable during the pilot. These Terms may also be updated when necessary.</p>
+
+  <h2>14. Acceptance</h2>
+  <p>By creating an account or continuing to use WINK, you acknowledge that you have read and understood these Terms of Use and the <a class="inline" href="/privacy">WINK Privacy Policy</a> and agree to comply with them.</p>
+
+  <a class="back" href="/">&larr; Back to WINK</a>
+</main>
+</body>
+</html>

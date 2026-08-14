@@ -79,7 +79,7 @@
       <div class="chat-input-bar">
         <div class="chat-input-row">
           <button class="btn-icon-round" id="upload-btn" onclick="document.getElementById('chat-file-input').click()" title="Upload a document" aria-label="Upload a document">＋</button>
-          <input type="file" id="chat-file-input" style="display:none" onchange="handleChatFileUpload(event)">
+          <input type="file" id="chat-file-input" style="display:none" onchange="handleChatFileUpload(event)" aria-label="Upload a document">
           <textarea id="chat-input" placeholder="Ask WINK anything about your courses…" rows="1" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
           <button class="btn-icon-round" id="mic-btn" onclick="toggleVoiceInput()" title="Speak your question" aria-label="Speak your question">🎤</button>
           <button class="btn-send" id="send-btn" onclick="sendMessage()" aria-label="Send message">➤</button>
@@ -784,8 +784,8 @@
               </div>
               <div id="wu-step-details" style="display:none;">
                 <p style="margin-bottom:10px;">Which course is this for?</p>
-                <input type="text" id="wu-course" placeholder="e.g., MIS 4310" style="width:100%;padding:9px 12px;border:1.5px solid #dde3f0;border-radius:6px;font-size:14px;margin-bottom:10px;">
-                <input type="text" id="wu-crn" placeholder="CRN#" style="width:100%;padding:9px 12px;border:1.5px solid #dde3f0;border-radius:6px;font-size:14px;margin-bottom:6px;">
+                <input type="text" id="wu-course" placeholder="e.g., MIS 4310" style="width:100%;padding:9px 12px;border:1.5px solid #dde3f0;border-radius:6px;font-size:14px;margin-bottom:10px;" aria-label="Course name">
+                <input type="text" id="wu-crn" placeholder="CRN#" style="width:100%;padding:9px 12px;border:1.5px solid #dde3f0;border-radius:6px;font-size:14px;margin-bottom:6px;" aria-label="CRN number">
                 <div id="wu-error" style="color:#b91c1c;font-size:12px;margin-bottom:8px;"></div>
                 <div class="wink-modal-actions">
                   <button class="wink-modal-btn secondary" id="wu-back">← Back</button>
