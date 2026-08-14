@@ -1,6 +1,8 @@
 import json
 import logging
 
+from psycopg2.extras import execute_values
+
 from .. import config
 from ..errors import log_error
 from ..extensions import get_db
@@ -215,13 +217,21 @@ def store_document_chunks(document_id, student_id, university, course, orig_name
     embeddings = embed_texts(chunks, input_type="document")
     try:
         conn = get_db(); cur = conn.cursor()
-        for i, chunk in enumerate(chunks):
-            emb = embeddings[i] if embeddings else None
-            cur.execute("""INSERT INTO document_chunks
-                           (document_id, student_id, university, chunk_index, content, embedding)
-                           VALUES (%s, %s, %s, %s, %s, %s)""",
-                        (document_id, student_id, university or "", i, chunk,
-                         json.dumps(emb) if emb is not None else None))
+        # One batched INSERT instead of one round-trip per chunk — a single
+        # large document can chunk into 50+ pieces, and every one of those
+        # was a separate network round-trip to the database before this.
+        rows = [
+            (document_id, student_id, university or "", i, chunk,
+             json.dumps(embeddings[i]) if embeddings and embeddings[i] is not None else None)
+            for i, chunk in enumerate(chunks)
+        ]
+        execute_values(
+            cur,
+            """INSERT INTO document_chunks
+               (document_id, student_id, university, chunk_index, content, embedding)
+               VALUES %s""",
+            rows,
+        )
         # Clear any previous failure flag — e.g. a reupload/reprocess that
         # succeeds this time around should self-heal the document's status.
         cur.execute("UPDATE documents SET chunking_failed=FALSE WHERE id=%s", (document_id,))

@@ -137,6 +137,11 @@ def init_db():
         cur.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE")
         cur.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE")
         cur.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS verification_token TEXT")
+        # Queried on every single email-verification click (WHERE
+        # verification_token=%s in auth.py) with no other filter — without
+        # this, that's a full table scan across every student for a
+        # routine, frequent action.
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_students_verification_token ON students(verification_token)")
         cur.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS preferred_language TEXT DEFAULT ''")
         cur.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS terms_accepted_at TIMESTAMP")
         cur.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS terms_version TEXT")
@@ -200,6 +205,16 @@ def init_db():
         cur.execute("CREATE INDEX IF NOT EXISTS idx_events_created_at ON events(created_at)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_deadlines_student_id ON deadlines(student_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_deadlines_due_date ON deadlines(due_date)")
+        # document_id has no student_id filter on its own queries (deadline
+        # cleanup on document reupload/reprocess deletes by document_id
+        # alone), so without this index those deletes scan every student's
+        # deadlines, not just one student's.
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_deadlines_document_id ON deadlines(document_id)")
+        # series_id lookups are already scoped by student_id (which is
+        # indexed), so this mostly helps the "apply to whole series" UPDATE
+        # once a student is already narrowed down — cheap to add, no
+        # meaningful write-side cost.
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_deadlines_series_id ON deadlines(series_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_conversations_student_id ON conversations(student_id)")
         cur.execute("""CREATE TABLE IF NOT EXISTS document_chunks (
             id SERIAL PRIMARY KEY,

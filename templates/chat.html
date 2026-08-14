@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/nav.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.css') }}">
   <meta name="csrf-token" content="{{ csrf_token() }}">
-  <script src="/static/mermaid.min.js"></script>
+  <script src="/static/mermaid.min.js" defer></script>
 </head>
 <body>
 
@@ -355,6 +355,20 @@
     async function resolveDiagramMarkers(container) {
       const pending = container.querySelectorAll('.wink-diagram-pending');
       if (pending.length === 0) return;
+      // mermaid.js now loads with `defer` (previously blocking, which
+      // guaranteed it was always ready by the time this ran — see the
+      // <script> tag in <head>). Deferred, there's a real window where a
+      // fast AI response with a diagram could arrive before the ~3.5MB
+      // library has finished loading. Wait briefly for it rather than
+      // failing immediately — mermaid.js finishing a beat late shouldn't
+      // permanently show "not available" for a diagram that would have
+      // rendered fine a moment later.
+      if (typeof mermaid === 'undefined') {
+        const deadline = Date.now() + 5000;
+        while (typeof mermaid === 'undefined' && Date.now() < deadline) {
+          await new Promise(r => setTimeout(r, 150));
+        }
+      }
       if (typeof mermaid === 'undefined') {
         pending.forEach(el => {
           el.innerHTML = '<span class="wink-photo-missing">📊 Diagram rendering isn\'t available right now.</span>';

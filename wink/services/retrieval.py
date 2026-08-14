@@ -95,8 +95,14 @@ def _rank_neural(question, chunks, chunk_embeddings):
     query_embeddings = embed_texts([question], input_type="query")
     if not query_embeddings:
         raise NotImplementedError
-    query_vec = query_embeddings[0]
-    sims = [sum(x * y for x, y in zip(query_vec, vec)) for vec in chunk_embeddings]
+    # cosine_similarity (already used for the TF-IDF path above) rather
+    # than a hand-rolled dot product: it's correct regardless of whether
+    # the embedding provider happens to return unit-normalized vectors —
+    # a dot product alone is only equivalent to cosine similarity under
+    # that assumption, which was implicit and unverified here — and it's
+    # vectorized (NumPy under the hood) rather than a pure-Python loop
+    # over every chunk's embedding on every retrieval-triggered message.
+    sims = cosine_similarity(query_embeddings, chunk_embeddings)[0]
     return sorted(range(len(chunks)), key=lambda i: sims[i], reverse=True)
 
 

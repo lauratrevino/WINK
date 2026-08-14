@@ -21,7 +21,7 @@
 
     .hero-card {
       position: relative;
-      background-image: url("/static/images/documents-background.png");
+      background-image: url("/static/images/documents-background.jpg");
       background-size: cover;
       background-position: center 25%;
 
