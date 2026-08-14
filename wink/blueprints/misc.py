@@ -1,4 +1,6 @@
-from datetime import date
+import os
+import time
+from datetime import date, datetime, timezone
 
 from flask import Blueprint, g, jsonify, render_template
 
@@ -9,6 +11,41 @@ from ..security import page_login_required
 from ..services.analytics import log_event
 
 bp = Blueprint("misc", __name__)
+
+_APP_START_TIME = time.time()
+
+
+def _run_health_checks():
+    """Runs each health check independently so one failure doesn't hide the rest."""
+    checks = {}
+
+    # Database connectivity
+    if config.DB_URL:
+        try:
+            conn = get_db(); cur = conn.cursor()
+            cur.execute("SELECT 1")
+            cur.fetchone()
+            cur.close()
+            checks["database"] = (True, "Connected")
+        except Exception as e:
+            log_error("misc.health_db_check", e)
+            checks["database"] = (False, "Connection failed")
+    else:
+        checks["database"] = (False, "DB_URL not configured")
+
+    # Anthropic API key present (does not make a live API call)
+    anthropic_key = os.environ.get("ANTHROPIC_API_KEY") or getattr(config, "ANTHROPIC_API_KEY", None)
+    checks["anthropic_api_key"] = (bool(anthropic_key), "Configured" if anthropic_key else "Missing")
+
+    # Outbound email (SES) configuration
+    email_configured = getattr(config, "EMAIL_CONFIGURED", False)
+    checks["email_sending"] = (bool(email_configured), "Configured" if email_configured else "Not configured")
+
+    # Admin contact configured (used on /privacy, error pages, etc.)
+    admin_email = getattr(config, "ADMIN_EMAIL", None)
+    checks["admin_email"] = (bool(admin_email), "Configured" if admin_email else "Missing")
+
+    return checks
 
 
 @bp.route("/")
@@ -49,15 +86,32 @@ def manual():
 
 @bp.route("/health")
 def health():
-    db_ok = True
-    if config.DB_URL:
-        try:
-            conn = get_db(); cur = conn.cursor()
-            cur.execute("SELECT 1")
-            cur.fetchone()
-            cur.close()
-        except Exception as e:
-            log_error("misc.health_db_check", e)
-            db_ok = False
+    checks = _run_health_checks()
+    # Only DB connectivity affects overall status/HTTP code — the rest
+    # (API key, email, admin contact) are informational, not outage-causing.
+    db_ok = checks["database"][0]
     status = "ok" if db_ok else "degraded"
-    return jsonify({"status": status}), (200 if db_ok else 503)
+    return jsonify({
+        "status": status,
+        "checks": {name: {"ok": ok, "detail": detail} for name, (ok, detail) in checks.items()},
+        "uptime_seconds": round(time.time() - _APP_START_TIME),
+    }), (200 if db_ok else 503)
+
+
+@bp.route("/health-page")
+def health_page():
+    checks = _run_health_checks()
+    db_ok = checks["database"][0]
+    overall_status = "ok" if db_ok else "degraded"
+    uptime_seconds = round(time.time() - _APP_START_TIME)
+    try:
+        return render_template(
+            "health.html",
+            overall_status=overall_status,
+            checks=checks,
+            uptime_seconds=uptime_seconds,
+            checked_at=datetime.now(timezone.utc).strftime("%b %-d, %Y %I:%M %p UTC"),
+        )
+    except Exception as e:
+        log_error("misc.health_page", e)
+        return jsonify({"status": overall_status}), (200 if db_ok else 503)
