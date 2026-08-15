@@ -106,7 +106,7 @@
       overflow: hidden;
       background-image: url("{{ url_for('static', filename='images/1786784699860_wink-hero.png') }}");
       background-size: cover;
-      background-position: center 22%;
+      background-position: center center;
       isolation: isolate;
     }
     .hero-card::before {
@@ -151,8 +151,8 @@
 
   <div class="page-shell">
 
-    <div class="hero-card">
-      <div class="hero-text">
+    <div class="hero-card" style="display:flex !important;flex-direction:row !important;align-items:center !important;justify-content:flex-start !important;">
+      <div class="hero-text" style="text-align:left !important;margin:0 auto 0 0 !important;margin-left:0 !important;margin-right:auto !important;max-width:580px !important;width:auto !important;padding:34px 32px 34px 44px !important;">
         <div class="hero-line-1">Give WINK</div>
         <div class="hero-line-2">Your Course Material</div>
         <p style="margin-bottom:18px;color:#1a1a24;font-weight:500;">
