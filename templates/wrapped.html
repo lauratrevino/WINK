@@ -56,10 +56,12 @@
   .empty-state { text-align: center; padding: 48px 24px; color: var(--muted); font-size: 14px; }
   .loading-state { text-align: center; padding: 48px 24px; color: var(--muted); font-size: 14px; }
 </style>
+<meta name="csrf-token" content="{{ csrf_token() }}">
 </head>
 <body>
 
 {% include "_nav.html" %}
+<script src="{{ url_for('static', filename='js/csrf-fetch.js') }}"></script>
 
 <div class="page-shell">
   <div class="wrapped-header">

@@ -11,7 +11,7 @@ from werkzeug.utils import secure_filename
 
 from .. import config
 from ..errors import log_error
-from ..extensions import anthropic_client, csrf, get_db, release_db
+from ..extensions import anthropic_client, csrf, generate_csrf_token, get_db, release_db
 from ..security import login_required, page_login_required, rate_limited, verified_required
 from ..services.analytics import log_event, log_token_usage, parse_conversation_messages
 from ..services.deadlines import build_deadlines_context
@@ -66,7 +66,7 @@ def chat_page():
         return render_template("chat.html", s=s, admin_email=config.ADMIN_EMAIL, active="chat")
     except Exception as e:
         log_error("chat.chat_page", e)
-        return "<h2>Something went wrong</h2><p>Please try again, or <form method='POST' action='/logout' style='display:inline'><button type='submit' style='background:none;border:none;padding:0;color:#0645AD;text-decoration:underline;cursor:pointer;font:inherit;'>log out</button></form> and back in.</p>", 500
+        return f"<h2>Something went wrong</h2><p>Please try again, or <form method='POST' action='/logout' style='display:inline'><input type='hidden' name='csrf_token' value='{generate_csrf_token()}'><button type='submit' style='background:none;border:none;padding:0;color:#0645AD;text-decoration:underline;cursor:pointer;font:inherit;'>log out</button></form> and back in.</p>", 500
 
 
 @bp.route("/practice-page")
@@ -81,7 +81,7 @@ def practice_page():
                                active="practice", known_courses=known_courses)
     except Exception as e:
         log_error("chat.practice_page", e)
-        return "<h2>Something went wrong</h2><p>Please try again, or <form method='POST' action='/logout' style='display:inline'><button type='submit' style='background:none;border:none;padding:0;color:#0645AD;text-decoration:underline;cursor:pointer;font:inherit;'>log out</button></form> and back in.</p>", 500
+        return f"<h2>Something went wrong</h2><p>Please try again, or <form method='POST' action='/logout' style='display:inline'><input type='hidden' name='csrf_token' value='{generate_csrf_token()}'><button type='submit' style='background:none;border:none;padding:0;color:#0645AD;text-decoration:underline;cursor:pointer;font:inherit;'>log out</button></form> and back in.</p>", 500
 
 
 @bp.route("/chat", methods=["POST"])

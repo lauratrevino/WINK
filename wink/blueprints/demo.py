@@ -153,7 +153,6 @@ def _seed_demo(cur, sid):
 
 
 @bp.route("/demo/start", methods=["POST"])
-@csrf.exempt
 def start_demo():
     if not config.DB_URL:
         return "Demo mode requires the database.", 503

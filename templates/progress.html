@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>My Progress — WINK</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/nav.css') }}">
+<meta name="csrf-token" content="{{ csrf_token() }}">
 <style nonce="{{ csp_nonce() }}">
   :root {
     --navy: #002855; --navy-deep: #001833; --navy2: #0b477e; --orange: #FF8200;
@@ -201,6 +202,7 @@
 <body>
 {% include "_nav.html" %}
   <script src="{{ url_for('static', filename='js/scroll-reset.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/csrf-fetch.js') }}"></script>
 <main class="page-shell">
   <div class="progress-header">
     <div class="progress-eyebrow">Your Activity</div>

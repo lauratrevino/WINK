@@ -3,7 +3,7 @@ from flask import Blueprint, g, jsonify, render_template, request
 
 from .. import config
 from ..errors import log_error
-from ..extensions import get_db
+from ..extensions import generate_csrf_token, get_db
 from ..security import login_required, page_login_required
 from ..services.analytics import log_event, get_questions_this_month
 from ..services.course_colors import ensure_course_colors
@@ -35,7 +35,7 @@ def dashboard():
                                course_colors=course_colors, progress=progress)
     except Exception as e:
         log_error("dashboard.dashboard", e)
-        return "<h2>Something went wrong</h2><p>Please try again, or <form method='POST' action='/logout' style='display:inline'><button type='submit' style='background:none;border:none;padding:0;color:#0645AD;text-decoration:underline;cursor:pointer;font:inherit;'>log out</button></form> and back in.</p>", 500
+        return f"<h2>Something went wrong</h2><p>Please try again, or <form method='POST' action='/logout' style='display:inline'><input type='hidden' name='csrf_token' value='{generate_csrf_token()}'><button type='submit' style='background:none;border:none;padding:0;color:#0645AD;text-decoration:underline;cursor:pointer;font:inherit;'>log out</button></form> and back in.</p>", 500
 
 
 @bp.route("/update-profile", methods=["POST"])

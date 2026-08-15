@@ -3,6 +3,7 @@ from flask import Blueprint, g, jsonify, render_template
 
 from .. import config
 from ..errors import log_error
+from ..extensions import generate_csrf_token
 from ..security import login_required, page_login_required
 from ..services.analytics import get_wrapped_stats, log_event
 from ..services.progress import get_progress_summary
@@ -20,7 +21,7 @@ def progress_page():
         return render_template("progress.html", s=s, admin_email=config.ADMIN_EMAIL, active="progress")
     except Exception as e:
         log_error("progress.progress_page", e)
-        return "<h2>Something went wrong</h2><p>Please try again, or <form method='POST' action='/logout' style='display:inline'><button type='submit' style='background:none;border:none;padding:0;color:#0645AD;text-decoration:underline;cursor:pointer;font:inherit;'>log out</button></form> and back in.</p>", 500
+        return f"<h2>Something went wrong</h2><p>Please try again, or <form method='POST' action='/logout' style='display:inline'><input type='hidden' name='csrf_token' value='{generate_csrf_token()}'><button type='submit' style='background:none;border:none;padding:0;color:#0645AD;text-decoration:underline;cursor:pointer;font:inherit;'>log out</button></form> and back in.</p>", 500
 
 
 @bp.route("/progress-data")
@@ -43,7 +44,7 @@ def wrapped_page():
         return render_template("wrapped.html", s=s, admin_email=config.ADMIN_EMAIL, active="progress")
     except Exception as e:
         log_error("progress.wrapped_page", e)
-        return "<h2>Something went wrong</h2><p>Please try again, or <form method='POST' action='/logout' style='display:inline'><button type='submit' style='background:none;border:none;padding:0;color:#0645AD;text-decoration:underline;cursor:pointer;font:inherit;'>log out</button></form> and back in.</p>", 500
+        return f"<h2>Something went wrong</h2><p>Please try again, or <form method='POST' action='/logout' style='display:inline'><input type='hidden' name='csrf_token' value='{generate_csrf_token()}'><button type='submit' style='background:none;border:none;padding:0;color:#0645AD;text-decoration:underline;cursor:pointer;font:inherit;'>log out</button></form> and back in.</p>", 500
 
 
 @bp.route("/wrapped-data")

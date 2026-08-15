@@ -3,7 +3,7 @@ from flask import Blueprint, g, jsonify, render_template, request
 
 from .. import config
 from ..errors import log_error
-from ..extensions import get_db
+from ..extensions import generate_csrf_token, get_db
 from ..security import admin_page_required, admin_required
 from ..services.analytics import (anonymize_student_record, compute_engagement_insights,
                                    get_demo_usage_stats, get_student_summaries,
@@ -22,7 +22,7 @@ def analytics_page():
         return render_template("analytics.html", s=s, active="analytics")
     except Exception as e:
         log_error("admin.analytics_page", e)
-        return "<h2>Something went wrong</h2><p>Please try again, or <form method='POST' action='/logout' style='display:inline'><button type='submit' style='background:none;border:none;padding:0;color:#0645AD;text-decoration:underline;cursor:pointer;font:inherit;'>log out</button></form> and back in.</p>", 500
+        return f"<h2>Something went wrong</h2><p>Please try again, or <form method='POST' action='/logout' style='display:inline'><input type='hidden' name='csrf_token' value='{generate_csrf_token()}'><button type='submit' style='background:none;border:none;padding:0;color:#0645AD;text-decoration:underline;cursor:pointer;font:inherit;'>log out</button></form> and back in.</p>", 500
 
 
 @bp.route("/analytics-data")
@@ -376,4 +376,4 @@ def admin_hub():
         return render_template("admin_hub.html", s=s, active="admin")
     except Exception as e:
         log_error("admin.admin_hub", e)
-        return "<h2>Something went wrong</h2><p>Please try again, or <form method='POST' action='/logout' style='display:inline'><button type='submit' style='background:none;border:none;padding:0;color:#0645AD;text-decoration:underline;cursor:pointer;font:inherit;'>log out</button></form> and back in.</p>", 500
+        return f"<h2>Something went wrong</h2><p>Please try again, or <form method='POST' action='/logout' style='display:inline'><input type='hidden' name='csrf_token' value='{generate_csrf_token()}'><button type='submit' style='background:none;border:none;padding:0;color:#0645AD;text-decoration:underline;cursor:pointer;font:inherit;'>log out</button></form> and back in.</p>", 500

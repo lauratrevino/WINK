@@ -31,6 +31,21 @@ except ImportError:
 
     csrf = _NoOpCSRF()
 
+
+def generate_csrf_token():
+    """For the handful of plain-string (non-Jinja) fallback error pages
+    across the blueprints, which can't use the `csrf_token()` Jinja global
+    but still render a real <form method='POST' action='/logout'> — that
+    form needs a real token now that /logout is no longer CSRF-exempt.
+    Mirrors the same "" fallback the Jinja global uses when flask-wtf
+    isn't installed, so a missing dependency degrades the same way in
+    both places rather than crashing one of them."""
+    try:
+        from flask_wtf.csrf import generate_csrf
+        return generate_csrf()
+    except ImportError:
+        return ""
+
 _http_client = httpx.Client(
     timeout=httpx.Timeout(110.0, connect=5.0),
     limits=httpx.Limits(max_keepalive_connections=20, max_connections=50),

@@ -348,6 +348,7 @@
 
     <div class="hero-demo-cta">
       <form method="POST" action="/demo/start">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="hero-demo-btn">🧪 Try WINK Demo</button>
       </form>
     </div>

@@ -3,6 +3,7 @@ from flask import Blueprint, g, jsonify, render_template, request
 
 from .. import config
 from ..errors import log_error
+from ..extensions import generate_csrf_token
 from ..security import login_required, page_login_required, rate_limited, verified_required
 from ..services.analytics import log_event
 from ..services.documents import get_docs
@@ -23,7 +24,7 @@ def grades_page():
                                active="grades", known_courses=known_courses)
     except Exception as e:
         log_error("grades.grades_page", e)
-        return "<h2>Something went wrong</h2><p>Please try again, or <form method='POST' action='/logout' style='display:inline'><button type='submit' style='background:none;border:none;padding:0;color:#0645AD;text-decoration:underline;cursor:pointer;font:inherit;'>log out</button></form> and back in.</p>", 500
+        return f"<h2>Something went wrong</h2><p>Please try again, or <form method='POST' action='/logout' style='display:inline'><input type='hidden' name='csrf_token' value='{generate_csrf_token()}'><button type='submit' style='background:none;border:none;padding:0;color:#0645AD;text-decoration:underline;cursor:pointer;font:inherit;'>log out</button></form> and back in.</p>", 500
 
 
 @bp.route("/grading-weights")

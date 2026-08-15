@@ -14,6 +14,20 @@ COPY . .
 RUN mkdir -p /app/uploads
 EXPOSE 10000
 
+# NOTE (deliberately not done here): running as a non-root USER is the
+# standard hardening move and was requested, but this container writes
+# to /app/uploads at runtime, and if that path is backed by a mounted
+# persistent disk on Render (recommended separately — see the uploads-
+# persistence note elsewhere), external volume mounts commonly come back
+# root-owned regardless of what this Dockerfile chown's at build time.
+# Switching to a non-root user here without being able to verify actual
+# mount ownership on Render risks a silent permission failure on every
+# upload — the wrong thing to introduce right before a live test. Once
+# the persistent disk is confirmed and there's a chance to verify in
+# staging, add a startup step that chowns /app/uploads before dropping
+# from root to an unprivileged user (e.g. via a small entrypoint script
+# using gosu/su-exec), rather than a bare USER line.
+
 # Worker count is configurable via WEB_CONCURRENCY (Render and several other
 # PaaS providers set this automatically based on instance size; defaults to
 # 2 here for local/small deployments). A common starting formula for CPU-bound

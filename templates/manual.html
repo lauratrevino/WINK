@@ -24,10 +24,12 @@
     @media(max-width:860px){.manual-hero{grid-template-columns:1fr;height:auto}.hero-wink{min-height:220px;background-position:60% 30%}.hero-wink::before{background:linear-gradient(0deg,#fffaf3 0%,rgba(255,250,243,0) 22%)}.hero-copy{padding:30px}.hero-copy h1{font-size:34px}.guide-grid{grid-template-columns:1fr}.full{grid-column:auto}.feature-mini-grid{grid-template-columns:1fr 1fr}.search-wrap{top:5px}}
     @media(max-width:520px){.manual-shell{padding:14px 12px 40px}.hero-copy{padding:24px}.hero-copy h1{font-size:30px}.feature-mini-grid{grid-template-columns:1fr}.search-wrap{padding:0 6px;margin:-18px 0 18px}.quick-nav{justify-content:flex-start}}
 </style>
+<meta name="csrf-token" content="{{ csrf_token() }}">
 </head>
 <body>
   {% include "_nav.html" %}
   <script src="{{ url_for('static', filename='js/scroll-reset.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/csrf-fetch.js') }}"></script>
   <main class="manual-shell" id="top">
     <section class="manual-hero">
       <div class="hero-copy">
