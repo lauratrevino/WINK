@@ -99,7 +99,38 @@
     .doctype-card .doctype-title { font-size: 11px; font-weight: 800; color: #002855; line-height: 1.2; }
     .doctype-card .doctype-desc { font-size: 9.5px; color: #6b7a99; margin-top: 1px; line-height: 1.2; }
 
-    .hero-card { border-top-left-radius: 0; border-top-right-radius: 0; }
+    .hero-card {
+      border-top-left-radius: 0;
+      border-top-right-radius: 0;
+      position: relative;
+      overflow: hidden;
+      background-image: url("{{ url_for('static', filename='img/wink-hero.png') }}");
+      background-size: cover;
+      background-position: center 22%;
+      isolation: isolate;
+    }
+    .hero-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(115deg, rgba(0,40,85,0.88) 0%, rgba(0,40,85,0.72) 38%, rgba(0,40,85,0.30) 65%, rgba(0,40,85,0.05) 100%);
+      z-index: 0;
+    }
+    .hero-card .hero-text {
+      position: relative;
+      z-index: 1;
+    }
+    .hero-card .hero-line-1,
+    .hero-card .hero-line-2 {
+      color: #fff;
+    }
+    .hero-card .hero-text p {
+      color: #eef2fb !important;
+    }
+    .hero-card .hero-stat-card {
+      background: rgba(255,255,255,0.94);
+      backdrop-filter: blur(2px);
+    }
 </style>
 </head>
 <body>
