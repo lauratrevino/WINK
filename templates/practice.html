@@ -43,6 +43,55 @@
       position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
       pointer-events: none; color: #6b7a99; font-size: 13px;
     }
+    .page-instructions { color: #6b7a99; font-size: 14px; margin-top: 2px; }
+
+    /* Flashcards */
+    .flashcard-grid { display: flex; flex-wrap: wrap; gap: 16px; }
+    .flashcard-wrap { width: 260px; }
+    .flashcard { perspective: 1200px; width: 100%; height: 170px; cursor: pointer; }
+    .flashcard-inner {
+      position: relative; width: 100%; height: 100%;
+      transition: transform 0.5s; transform-style: preserve-3d;
+    }
+    .flashcard.flipped .flashcard-inner { transform: rotateY(180deg); }
+    .flashcard-face {
+      position: absolute; inset: 0; backface-visibility: hidden;
+      border-radius: 12px; border: 1px solid #e0e6f0; background: #fff;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      text-align: center; padding: 16px; box-sizing: border-box;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    .flashcard-front { background: #fff; }
+    .flashcard-back { transform: rotateY(180deg); background: #f4f6fb; }
+    .flashcard-label {
+      position: absolute; top: 10px; left: 12px; font-size: 11px;
+      font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #6b7a99;
+    }
+    .flashcard-text { font-size: 15px; color: #002855; font-weight: 600; line-height: 1.4; }
+    .flashcard-back .flashcard-text { font-weight: 500; color: #333; }
+    .flashcard-hint { position: absolute; bottom: 8px; right: 10px; font-size: 11px; color: #a3adc2; }
+    .flashcard-actions { display: flex; gap: 8px; margin-top: 8px; justify-content: center; }
+
+    .results-actions { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+
+    #print-area { display: none; }
+    @media print {
+      body * { visibility: hidden; }
+      #print-area, #print-area * { visibility: visible; }
+      #print-area {
+        display: block !important; position: absolute; left: 0; top: 0; width: 100%;
+        padding: 24px;
+      }
+      #print-area .btn, #print-area .results-actions,
+      #print-area .q-actions, #print-area .flashcard-actions,
+      #print-area .quiz-option:disabled { display: none !important; }
+      #print-area .flashcard { height: auto; }
+      #print-area .flashcard-inner { position: static; transform: none !important; }
+      #print-area .flashcard-face {
+        position: static; backface-visibility: visible; transform: none !important;
+        box-shadow: none; border: 1px solid #ccc; margin-bottom: 6px;
+      }
+    }
 </style>
 </head>
 <body>
@@ -53,7 +102,8 @@
   <div class="page-shell">
     <div class="page-header">
       <h1>🧠 Practice Center</h1>
-      <p>Generate new study materials from your course material.</p>
+      <p>Generate study materials from your course material.</p>
+      <p class="page-instructions">Choose the course, the type of study material, and how many questions you want generated. Questions you miss or don't answer will be regenerated for you to do later.</p>
     </div>
 
     <div class="card">
@@ -101,6 +151,9 @@
       <button class="btn btn-primary" id="generate-btn" onclick="generatePractice()">Generate</button>
 
       <div id="generate-loading" class="loading-spinner" style="display:none;">Generating…</div>
+      <div class="results-actions" id="generate-print-row" style="display:none;">
+        <button class="btn btn-ghost btn-sm" onclick="printSection('generate-results')">🖨 Print</button>
+      </div>
       <div id="generate-results" style="margin-top:16px;"></div>
     </div>
 
@@ -108,10 +161,15 @@
       <h2>Due for review</h2>
       <div class="card-sub">Questions you've answered before, resurfaced on a schedule — answer correctly and it comes back further out; miss it and it comes back tomorrow.</div>
       <button class="btn btn-ghost btn-sm" onclick="loadReview()">Refresh</button>
+      <div class="results-actions" id="review-print-row" style="display:none;">
+        <button class="btn btn-ghost btn-sm" onclick="printSection('review-results')">🖨 Print</button>
+      </div>
       <div id="review-loading" class="loading-spinner">Loading…</div>
       <div id="review-results" style="margin-top:16px;"></div>
     </div>
   </div>
+
+  <div id="print-area"></div>
 
   <script src="{{ url_for('static', filename='js/csrf-fetch.js') }}"></script>
 <script nonce="{{ csp_nonce() }}">
@@ -202,6 +260,62 @@
         actions.appendChild(incorrectBtn);
       }
       return wrap;
+    }
+
+    function renderFlashcard(q) {
+      const wrap = document.createElement('div');
+      wrap.className = 'flashcard-wrap';
+      wrap.dataset.qid = q.id || '';
+
+      const card = document.createElement('div');
+      card.className = 'flashcard';
+      card.tabIndex = 0;
+      card.setAttribute('role', 'button');
+      card.setAttribute('aria-label', 'Flip flashcard');
+      card.innerHTML = `
+        <div class="flashcard-inner">
+          <div class="flashcard-face flashcard-front">
+            <span class="flashcard-label">Question</span>
+            <div class="flashcard-text">${escapeHtml(q.question)}</div>
+            <span class="flashcard-hint">Tap to flip</span>
+          </div>
+          <div class="flashcard-face flashcard-back">
+            <span class="flashcard-label">Answer</span>
+            <div class="flashcard-text">${escapeHtml(q.answer)}${q.explanation ? `<div class="q-explanation" style="margin-top:8px;font-weight:400;font-size:13px;">${escapeHtml(q.explanation)}</div>` : ''}</div>
+            <span class="flashcard-hint">Tap to flip back</span>
+          </div>
+        </div>`;
+      const flip = () => card.classList.toggle('flipped');
+      card.addEventListener('click', flip);
+      card.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flip(); }
+      });
+      wrap.appendChild(card);
+
+      if (q.id) {
+        const actions = document.createElement('div');
+        actions.className = 'flashcard-actions';
+        const correctBtn = document.createElement('button');
+        correctBtn.className = 'btn btn-correct btn-sm';
+        correctBtn.textContent = 'Got it right';
+        correctBtn.addEventListener('click', function() { gradeQuestion(q.id, true, correctBtn); });
+        const incorrectBtn = document.createElement('button');
+        incorrectBtn.className = 'btn btn-incorrect btn-sm';
+        incorrectBtn.textContent = 'Got it wrong';
+        incorrectBtn.addEventListener('click', function() { gradeQuestion(q.id, false, incorrectBtn); });
+        actions.appendChild(correctBtn);
+        actions.appendChild(incorrectBtn);
+        wrap.appendChild(actions);
+      }
+      return wrap;
+    }
+
+    function printSection(resultsId) {
+      const source = document.getElementById(resultsId);
+      if (!source || !source.innerHTML.trim()) return;
+      const printArea = document.getElementById('print-area');
+      printArea.innerHTML = source.innerHTML;
+      window.print();
     }
 
     let quizTally = { correct: 0, total: 0 };
@@ -341,6 +455,7 @@
       const btn = document.getElementById('generate-btn');
       errorBox.style.display = 'none';
       results.innerHTML = '';
+      document.getElementById('generate-print-row').style.display = 'none';
       assessmentQuizTracking = null;
       if (!course) {
         errorBox.textContent = 'Please enter a course.';
@@ -372,6 +487,7 @@
           block.className = 'summary-block';
           block.innerHTML = renderSummaryMarkdown(data.summary);
           results.appendChild(block);
+          document.getElementById('generate-print-row').style.display = 'flex';
           return;
         }
         if (!data.questions || !data.questions.length) {
@@ -379,6 +495,7 @@
           return;
         }
         const isQuiz = (qtype === 'quiz' || qtype === 'assessment_quiz');
+        const isFlashcard = (qtype === 'flashcard');
         if (isQuiz) {
           quizTally = { correct: 0, total: 0 };
           const tallyEl = document.createElement('div');
@@ -390,7 +507,15 @@
         if (qtype === 'assessment_quiz') {
           assessmentQuizTracking = { course: course, results: [], total: data.questions.length };
         }
-        data.questions.forEach(q => results.appendChild(isQuiz ? renderQuizCard(q) : renderQuestionCard(q)));
+        if (isFlashcard) {
+          const grid = document.createElement('div');
+          grid.className = 'flashcard-grid';
+          data.questions.forEach(q => grid.appendChild(renderFlashcard(q)));
+          results.appendChild(grid);
+        } else {
+          data.questions.forEach(q => results.appendChild(isQuiz ? renderQuizCard(q) : renderQuestionCard(q)));
+        }
+        document.getElementById('generate-print-row').style.display = 'flex';
       } catch (e) {
         errorBox.textContent = 'Something went wrong. Please try again.';
         errorBox.style.display = 'block';
@@ -401,7 +526,7 @@
     }
 
     async function gradeQuestion(questionId, correct, btnEl) {
-      const card = btnEl.closest('.question-card');
+      const card = btnEl.closest('.question-card') || btnEl.closest('.flashcard-wrap');
       try {
         const resp = await fetch('/practice-attempt', {
           method: 'POST',
@@ -411,9 +536,11 @@
         if (!resp.ok) return;
         card.classList.add('graded');
         const badge = card.querySelector('.grade-badge');
-        badge.innerHTML = correct
-          ? '<span class="badge-graded badge-correct">Correct</span>'
-          : '<span class="badge-graded badge-incorrect">Review again soon</span>';
+        if (badge) {
+          badge.innerHTML = correct
+            ? '<span class="badge-graded badge-correct">Correct</span>'
+            : '<span class="badge-graded badge-incorrect">Review again soon</span>';
+        }
         card.querySelectorAll('.btn-correct, .btn-incorrect').forEach(b => b.disabled = true);
       } catch (e) {  }
     }
@@ -423,6 +550,7 @@
       const results = document.getElementById('review-results');
       loading.style.display = 'block';
       results.innerHTML = '';
+      document.getElementById('review-print-row').style.display = 'none';
       // The review queue can mix questions from different courses and sessions,
       // so it never counts toward a single-session study plan.
       assessmentQuizTracking = null;
@@ -444,10 +572,20 @@
           tallyEl.textContent = `Score: 0/${quizQuestions.length}`;
           results.appendChild(tallyEl);
         }
+        const flashcardGrid = document.createElement('div');
+        flashcardGrid.className = 'flashcard-grid';
+        let hasFlashcards = false;
         data.questions.forEach(q => {
           const isQuiz = (q.qtype === 'quiz' || q.qtype === 'assessment_quiz');
-          results.appendChild(isQuiz ? renderQuizCard(q) : renderQuestionCard(q));
+          if (q.qtype === 'flashcard') {
+            hasFlashcards = true;
+            flashcardGrid.appendChild(renderFlashcard(q));
+          } else {
+            results.appendChild(isQuiz ? renderQuizCard(q) : renderQuestionCard(q));
+          }
         });
+        if (hasFlashcards) results.appendChild(flashcardGrid);
+        document.getElementById('review-print-row').style.display = 'flex';
       } catch (e) {
         loading.style.display = 'none';
         results.innerHTML = '<div class="empty-state">Couldn\'t load your review queue — please refresh the page.</div>';

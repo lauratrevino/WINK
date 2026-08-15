@@ -7,6 +7,11 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/nav.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/calendar.css') }}">
   <meta name="csrf-token" content="{{ csrf_token() }}">
+  <style nonce="{{ csp_nonce() }}">
+    .cal-instructions { margin: 4px 0 0; color: #6b7a99; font-size: 14px; }
+    .day-item-actions button[data-action="restore-original"] { color: #002855; }
+    .day-item-actions button[data-action="delete-detected"] { color: #b91c1c; }
+  </style>
 </head>
 <body>
 
@@ -16,6 +21,7 @@
   <div class="page-shell">
     <div class="cal-header">
       <h1>📅 Master Calendar</h1>
+      <p class="cal-instructions">Click on an item for more detail.</p>
       <div class="cal-nav">
         <button class="cal-nav-btn" onclick="changeMonth(-1)" aria-label="Previous month">‹</button>
         <div class="cal-month-label" id="month-label"></div>
@@ -330,6 +336,16 @@
               <input type="text" data-field="title" value="${escapeHtml(it.title)}" aria-label="Corrected title">
               <input type="date" data-field="due_date" value="${it.due_date || ''}" aria-label="Corrected due date">
               <button class="primary" data-action="save-correct">Save</button>
+            </div>` : status === 'corrected' ? `
+            <div class="day-item-actions" data-id="${it.id}">
+              <button data-action="restore-original">↺ Restore original</button>
+              <button data-action="show-correct">✎ Edit correction</button>
+              <button data-action="delete-detected">🗑 Delete</button>
+            </div>
+            <div class="day-item-correct-form" data-id="${it.id}">
+              <input type="text" data-field="title" value="${escapeHtml(it.title)}" aria-label="Corrected title">
+              <input type="date" data-field="due_date" value="${it.due_date || ''}" aria-label="Corrected due date">
+              <button class="primary" data-action="save-correct">Save</button>
             </div>` : '';
           return `
           <div class="day-item${it.completed ? ' completed' : ''}">
@@ -384,6 +400,16 @@
         await sendDeadlineStatus(id, 'superseded');
         return;
       }
+      if (action === 'restore-original') {
+        if (!window.confirm('Restore this item to its original detected date and title?')) return;
+        await sendDeadlineStatus(id, 'detected');
+        return;
+      }
+      if (action === 'delete-detected') {
+        if (!window.confirm('Delete this item? This removes it entirely — if it\'s still in your syllabus, WINK may detect it again next time you upload.')) return;
+        await deleteDeadlineItem(id);
+        return;
+      }
       if (action === 'delete-personal') {
         if (!window.confirm('Delete this item?')) return;
         await deletePersonalItem(id, false);
@@ -434,6 +460,33 @@
         openDayPanel((updated && updated.due_date) || currentPanelDate);
       } catch (e) {
         console.error('sendDeadlineStatus error', e);
+        alert('Network error — please try again.');
+      }
+    }
+
+    async function deleteDeadlineItem(id) {
+      try {
+        const res = await fetch(`/deadlines/${id}`, { method: 'DELETE' });
+        if (!res.ok) { alert('Could not delete — please try again.'); return; }
+        deadlinesByDate = {};
+        courseColors = {};
+        const data = await res.json();
+        allDeadlines = data.deadlines || [];
+        allDeadlines.forEach(d => {
+          if (!d.due_date) return;
+          (deadlinesByDate[d.due_date] = deadlinesByDate[d.due_date] || []).push(d);
+          colorForCourse(d.course);
+        });
+        renderLegend();
+        renderCalendar();
+
+        if (!deadlinesByDate[currentPanelDate] || !deadlinesByDate[currentPanelDate].length) {
+          closeDayPanel();
+        } else {
+          openDayPanel(currentPanelDate);
+        }
+      } catch (e) {
+        console.error('deleteDeadlineItem error', e);
         alert('Network error — please try again.');
       }
     }
