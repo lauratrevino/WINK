@@ -44,6 +44,10 @@
       pointer-events: none; color: #6b7a99; font-size: 13px;
     }
     .page-instructions { color: #6b7a99; font-size: 14px; margin-top: 2px; }
+    .card-sub-important {
+      background: #fff7ed; border: 1px solid #FF8200; border-radius: 8px;
+      padding: 10px 14px; color: #7a3e00; font-weight: 500;
+    }
 
     /* Flashcards */
     .flashcard-grid { display: flex; flex-wrap: wrap; gap: 16px; }
@@ -108,7 +112,7 @@
 
     <div class="card">
       <h2>Generate study materials</h2>
-      <div class="card-sub">Uses your uploaded material for a course.</div>
+      <div class="card-sub card-sub-important">Study materials are generated only from the file you attach below for this session — not from documents already uploaded to your course pages. The AI can also draw on its own general knowledge of the topic. Pick a course below just to label and organize what's generated.</div>
 
       <div id="generate-error" class="alert alert-danger" style="display:none;"></div>
 
@@ -143,7 +147,7 @@
       <div class="card-sub" id="qtype-note" style="display:none;"></div>
 
       <div class="attach-row">
-        <label for="handout-input" class="btn btn-ghost btn-sm" style="cursor:pointer;">📎 Attach a handout for this session</label>
+        <label for="handout-input" class="btn btn-ghost btn-sm" style="cursor:pointer;">📎 Attach a file to generate from</label>
         <input type="file" id="handout-input" style="display:none;" onchange="attachTempHandout()">
         <span class="attach-status" id="attach-status">Not saved to your account — used for this generation only.</span>
       </div>
@@ -420,7 +424,7 @@
 
     async function generateStudyPlan() {
       if (!assessmentQuizTracking) return;
-      const { course, results } = assessmentQuizTracking;
+      const { course, results, material } = assessmentQuizTracking;
       const container = document.getElementById('generate-results');
       const planWrap = document.createElement('div');
       planWrap.id = 'study-plan-wrap';
@@ -432,7 +436,7 @@
         const resp = await fetch('/generate-study-plan', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ course: course, results: results }),
+          body: JSON.stringify({ course: course, results: results, material: material }),
         });
         const data = await resp.json();
         if (!resp.ok || !data.plan) {
@@ -505,7 +509,7 @@
           results.appendChild(tallyEl);
         }
         if (qtype === 'assessment_quiz') {
-          assessmentQuizTracking = { course: course, results: [], total: data.questions.length };
+          assessmentQuizTracking = { course: course, results: [], total: data.questions.length, material: tempHandoutContent || '' };
         }
         if (isFlashcard) {
           const grid = document.createElement('div');

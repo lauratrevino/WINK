@@ -62,12 +62,9 @@ def generate_practice_questions(material_text, assessment_text=None, count=8, qt
         f"You are generating {count} practice questions for a college student studying from "
         f"their own uploaded course material. {style_instruction} {format_instruction} "
         "Every question must be answerable from the course material given to you — never invent "
-        "facts or ask about anything not actually in it. The material below is from exactly ONE "
-        "course; do not pull in, reference, or blend in content, facts, or topics from any other "
-        "course or subject, even ones you happen to know about from training — if it isn't in the "
-        "text given to you, it doesn't belong in a question. If the material genuinely doesn't "
+        "facts or ask about anything not actually in it. If the material genuinely doesn't "
         "contain enough to write good questions, return fewer than requested rather than padding "
-        "with vague or outside ones."
+        "with vague ones."
     )
 
     user_content = f"COURSE MATERIAL:\n{material_text[:config.PRACTICE_MATERIAL_MAX_CHARS]}"

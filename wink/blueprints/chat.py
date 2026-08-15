@@ -387,18 +387,16 @@ def generate_practice():
         if not course:
             return jsonify({"error": "Please specify which course."}), 400
 
-        docs = [d for d in get_docs(s["id"]) if (d.get("course") or "").strip().lower() == course.lower()]
-        material_docs = [d for d in docs if (d.get("doc_type") or "material") != "assessment"]
-        assessment_docs = [d for d in docs if d.get("doc_type") == "assessment"]
-
-        material_parts = [(d.get("content") or "").strip() for d in material_docs if d.get("content")]
-        if temp_material:
-            material_parts.append(temp_material)
-        material_text = "\n\n---\n\n".join(p for p in material_parts if p)
+        # Study materials are generated ONLY from the file attached for this
+        # session — never from documents already uploaded to a student's
+        # course pages. `course` here is just a label for organizing the
+        # generated questions (grouping in the spaced-repetition review
+        # queue) — it is not used to look up or pull in stored material.
+        material_text = temp_material
         if not material_text.strip():
-            return jsonify({"error": f"No material found for {course} — upload something permanently, "
-                                      f"or attach a handout for this session, to generate questions from."}), 400
-        assessment_text = "\n\n---\n\n".join((d.get("content") or "").strip() for d in assessment_docs if d.get("content")) or None
+            return jsonify({"error": "Please attach a document above to generate study "
+                                      "materials from — this doesn't use documents you've "
+                                      "already uploaded elsewhere in WINK."}), 400
 
         if qtype == "summary":
             summary = generate_practice_summary(material_text, course, student_id=s["id"])
@@ -407,22 +405,15 @@ def generate_practice():
                 return jsonify({"error": "Couldn't generate a summary from that material — please try again."}), 500
             return jsonify({"summary": summary})
 
-        questions = generate_practice_questions(material_text, assessment_text, count=count, qtype=qtype, student_id=s["id"])
+        questions = generate_practice_questions(material_text, count=count, qtype=qtype, student_id=s["id"])
         questions = store_practice_questions(s["id"], course, questions, qtype=qtype)
         log_event(s["id"], "practice_questions_generated", {
             "course": course, "count": len(questions), "qtype": qtype,
-            "used_assessment_style": bool(assessment_text),
-            "used_temp_material": bool(temp_material),
-            # Exact source documents this generation drew from — if a student
-            # ever reports questions that don't match their material again,
-            # this event tells us precisely which doc(s)/course string were
-            # matched, instead of having to guess after the fact.
-            "source_doc_ids": [d["id"] for d in material_docs],
-            "source_doc_names": [d.get("orig_name") for d in material_docs],
+            "material_chars": len(temp_material),
         })
         if not questions:
             return jsonify({"error": "Couldn't generate practice questions from that material — please try again."}), 500
-        return jsonify({"questions": questions, "qtype": qtype, "based_on_assessment_style": bool(assessment_text)})
+        return jsonify({"questions": questions, "qtype": qtype})
     except Exception as e:
         log_error("chat.generate_practice", e)
         return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
@@ -449,6 +440,7 @@ def generate_study_plan_route():
         data = request.get_json() or {}
         course = (data.get("course") or "").strip()
         results = data.get("results")
+        material_text = str(data.get("material") or "").strip()[:config.MAX_TEMP_DOC_CHARS]
         if not course:
             return jsonify({"error": "Please specify which course."}), 400
         if not isinstance(results, list) or not results:
@@ -461,12 +453,11 @@ def generate_study_plan_route():
         if not clean_results:
             return jsonify({"error": "No quiz results to build a plan from."}), 400
 
-        docs = [d for d in get_docs(s["id"]) if (d.get("course") or "").strip().lower() == course.lower()]
-        material_docs = [d for d in docs if (d.get("doc_type") or "material") != "assessment"]
-        material_parts = [(d.get("content") or "").strip() for d in material_docs if d.get("content")]
-        material_text = "\n\n---\n\n".join(p for p in material_parts if p)
+        # Reuses the same session material the Assessment Quiz was generated
+        # from (passed from the frontend) — same reasoning as generate_practice()
+        # above: never pull from documents already uploaded to a course page.
         if not material_text.strip():
-            return jsonify({"error": f"No material found for {course} to build a study plan from."}), 400
+            return jsonify({"error": "No material available to build a study plan from."}), 400
 
         plan = generate_study_plan(course, material_text, clean_results, student_id=s["id"])
         log_event(s["id"], "study_plan_generated", {"course": course, "question_count": len(clean_results)})
