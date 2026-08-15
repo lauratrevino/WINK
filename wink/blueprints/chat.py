@@ -413,6 +413,12 @@ def generate_practice():
             "course": course, "count": len(questions), "qtype": qtype,
             "used_assessment_style": bool(assessment_text),
             "used_temp_material": bool(temp_material),
+            # Exact source documents this generation drew from — if a student
+            # ever reports questions that don't match their material again,
+            # this event tells us precisely which doc(s)/course string were
+            # matched, instead of having to guess after the fact.
+            "source_doc_ids": [d["id"] for d in material_docs],
+            "source_doc_names": [d.get("orig_name") for d in material_docs],
         })
         if not questions:
             return jsonify({"error": "Couldn't generate practice questions from that material — please try again."}), 500
