@@ -1,5 +1,5 @@
 
-from flask import Blueprint, g, jsonify, render_template, request
+from flask import Blueprint, g, jsonify, render_template, request, session
 
 from .. import config
 from ..errors import log_error
@@ -9,6 +9,7 @@ from ..services.analytics import log_event, get_questions_this_month
 from ..services.course_colors import ensure_course_colors
 from ..services.deadlines import get_upcoming_deadlines
 from ..services.documents import get_docs
+from ..services.motivation import get_motivation
 from ..services.progress import get_student_progress
 
 bp = Blueprint("dashboard", __name__)
@@ -26,13 +27,20 @@ def dashboard():
         upcoming_deadlines = get_upcoming_deadlines(s["id"], days_ahead=7)
         questions_this_month = get_questions_this_month(s["id"])
         progress = get_student_progress(s["id"])
+        # Avoid showing the same motivational quote twice in a row for this
+        # student — tracked in their session (already used for login state),
+        # not the database, since this is a cosmetic nicety, not data worth
+        # persisting long-term.
+        encouragement = get_motivation(exclude_text=session.get("last_motivation"))
+        session["last_motivation"] = encouragement["text"]
         log_event(s["id"], "page_view", {"page": "dashboard"})
         return render_template("dashboard.html", s=s, admin_email=config.ADMIN_EMAIL, docs=docs,
                                active="dashboard", max_docs=config.MAX_DOCS_PER_STUDENT,
                                upcoming_deadlines=upcoming_deadlines,
                                questions_this_month=questions_this_month,
                                classifications=config.CLASSIFICATIONS, majors=config.MAJORS,
-                               course_colors=course_colors, progress=progress)
+                               course_colors=course_colors, progress=progress,
+                               encouragement=encouragement)
     except Exception as e:
         log_error("dashboard.dashboard", e)
         return f"<h2>Something went wrong</h2><p>Please try again, or <form method='POST' action='/logout' style='display:inline'><input type='hidden' name='csrf_token' value='{generate_csrf_token()}'><button type='submit' style='background:none;border:none;padding:0;color:#0645AD;text-decoration:underline;cursor:pointer;font:inherit;'>log out</button></form> and back in.</p>", 500
