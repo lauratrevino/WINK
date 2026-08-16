@@ -7,7 +7,12 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/nav.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.css') }}">
   <meta name="csrf-token" content="{{ csrf_token() }}">
-  <script src="/static/mermaid.min.js" defer></script>
+  <!-- mermaid.min.js (~3.5MB) is no longer loaded here unconditionally on
+       every visit to this page — see ensureMermaidLoaded()/
+       resolveDiagramMarkers() below, which injects it on demand only once
+       a response actually contains a ```mermaid block. Most chat sessions
+       never trigger a diagram, so this was pure dead weight on initial
+       page load for the common case. -->
 </head>
 <body>
 
@@ -257,9 +262,15 @@
       };
 
       // Embedded maps: [[map: some place or address]] -> live Google Maps embed
+      // referrerpolicy="no-referrer" (not "no-referrer-when-downgrade", the
+      // previous value): a map query necessarily sends the place/address
+      // itself to Google as a URL parameter — that's inherent to a live
+      // embed and can't be avoided without giving up the embed entirely —
+      // but there's no reason to ALSO hand Google the referring WINK page
+      // URL on every embed. This stops that second, avoidable leak.
       html = html.replace(/\[\[\s*map:\s*([^\]]+)\]\]/gi, (m, query) => {
         const q = encodeURIComponent(query.trim());
-        return stash(`<div class="wink-embed wink-map"><iframe src="https://www.google.com/maps?q=${q}&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe></div>`);
+        return stash(`<div class="wink-embed wink-map"><iframe src="https://www.google.com/maps?q=${q}&output=embed" loading="lazy" referrerpolicy="no-referrer" allowfullscreen></iframe></div>`);
       });
       // Photo of a real person/place/notable subject: [[image: Heather Wilson]]
       // Resolved after render via a free Wikipedia lookup — see resolvePhotoMarkers().
@@ -303,8 +314,19 @@
       // directly rather than implying a verified citation; a real
       // passage-level citation system (chunk id + page → the actual
       // excerpt) would be a stronger version of this.
-      html = html.replace(/\b(\S+\.(?:docx|pdf|pptx|xlsx|txt|png|jpe?g))\b/gi,
-        '<cite class="wink-citation" title="Mentioned by name — not an independently verified citation">$1</cite>');
+      // NOTE (URL exclusion): \S+ is greedy and URL-unaware, so a
+      // filename-shaped tail inside a URL (e.g.
+      // "https://example.edu/handouts/notes.pdf") gets captured whole by
+      // this pattern — the "://" ends up INSIDE the match itself, not
+      // before it, so a lookbehind can't exclude it. Filtering the
+      // matched string post-hoc (skip anything containing "://" or
+      // starting with "/") is the same approach as the backend's
+      // _extract_citation_filenames() in wink/blueprints/chat.py — the
+      // two are meant to agree on what counts as a citation.
+      html = html.replace(/\b(\S+\.(?:docx|pdf|pptx|xlsx|txt|png|jpe?g))\b/gi, (m, filename) => {
+        if (filename.includes('/')) return m;
+        return `<cite class="wink-citation" title="Mentioned by name — not an independently verified citation">${filename}</cite>`;
+      });
 
       // Bold
       html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
@@ -335,7 +357,7 @@
       for (const el of pending) {
         const query = el.dataset.query;
         try {
-          const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`);
+          const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`, { referrerPolicy: 'no-referrer' });
           if (!res.ok) throw new Error('not found');
           const data = await res.json();
           const src = data.thumbnail && data.thumbnail.source;
@@ -352,17 +374,35 @@
     }
 
     let mermaidInitDone = false;
+    let _mermaidLoadPromise = null;
+    // Loads mermaid.min.js (~3.5MB) on demand the FIRST time a response
+    // actually contains a ```mermaid block, instead of on every visit to
+    // this page regardless of whether it's ever used. script-src-elem
+    // includes 'self' in the CSP (see wink/__init__.py), so a same-origin
+    // <script src> injected here is allowed without needing a nonce.
+    // Cached in a module-level promise so a second diagram in the same
+    // session reuses the same in-flight/completed load rather than
+    // injecting the tag again.
+    function ensureMermaidLoaded() {
+      if (typeof mermaid !== 'undefined') return Promise.resolve();
+      if (_mermaidLoadPromise) return _mermaidLoadPromise;
+      _mermaidLoadPromise = new Promise((resolve) => {
+        const script = document.createElement('script');
+        script.src = '/static/mermaid.min.js';
+        script.onload = () => resolve();
+        script.onerror = () => resolve(); // resolved either way — resolveDiagramMarkers() below still checks typeof mermaid and shows a graceful fallback if it never actually loaded
+        document.head.appendChild(script);
+      });
+      return _mermaidLoadPromise;
+    }
+
     async function resolveDiagramMarkers(container) {
       const pending = container.querySelectorAll('.wink-diagram-pending');
       if (pending.length === 0) return;
-      // mermaid.js now loads with `defer` (previously blocking, which
-      // guaranteed it was always ready by the time this ran — see the
-      // <script> tag in <head>). Deferred, there's a real window where a
-      // fast AI response with a diagram could arrive before the ~3.5MB
-      // library has finished loading. Wait briefly for it rather than
-      // failing immediately — mermaid.js finishing a beat late shouldn't
-      // permanently show "not available" for a diagram that would have
-      // rendered fine a moment later.
+      // Kick off the on-demand load (no-op if already loaded/loading),
+      // then wait briefly for it — a fast AI response with a diagram can
+      // arrive before the library has finished loading.
+      await ensureMermaidLoaded();
       if (typeof mermaid === 'undefined') {
         const deadline = Date.now() + 5000;
         while (typeof mermaid === 'undefined' && Date.now() < deadline) {

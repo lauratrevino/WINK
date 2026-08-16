@@ -107,13 +107,15 @@ def export_full_csv():
         buf = io.StringIO()
         fieldnames = ["id", "student_id", "created_at", "question", "answer_text", "model",
                       "retrieval_backend", "chunk_count", "document_ids", "latency_ms",
-                      "prompt_version", "retrieved_context", "student_feedback", "faculty_rating",
+                      "prompt_version", "retrieved_context", "unverified_citations",
+                      "student_feedback", "faculty_rating",
                       "faculty_notes", "rated_by", "rated_at"]
         writer = csv.DictWriter(buf, fieldnames=fieldnames, extrasaction="ignore")
         writer.writeheader()
         for r in rows:
             r = dict(r)
             r["document_ids"] = ",".join(str(d) for d in (r.get("document_ids") or []))
+            r["unverified_citations"] = ",".join(r.get("unverified_citations") or [])
             writer.writerow(r)
         resp = Response(buf.getvalue(), mimetype="text/csv")
         resp.headers["Content-Disposition"] = 'attachment; filename="wink_answers_full_export.csv"'

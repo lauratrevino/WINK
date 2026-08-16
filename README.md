@@ -23,7 +23,7 @@ WINK was created by Dr. Laura L. Trevino at the University of Texas at El Paso a
 - **Email:** Amazon SES via SMTP, with SNS-based bounce/complaint handling
 - **Frontend:** Server-rendered Jinja2 templates, vanilla JS (no framework/build step)
 - **Security:** Hash-based Content-Security-Policy (no `unsafe-inline`), CSRF protection, DB-backed rate limiting, hashed password-reset tokens
-- **Tests:** `pytest`, run against a real PostgreSQL database (not mocked) — 83 tests covering registration, document upload/parsing, chat, retrieval ranking, spaced repetition, concurrency, and CSP correctness
+- **Tests:** `pytest`, run against a real PostgreSQL database (not mocked) — 111 tests covering registration, document upload/parsing, chat, retrieval ranking, spaced repetition, concurrency, CSP correctness, resource-bounding/performance regressions, and a starting AI-quality golden dataset
 
 ## Project structure
 
@@ -109,3 +109,9 @@ Ships as a Docker container (`Dockerfile`) running `gunicorn` with threaded work
 ## Privacy & research
 
 WINK is used in a research pilot studying AI-supported academic success. Student interactions may be recorded and analyzed for research purposes — access to research data is restricted, and data is anonymized before use in any publication or presentation. Students explicitly consent to this at registration, separately from the standard Terms of Use. See `/privacy` for full details.
+
+## Known architectural tradeoffs
+
+See [`KNOWN_TRADEOFFS.md`](KNOWN_TRADEOFFS.md) for deliberate design decisions with real, understood costs (large templates/client-side rendering, dual schema-management mechanisms, research data retention, dependency hash-locking) — recorded so they don't get mistaken for oversights or silently rediscovered later.
+
+The CSP (`wink/__init__.py`) is deliberately strict — nonce-based script elements, hash-based script/style attributes computed at startup from the template files themselves (`wink/csp_hashes.py`), no `unsafe-inline` anywhere, `object-src 'none'`, `base-uri 'self'`. That strictness is real security value, but it does mean any new inline event handler or `<style>` block added to a template needs its hash to actually get picked up by `csp_hashes.py`'s startup scan — a handler added without understanding this will silently fail (the browser drops it, CSP blocks it) rather than error loudly. `test_csp_hashes.py` covers this, but it's worth knowing going in rather than debugging a silently-broken button from CSP violations alone.

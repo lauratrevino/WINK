@@ -272,6 +272,14 @@ def init_db():
         cur.execute("CREATE INDEX IF NOT EXISTS idx_document_chunks_document_id ON document_chunks(document_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_document_chunks_student_id ON document_chunks(student_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_document_chunks_university ON document_chunks(university)")
+        # Backs the keyword pre-filter in get_student_chunks()/get_global_chunks()
+        # (services/documents.py) — see migration 7c2f19a6d3e1 for the full
+        # rationale (retrieval used to load every chunk into Python with no
+        # candidate reduction at the database level first).
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_document_chunks_content_fts "
+            "ON document_chunks USING GIN (to_tsvector('english', content))"
+        )
         cur.execute("""CREATE TABLE IF NOT EXISTS rate_limits (
             id SERIAL PRIMARY KEY,
             key TEXT NOT NULL,
@@ -329,6 +337,12 @@ def init_db():
         # (the exact retrieved document context, not just document IDs) —
         # see migrations/versions/6535ed24cbc8_... for the full reasoning.
         cur.execute("ALTER TABLE answer_logs ADD COLUMN IF NOT EXISTS retrieved_context TEXT DEFAULT ''")
+        # Filenames the model named in its answer that don't correspond to
+        # any document actually shown to it (student uploads or global
+        # reference material) — see migration 9d4b7f2a1c88 for the full
+        # reasoning. Empty string means either no filenames were mentioned,
+        # or every one mentioned was real.
+        cur.execute("ALTER TABLE answer_logs ADD COLUMN IF NOT EXISTS unverified_citations TEXT DEFAULT ''")
 
         cur.execute("""
             CREATE TABLE IF NOT EXISTS course_colors (

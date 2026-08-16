@@ -9,7 +9,8 @@ _VALID_RATINGS = {"correct", "incorrect", "unsure"}
 
 def log_answer(student_id, question, answer_text="", conversation_id=None, message_index=None,
                 retrieval_backend="full_context", chunk_count=0,
-                document_ids=None, latency_ms=None, prompt_version="v1", retrieved_context=""):
+                document_ids=None, latency_ms=None, prompt_version="v1", retrieved_context="",
+                unverified_citations=None):
     if not config.DB_URL:
         return None
     conn = None
@@ -19,11 +20,12 @@ def log_answer(student_id, question, answer_text="", conversation_id=None, messa
         cur.execute("""INSERT INTO answer_logs
                        (student_id, conversation_id, message_index, question, answer_text, model,
                         retrieval_backend, chunk_count, document_ids, latency_ms, prompt_version,
-                        retrieved_context)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
+                        retrieved_context, unverified_citations)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
                     (student_id, conversation_id, message_index, question or "", answer_text or "",
                      config.CHAT_MODEL, retrieval_backend, chunk_count,
-                     json.dumps(document_ids or []), latency_ms, prompt_version, retrieved_context or ""))
+                     json.dumps(document_ids or []), latency_ms, prompt_version, retrieved_context or "",
+                     json.dumps(unverified_citations or [])))
         new_id = cur.fetchone()["id"]
         conn.commit()
         return new_id
@@ -280,12 +282,13 @@ def get_full_sample(limit=100000):
         cur.execute("""SELECT id, student_id, question, answer_text, model, retrieval_backend,
                               chunk_count, document_ids, latency_ms, prompt_version,
                               student_feedback, faculty_rating, faculty_notes, rated_by, rated_at,
-                              created_at, retrieved_context
+                              created_at, retrieved_context, unverified_citations
                        FROM answer_logs
                        ORDER BY created_at ASC LIMIT %s""", (limit,))
         rows = [dict(r) for r in cur.fetchall()]
         for r in rows:
             r["document_ids"] = json.loads(r["document_ids"]) if r["document_ids"] else []
+            r["unverified_citations"] = json.loads(r["unverified_citations"]) if r.get("unverified_citations") else []
             r["created_at"] = r["created_at"].isoformat() if r["created_at"] else None
             r["rated_at"] = r["rated_at"].isoformat() if r["rated_at"] else None
         return rows

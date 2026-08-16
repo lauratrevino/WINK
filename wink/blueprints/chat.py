@@ -1,4 +1,5 @@
 import json
+import re
 import secrets
 import time
 from datetime import datetime
@@ -15,7 +16,8 @@ from ..extensions import anthropic_client, csrf, generate_csrf_token, get_db, re
 from ..security import login_required, page_login_required, rate_limited, verified_required
 from ..services.analytics import log_event, log_token_usage, parse_conversation_messages
 from ..services.deadlines import build_deadlines_context
-from ..services.documents import build_doc_context, build_global_doc_context, get_docs, get_global_docs
+from ..services.documents import (build_doc_context, build_global_doc_context, get_docs,
+                                   get_global_doc_names)
 from ..services.practice import (generate_practice_questions, generate_practice_summary,
                                   generate_study_plan, get_due_questions, grade_quiz_answer,
                                   record_attempt, store_practice_questions)
@@ -24,6 +26,42 @@ from ..services.system_prompt import build_chat_instructions
 from ..timeutil import utcnow_naive
 
 bp = Blueprint("chat", __name__)
+
+# Mirrors the citation-highlighting regex in templates/chat.html (kept in
+# sync deliberately — this is what decides whether a filename the model
+# wrote actually corresponds to a real document, so it needs to recognize
+# the same things the frontend highlights as a citation in the first place).
+_CITATION_FILENAME_RE = re.compile(r"\b(\S+\.(?:docx|pdf|pptx|xlsx|txt|png|jpe?g))\b", re.IGNORECASE)
+
+
+def _extract_citation_filenames(text):
+    r"""Finds filename-looking tokens in text, excluding anything with a
+    path separator in it — \S+ alone is greedy and URL/path-unaware, so
+    without this a link like 'https://example.edu/handouts/notes.pdf' (or
+    even a bare local path like '/uploads/notes.pdf') gets captured whole
+    or partially rather than recognized as not-a-plain-filename and
+    skipped. Kept as a small shared helper (rather than inlined in
+    _find_unverified_citations) since it mirrors the equivalent exclusion
+    in templates/chat.html's citation-highlighting regex — the two are
+    meant to agree on what counts as a citation."""
+    return [m for m in _CITATION_FILENAME_RE.findall(text or "") if "/" not in m]
+
+
+def _find_unverified_citations(answer_text, known_filenames):
+    """Filenames the model named in its answer that don't match any
+    document actually shown to it this turn. This does NOT verify
+    passage-level grounding (that a cited file's specific retrieved
+    excerpt actually supports the claim next to it) — only the more basic
+    question of whether the named file exists among what the model was
+    given at all, as opposed to a name it invented. See migration
+    9d4b7f2a1c88 and templates/chat.html's citation-highlighting comment
+    for the fuller reasoning."""
+    mentioned = set(_extract_citation_filenames(answer_text))
+    if not mentioned:
+        return []
+    known_lower = {f.lower() for f in known_filenames}
+    return sorted(name for name in mentioned if name.lower() not in known_lower)
+
 
 # Demo mode is public and requires no verification — a single IP can start
 # up to 5 demo sessions/hour (see demo.py), and without a tight cap on
@@ -143,10 +181,44 @@ def chat():
         total_doc_chars = sum(len((d.get("content") or "")) for d in docs)
         used_retrieval = total_doc_chars > config.MAX_DOC_CONTEXT_CHARS
         retrieval_backend = ("neural" if config.VOYAGE_API_KEY else "tfidf") if used_retrieval else "full_context"
+        student_university = (s.get("university") or "").strip()
+
+        # These three each do their own DB round-trip(s) — a conversation's
+        # documents, its deadlines, and the global reference material.
+        # This was briefly changed to run them concurrently on separate
+        # threads (each pushing its own app context to get its own DB
+        # connection, since psycopg2 connections aren't safe to share
+        # across threads) to shave pre-stream latency. That traded away
+        # something more important than it saved: a single request went
+        # from using ONE pooled connection during pre-stream work (reused
+        # serially via flask.g, same as everywhere else in this file) to
+        # THREE simultaneously. See test_concurrency_real_db.py's small-
+        # pool test — deliberately written to catch exactly this
+        # failure mode (many concurrent requests against a constrained
+        # pool) — which started failing with "connection pool exhausted"
+        # under this change, immediately after the retrieval-bounding fix
+        # above made these queries real indexed lookups instead of no-ops.
+        # Sequential is the correct trade here: each of these queries is a
+        # single indexed lookup, not a slow scan, so the serial cost is
+        # small — nowhere near worth tripling peak per-request connection
+        # usage under concurrent load.
         doc_ctx = build_doc_context(docs, question=user_msg, sid=s["id"])
         deadline_ctx = build_deadlines_context(s["id"])
-        student_university = (s.get("university") or "").strip()
-        global_ctx = build_global_doc_context(get_global_docs(student_university or None), student_university, question=user_msg)
+        # build_global_doc_context() now decides internally (via a cheap
+        # aggregate query) whether it needs full document content at all —
+        # see its docstring in services/documents.py. get_global_doc_names()
+        # is a separate, deliberately cheap (no content) lookup purely for
+        # citation verification below, so that check doesn't force a full
+        # fetch either.
+        global_ctx = build_global_doc_context(student_university, question=user_msg)
+
+        # Every filename actually shown to the model this turn — a
+        # citation naming anything outside this set (see
+        # _find_unverified_citations below) named a document it was never
+        # given, rather than one it just happened to summarize instead of
+        # quote from.
+        known_filenames = {d["orig_name"] for d in docs if d.get("orig_name")}
+        known_filenames |= set(get_global_doc_names(student_university or None))
 
         temp_doc = data.get("temp_doc")
         if isinstance(temp_doc, dict) and temp_doc.get("content"):
@@ -327,6 +399,7 @@ def chat():
                 # afterward but this string can't change retroactively.
                 retrieved_context=(doc_ctx or "") + "\n\n" + (global_ctx or "")
                              + (("\n\n" + web_search_provenance) if web_search_provenance else ""),
+                unverified_citations=_find_unverified_citations(reply, known_filenames),
             )
             log_token_usage(student_id, "chat", config.CHAT_MODEL, usage)
 

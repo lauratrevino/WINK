@@ -88,6 +88,16 @@ RETRIEVAL_CHUNK_CHARS = 1000
 RETRIEVAL_CHUNK_OVERLAP_CHARS = 150
 RETRIEVAL_TOP_N_STUDENT_DOCS = 25
 RETRIEVAL_TOP_N_GLOBAL_DOCS = 12
+# Hard ceiling on how many chunk ROWS get_student_chunks()/get_global_chunks()
+# will ever pull into Python for one retrieval-triggered message, regardless
+# of how many chunks actually exist for that student/university. Previously
+# unbounded (see migration 7c2f19a6d3e1) — with the student document cap (20
+# docs) and per-document extraction cap (~60,000 chars), that could mean
+# thousands of chunks and their embeddings loaded per question. When the
+# question-aware keyword pre-filter below narrows the candidate set below
+# this, the cap never actually triggers; it's the backstop for when it
+# doesn't (a very generic question, or no question at all).
+RETRIEVAL_MAX_CANDIDATE_CHUNKS = 300
 
 VOYAGE_API_KEY = os.environ.get("VOYAGE_API_KEY", "")
 EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "voyage-4-lite")

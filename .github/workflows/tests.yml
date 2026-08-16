@@ -55,6 +55,21 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r requirements.txt
 
+      - name: Audit dependencies for known vulnerabilities
+        # pip-audit checks every installed package version against the
+        # PyPI Advisory Database (the same source `pip install
+        # pip-audit` itself pulls from) and fails the build on anything
+        # with a known CVE. This was previously absent — CI verified the
+        # app builds and tests pass, but never checked whether a pinned
+        # dependency version had a disclosed vulnerability. Not pinned to
+        # a specific pip-audit version deliberately: the vulnerability
+        # DATABASE needs to be current every run, not frozen at whatever
+        # was latest when this step was added — pip-audit's own scanning
+        # logic changes rarely enough that this is a reasonable trade.
+        run: |
+          pip install pip-audit
+          pip-audit -r requirements.txt
+
       - name: Verify Alembic migrations replay cleanly from scratch
         # This is a real check, not a formality: it directly verifies the
         # migrations/ setup against a genuinely fresh database on every
