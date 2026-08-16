@@ -400,9 +400,21 @@
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="field-with-icon">
             <input type="password" name="password" id="reset-password" placeholder="New password" required minlength="8" autocomplete="new-password" aria-label="New password">
+            <button type="button" class="field-icon-btn" id="toggle-reset-password-btn" aria-label="Show password" tabindex="-1">
+              <svg id="toggle-reset-password-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/>
+              </svg>
+            </button>
           </div>
           <div class="field-with-icon">
             <input type="password" name="confirm_password" id="reset-confirm-password" placeholder="Confirm new password" required minlength="8" autocomplete="new-password" aria-label="Confirm new password">
+            <button type="button" class="field-icon-btn" id="toggle-reset-confirm-password-btn" aria-label="Show password" tabindex="-1">
+              <svg id="toggle-reset-confirm-password-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/>
+              </svg>
+            </button>
           </div>
           <div class="signin-fp-hint">At least 8 characters.</div>
           <div class="signin-inline-actions">
@@ -503,10 +515,10 @@
       if (e.target.id === 'reset-modal') document.getElementById('reset-modal').classList.remove('open');
     });
 
-    (function setupPasswordToggle() {
-      const btn = document.getElementById('toggle-password-btn');
-      const input = document.getElementById('signin-password');
-      const icon = document.getElementById('toggle-password-icon');
+    function setupPasswordToggle(btnId, inputId, iconId) {
+      const btn = document.getElementById(btnId);
+      const input = document.getElementById(inputId);
+      const icon = document.getElementById(iconId);
       if (!btn || !input || !icon) return;
 
       const eyeOpen = '<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/>';
@@ -517,7 +529,10 @@
         icon.innerHTML = showing ? eyeOpen : eyeSlash;
         btn.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
       });
-    })();
+    }
+    setupPasswordToggle('toggle-password-btn', 'signin-password', 'toggle-password-icon');
+    setupPasswordToggle('toggle-reset-password-btn', 'reset-password', 'toggle-reset-password-icon');
+    setupPasswordToggle('toggle-reset-confirm-password-btn', 'reset-confirm-password', 'toggle-reset-confirm-password-icon');
 
     (function setupVoiceInput() {
       const micBtn = document.getElementById('mic-btn');
