@@ -198,7 +198,7 @@
         allDeadlines.forEach(d => {
           if (!d.due_date) return;
           (deadlinesByDate[d.due_date] = deadlinesByDate[d.due_date] || []).push(d);
-          colorForCourse(d.course);
+          if (!d.is_personal) colorForCourse(d.course); // personal items aren't courses — keep them out of the course legend/color cycle entirely
         });
         renderLegend();
         renderCalendar();
@@ -475,7 +475,7 @@
         allDeadlines.forEach(d => {
           if (!d.due_date) return;
           (deadlinesByDate[d.due_date] = deadlinesByDate[d.due_date] || []).push(d);
-          colorForCourse(d.course);
+          if (!d.is_personal) colorForCourse(d.course); // personal items aren't courses — keep them out of the course legend/color cycle entirely
         });
         renderLegend();
         renderCalendar();
@@ -504,7 +504,7 @@
         allDeadlines.forEach(d => {
           if (!d.due_date) return;
           (deadlinesByDate[d.due_date] = deadlinesByDate[d.due_date] || []).push(d);
-          colorForCourse(d.course);
+          if (!d.is_personal) colorForCourse(d.course); // personal items aren't courses — keep them out of the course legend/color cycle entirely
         });
         renderLegend();
         renderCalendar();
@@ -538,7 +538,7 @@
         allDeadlines.forEach(d => {
           if (!d.due_date) return;
           (deadlinesByDate[d.due_date] = deadlinesByDate[d.due_date] || []).push(d);
-          colorForCourse(d.course);
+          if (!d.is_personal) colorForCourse(d.course); // personal items aren't courses — keep them out of the course legend/color cycle entirely
         });
         renderLegend();
         renderCalendar();
@@ -562,7 +562,7 @@
       allDeadlines.forEach(d => {
         if (!d.due_date) return;
         (deadlinesByDate[d.due_date] = deadlinesByDate[d.due_date] || []).push(d);
-        colorForCourse(d.course);
+        if (!d.is_personal) colorForCourse(d.course); // personal items aren't courses — keep them out of the course legend/color cycle entirely
       });
       renderLegend();
       renderCalendar();
@@ -663,7 +663,7 @@
         allDeadlines.forEach(d => {
           if (!d.due_date) return;
           (deadlinesByDate[d.due_date] = deadlinesByDate[d.due_date] || []).push(d);
-          colorForCourse(d.course);
+          if (!d.is_personal) colorForCourse(d.course); // personal items aren't courses — keep them out of the course legend/color cycle entirely
         });
         document.getElementById('empty-state').style.display = allDeadlines.length ? 'none' : 'block';
         renderLegend();
@@ -708,7 +708,7 @@
       allDeadlines.forEach(d => {
         if (!d.due_date) return;
         (deadlinesByDate[d.due_date] = deadlinesByDate[d.due_date] || []).push(d);
-        colorForCourse(d.course);
+        if (!d.is_personal) colorForCourse(d.course); // personal items aren't courses — keep them out of the course legend/color cycle entirely
       });
 
       if (allDeadlines.length === 0) {
