@@ -92,6 +92,21 @@ def _seed_demo(cur, sid):
         (1,"MATH 1324","Exam 1",today+timedelta(days=6),"confirmed",False),
         (2,"HIST 1301","Reading Response 3",today-timedelta(days=3),"confirmed",True),
         (3,"BIOL 1305","Cell Lab Worksheet",today-timedelta(days=5),"confirmed",True),
+        # Spread further out across the following couple of months — a real
+        # semester's deadlines aren't clustered in the first two weeks, and
+        # a demo that only ever seeds ~11 days of assignments left the
+        # calendar (and the "Study Plan — Next 4 Weeks" feature) looking
+        # empty the moment someone browsed past the current month.
+        (0,"UNIV 1301","Edge Activity Log",today+timedelta(days=14),"confirmed",False),
+        (1,"MATH 1324","Homework: Systems of Equations",today+timedelta(days=16),"confirmed",False),
+        (2,"HIST 1301","Midterm Exam",today+timedelta(days=21),"confirmed",False),
+        (3,"BIOL 1305","Genetics Lab Report",today+timedelta(days=24),"confirmed",False),
+        (0,"UNIV 1301","Ethnography Project Proposal",today+timedelta(days=35),"confirmed",False),
+        (1,"MATH 1324","Exam 2",today+timedelta(days=42),"confirmed",False),
+        (2,"HIST 1301","Reading Response 4",today+timedelta(days=45),"confirmed",False),
+        (3,"BIOL 1305","Final Project Draft",today+timedelta(days=56),"confirmed",False),
+        (0,"UNIV 1301","Ethnography Project Final",today+timedelta(days=63),"confirmed",False),
+        (1,"MATH 1324","Final Exam",today+timedelta(days=70),"confirmed",False),
     ]
     completed_ids=[]
     for di,course,title,due,status,completed in deadlines:
