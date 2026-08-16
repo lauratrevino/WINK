@@ -10,9 +10,10 @@
     :root{--navy:#002855;--navy2:#0b477e;--orange:#FF8200;--cream:#fff7ec;--ink:#26364f;--muted:#6b7a99;--line:#dde3f0;--bg:#f4f6fb}
     body{background:var(--bg)}
     .page-shell{max-width:900px;margin:0 auto;padding:28px 22px 60px}
-    .gc-header{background:linear-gradient(135deg,#fffaf3 0%,#fff2df 55%,#fdecdd 100%);border:2px solid var(--orange);border-radius:24px;box-shadow:0 16px 40px rgba(0,40,85,.14);padding:32px 36px;margin-bottom:22px}
-    .gc-header h1{margin:0 0 8px;color:var(--navy);font-size:32px;letter-spacing:-.5px}
-    .gc-header p{margin:0;color:#53627b;line-height:1.6;max-width:640px}
+    .gc-header{position:relative;background:var(--navy);border-radius:20px;padding:28px 34px;margin-bottom:22px;display:flex;gap:18px;align-items:center;border-left:6px solid var(--orange)}
+    .gc-header-icon{flex:0 0 auto;width:52px;height:52px;border-radius:14px;background:var(--orange);display:flex;align-items:center;justify-content:center}
+    .gc-header-text h1{margin:0 0 6px;color:#fff;font-size:26px;letter-spacing:-.3px}
+    .gc-header-text p{margin:0;color:#b9c9e0;line-height:1.6;max-width:600px;font-size:13.5px}
     .empty-state{background:#fff;border:2px dashed #cfd8e6;border-radius:18px;padding:36px;text-align:center;color:var(--muted);margin-bottom:22px}
     .empty-icon{font-size:34px;display:block;margin-bottom:10px}
     .empty-state h3{margin:0 0 6px;color:var(--navy)}
@@ -51,11 +52,6 @@
     .result-label{font-size:13px;color:var(--muted)}
     .result-value{font-size:28px;font-weight:900;color:var(--navy)}
     .result-sub{font-size:12.5px;color:var(--muted);margin-top:10px}
-    .target-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-    #target-input{padding:9px 11px;border:1.5px solid var(--line);border-radius:10px;font-size:14px;width:100px}
-    .target-result{margin-top:14px;font-size:13.5px;line-height:1.6;color:var(--ink);background:#f3f7fb;border-left:4px solid var(--navy2);border-radius:8px;padding:12px 14px}
-    .target-result.bad{background:#fdecec;border-left-color:#c0392b}
-    .target-result.warn{background:#fff7ec;border-left-color:var(--orange)}
   </style>
   <meta name="csrf-token" content="{{ csrf_token() }}">
 </head>
@@ -66,8 +62,21 @@
 
   <div class="page-shell">
     <div class="gc-header">
-      <h1>🧮 Grade Calculator</h1>
-      <p>Pull your grading breakdown from an uploaded course document. You can use the calculator for what-if grade analysis to see what you need to make or what you still need to make the grade you want.</p>
+      <div class="gc-header-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="4" y="2" width="16" height="20" rx="2"/>
+          <line x1="7" y1="6" x2="17" y2="6"/>
+          <circle cx="8" cy="11" r="0.9" fill="#ffffff" stroke="none"/>
+          <circle cx="12" cy="11" r="0.9" fill="#ffffff" stroke="none"/>
+          <circle cx="16" cy="11" r="0.9" fill="#ffffff" stroke="none"/>
+          <circle cx="8" cy="15" r="0.9" fill="#ffffff" stroke="none"/>
+          <rect x="11.3" y="14" width="6" height="6" rx="1"/>
+        </svg>
+      </div>
+      <div class="gc-header-text">
+        <h1>Grade Calculator</h1>
+        <p>Pull your grading breakdown from an uploaded course document, then enter your scores to see your current grade — or switch to What-If mode to test hypothetical scores.</p>
+      </div>
     </div>
 
     <div class="empty-state" id="no-course-state">
@@ -123,17 +132,6 @@
         <span class="result-value" id="current-grade-value">—</span>
       </div>
       <div class="result-sub" id="current-grade-sub"></div>
-    </div>
-
-    <div class="card" id="target-card" style="display:none;">
-      <h2>4. What do I need on the rest?</h2>
-      <div class="target-row">
-        <label for="target-input" style="font-size:13px;color:#6b7a99;">I want an overall grade of</label>
-        <input type="number" id="target-input" placeholder="90" min="0" max="100" step="0.1">
-        <span style="font-size:13px;color:#6b7a99;">%</span>
-        <button class="btn btn-primary" onclick="calculateTarget()">Calculate</button>
-      </div>
-      <div class="target-result" id="target-result"></div>
     </div>
   </div>
 
@@ -269,7 +267,7 @@
       document.getElementById('mode-whatif-btn').classList.toggle('active', inWhatIf);
       document.getElementById('reset-whatif-btn').style.display = inWhatIf ? 'inline-block' : 'none';
       document.getElementById('mode-note').textContent = inWhatIf
-        ? 'What-If Scenario: test hypothetical scores freely — nothing here is saved, so your real scores are safe. Clear a category to solve for it below, even if it already has a real score.'
+        ? 'What-If Scenario: test hypothetical scores freely — nothing here is saved, so your real scores are safe.'
         : "Actual Scores autosave and drive your real Current Grade. Switch to What-If Scenario to test hypothetical scores — nothing there gets saved, so you can't lose your real data.";
       document.getElementById('current-grade-title').textContent = inWhatIf ? '3. What-if grade preview' : '3. Current grade';
       document.getElementById('current-grade-label').textContent = inWhatIf
@@ -323,14 +321,11 @@
 
       const scored = rows.filter(r => r.score !== null && !isNaN(r.score));
       const currentCard = document.getElementById('current-grade-card');
-      const targetCard = document.getElementById('target-card');
       if (rows.length === 0) {
         currentCard.style.display = 'none';
-        targetCard.style.display = 'none';
         return;
       }
       currentCard.style.display = 'block';
-      targetCard.style.display = 'block';
 
       if (scored.length === 0) {
         document.getElementById('current-grade-value').textContent = '—';
@@ -344,45 +339,6 @@
         document.getElementById('current-grade-sub').textContent = remaining > 0
           ? `Based on ${scoredWeight.toFixed(1)}% of the total weight — ${remaining} categor${remaining === 1 ? 'y' : 'ies'} still blank.`
           : 'Every category has a score entered — this is your full grade.';
-      }
-    }
-
-    function calculateTarget() {
-      const target = parseFloat(document.getElementById('target-input').value);
-      const resultEl = document.getElementById('target-result');
-      if (isNaN(target)) {
-        resultEl.className = 'target-result warn';
-        resultEl.textContent = 'Enter a target grade first.';
-        return;
-      }
-      const rows = getRows().filter(r => r.category && !isNaN(r.weight) && r.weight > 0);
-      const totalWeight = rows.reduce((s, r) => s + r.weight, 0);
-      if (totalWeight === 0) {
-        resultEl.className = 'target-result warn';
-        resultEl.textContent = 'Add at least one weighted category first.';
-        return;
-      }
-      const scored = rows.filter(r => r.score !== null && !isNaN(r.score));
-      const remaining = rows.filter(r => r.score === null || isNaN(r.score));
-      const knownWeighted = scored.reduce((s, r) => s + r.weight * r.score, 0);
-      const remainingWeight = remaining.reduce((s, r) => s + r.weight, 0);
-
-      if (remainingWeight === 0) {
-        const finalGrade = totalWeight > 0 ? knownWeighted / totalWeight : 0;
-        resultEl.className = finalGrade >= target ? 'target-result' : 'target-result bad';
-        const nudge = mode === 'actual' ? ' Want to explore a hypothetical? Switch to What-If Scenario above and clear or change a score.' : ' Clear a category above to solve for it.';
-        resultEl.innerHTML = `Every category already has a score — your final grade is <strong>${finalGrade.toFixed(2)}%</strong>, nothing left to solve for.${nudge}`;
-        return;
-      }
-
-      const needed = (target * totalWeight - knownWeighted) / remainingWeight;
-      resultEl.className = needed > 100 ? 'target-result bad' : (needed < 0 ? 'target-result' : 'target-result');
-      if (needed > 100) {
-        resultEl.innerHTML = `You'd need <strong>${needed.toFixed(2)}%</strong> on the remaining ${remaining.length} categor${remaining.length === 1 ? 'y' : 'ies'} — that's over 100%, so a ${target}% overall isn't reachable from here.`;
-      } else if (needed < 0) {
-        resultEl.innerHTML = `You've already clinched a ${target}% overall — even a 0% on what's left keeps you above it.`;
-      } else {
-        resultEl.innerHTML = `You need an average of <strong>${needed.toFixed(2)}%</strong> across the remaining ${remaining.length} categor${remaining.length === 1 ? 'y' : 'ies'} (${remainingWeight.toFixed(1)}% of the total weight) to reach ${target}% overall.`;
       }
     }
 
@@ -403,7 +359,6 @@
       if (!course) {
         document.getElementById('weights-card').style.display = 'none';
         document.getElementById('current-grade-card').style.display = 'none';
-        document.getElementById('target-card').style.display = 'none';
         document.getElementById('no-course-state').style.display = 'block';
         return;
       }
@@ -417,7 +372,6 @@
       if (weights.length === 0) {
         document.getElementById('weights-card').style.display = 'none';
         document.getElementById('current-grade-card').style.display = 'none';
-        document.getElementById('target-card').style.display = 'none';
         document.getElementById('no-course-state').style.display = 'block';
         return;
       }
