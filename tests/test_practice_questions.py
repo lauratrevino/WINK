@@ -63,56 +63,28 @@ class TestGeneratePractice:
 
         register(client)
         with open(os.path.join(FIXTURES_DIR, "sample_syllabus.docx"), "rb") as f:
-            resp = client.post("/upload", data={
+            temp_resp = client.post("/upload", data={
                 "file": (io.BytesIO(f.read()), "Spring2026Syllabus.docx"),
-                "course": "CIS 3305", "crn": "12345",
+                "temporary": "true",
             }, content_type="multipart/form-data")
-        assert resp.status_code == 200
+        assert temp_resp.status_code == 200
+        extracted_content = temp_resp.get_json()["content"]
 
         fake = FakeClient(REALISTIC_QUESTIONS_JSON)
         monkeypatch.setattr(practice_service, "anthropic_client", fake)
         monkeypatch.setattr(config, "ANTHROPIC_API_KEY", "fake-key-for-test")
         monkeypatch.setattr(chat_bp, "rate_limited", lambda *a, **kw: 0)
 
-        resp = client.post("/generate-practice", json={"course": "CIS 3305", "count": 2})
+        resp = client.post("/generate-practice", json={
+            "course": "CIS 3305", "count": 2, "temp_material": extracted_content,
+        })
         body = resp.get_json()
         assert resp.status_code == 200, body
         assert len(body["questions"]) == 2
         assert body["questions"][0]["question"] == "What is the late work policy in this course?"
-        assert body["based_on_assessment_style"] is False
 
         sent = fake.messages.last_call
         assert "Absolutely no late work" in sent["messages"][0]["content"] or "Late Work" in sent["messages"][0]["content"]
-
-    def test_assessment_tagged_upload_used_as_style_reference_only(self, client, monkeypatch):
-        import wink.blueprints.chat as chat_bp
-        import wink.services.practice as practice_service
-        import wink.config as config
-
-        register(client)
-        with open(os.path.join(FIXTURES_DIR, "sample_syllabus.docx"), "rb") as f:
-            client.post("/upload", data={
-                "file": (io.BytesIO(f.read()), "Spring2026Syllabus.docx"),
-                "course": "CIS 3305", "crn": "12345",
-            }, content_type="multipart/form-data")
-        client.post("/upload", data={
-            "file": (io.BytesIO(b"1. What is 2+2? A) 3 B) 4 C) 5\n2. Define recursion."), "old_quiz.txt"),
-            "course": "CIS 3305", "crn": "12345", "doc_type": "assessment",
-        }, content_type="multipart/form-data")
-
-        fake = FakeClient(REALISTIC_QUESTIONS_JSON)
-        monkeypatch.setattr(practice_service, "anthropic_client", fake)
-        monkeypatch.setattr(config, "ANTHROPIC_API_KEY", "fake-key-for-test")
-        monkeypatch.setattr(chat_bp, "rate_limited", lambda *a, **kw: 0)
-
-        resp = client.post("/generate-practice", json={"course": "CIS 3305"})
-        body = resp.get_json()
-        assert resp.status_code == 200, body
-        assert body["based_on_assessment_style"] is True
-
-        sent = fake.messages.last_call
-        assert "recursion" in sent["messages"][0]["content"].lower()
-        assert "Do NOT reuse, reword, or lightly disguise" in sent["system"]
 
     def test_rejects_invalid_doc_type_on_upload(self, client):
         register(client)
@@ -130,7 +102,7 @@ class TestGeneratePractice:
         monkeypatch.setattr(config, "ANTHROPIC_API_KEY", "fake-key-for-test")
         resp = client.post("/generate-practice", json={"course": "A Course With No Uploads"})
         assert resp.status_code == 400
-        assert "No material found" in resp.get_json()["error"]
+        assert "Please attach a document" in resp.get_json()["error"]
 
 
 class TestTemporaryHandoutPractice:
@@ -192,7 +164,7 @@ class TestTemporaryHandoutPractice:
             assert cur.fetchone()["n"] == 0
             cur.close()
 
-    def test_temp_material_combines_with_permanent_material_for_same_course(self, client, monkeypatch):
+    def test_permanent_course_documents_are_not_used_only_temp_material_is(self, client, monkeypatch):
         import wink.blueprints.chat as chat_bp
         import wink.services.practice as practice_service
         import wink.config as config
@@ -216,5 +188,8 @@ class TestTemporaryHandoutPractice:
         assert resp.status_code == 200
 
         sent = fake.messages.last_call["messages"][0]["content"]
-        assert "extra credit" in sent.lower(), "the temporary handout content should be included alongside the permanent syllabus"
-        assert "Late Work" in sent or "late work" in sent.lower(), "the permanent syllabus content should still be included too"
+        assert "extra credit" in sent.lower(), "the temporary handout content should be used"
+        assert "Late Work" not in sent and "late work" not in sent.lower(), (
+            "the permanent syllabus content should NOT be pulled in — practice sessions "
+            "use only what's attached for that session"
+        )

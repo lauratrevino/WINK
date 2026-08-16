@@ -51,10 +51,11 @@ class TestSpacedRepetitionRealDB:
 
         register(client)
         with open(os.path.join(FIXTURES_DIR, "sample_syllabus.docx"), "rb") as f:
-            client.post("/upload", data={
+            temp_resp = client.post("/upload", data={
                 "file": (io.BytesIO(f.read()), "Spring2026Syllabus.docx"),
-                "course": "CIS 3305", "crn": "12345",
+                "temporary": "true",
             }, content_type="multipart/form-data")
+        extracted_content = temp_resp.get_json()["content"]
 
         class FakeTextBlock:
             def __init__(self, text): self.type, self.text = "text", text
@@ -74,7 +75,9 @@ class TestSpacedRepetitionRealDB:
         monkeypatch.setattr(config, "ANTHROPIC_API_KEY", "fake-key-for-test")
         monkeypatch.setattr(chat_bp, "rate_limited", lambda *a, **kw: 0)
 
-        resp = client.post("/generate-practice", json={"course": "CIS 3305", "count": 1})
+        resp = client.post("/generate-practice", json={
+            "course": "CIS 3305", "count": 1, "temp_material": extracted_content,
+        })
         body = resp.get_json()
         assert resp.status_code == 200, body
         qid = body["questions"][0]["id"]
