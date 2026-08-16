@@ -100,48 +100,10 @@
     .doctype-card .doctype-desc { font-size: 9.5px; color: #6b7a99; margin-top: 1px; line-height: 1.2; }
 
     .hero-card {
-      border-top-left-radius: 0;
-      border-top-right-radius: 0;
-      position: relative;
-      overflow: hidden;
-      background-image: url("{{ url_for('static', filename='images/1786784699860_wink-hero.png') }}");
-      background-size: cover;
-      background-position: center center;
-      isolation: isolate;
-    }
-    .hero-card::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(115deg, rgba(0,40,85,0.60) 0%, rgba(0,40,85,0.46) 38%, rgba(0,40,85,0.20) 65%, rgba(0,40,85,0.03) 100%);
-      z-index: 0;
-    }
-    .hero-card .hero-text {
-      position: relative;
-      z-index: 1;
-    }
-    .hero-card .hero-line-1,
-    .hero-card .hero-line-2 {
-      color: #fff;
-      text-shadow: 0 1px 6px rgba(0,20,45,0.55);
-    }
-    .hero-card .hero-text p {
-      color: #eef2fb !important;
-    }
-    .hero-card .hero-stat-card {
-      background: rgba(255,255,255,0.94);
-      backdrop-filter: blur(2px);
-    }
-    .hero-card .hero-text {
-      text-align: left;
-      margin-left: 0.25in;
-    }
-    .hero-card .hero-wink-word {
-      display: inline-block;
-      font-size: 1.5em;
-      font-weight: 900;
-      position: relative;
-      left: -0.5in;
+      background-image:
+        linear-gradient(100deg, rgba(255,159,64,0.30) 0%, rgba(255,196,120,0.14) 45%, transparent 75%),
+        url("{{ url_for('static', filename='images/1786784699860_wink-hero.png') }}");
+      background-blend-mode: overlay, normal;
     }
 </style>
 </head>
@@ -154,7 +116,7 @@
 
     <div class="hero-card">
       <div class="hero-text">
-        <div class="hero-line-1">Give <span class="hero-wink-word">WINK</span></div>
+        <div class="hero-line-1">Give WINK</div>
         <div class="hero-line-2">Your Course Material</div>
         <p style="margin-bottom:18px;color:#1a1a24;font-weight:500;">
           Upload a syllabus, course calendar, assignment instructions, notes, slides, or hand-outs for each

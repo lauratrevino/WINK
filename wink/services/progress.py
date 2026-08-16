@@ -38,9 +38,17 @@ def _organization_stats(cur, student_id, days_back):
 
 
 def _practice_stats(cur, student_id):
+    # correct_streak > 0 means the most recent attempt on that question was
+    # answered correctly (schedule_next_review() in services/practice.py
+    # resets the streak to 0 on any wrong answer and increments it on a
+    # right one) — so among attempted questions, this counts how many are
+    # currently in a "got it right last time" state. "Wrong" on the
+    # Progress page is then attempted minus this correct count, so the two
+    # always add back up to Attempted, matching what the frontend expects.
     cur.execute("""
         SELECT COUNT(*) as total_questions,
                COUNT(*) FILTER (WHERE last_attempted_at IS NOT NULL) as attempted,
+               COUNT(*) FILTER (WHERE last_attempted_at IS NOT NULL AND correct_streak > 0) as correct,
                COALESCE(AVG(correct_streak) FILTER (WHERE last_attempted_at IS NOT NULL), 0) as avg_streak
         FROM practice_questions
         WHERE student_id = %s
@@ -166,7 +174,7 @@ def get_progress_summary(student_id, days_back=30):
         "active_days": 0, "questions_asked": 0,
         "completion": {"total": 0, "completed": 0, "on_time": 0},
         "organization": {"personal_items_added": 0, "deadlines_reviewed": 0},
-        "practice": {"total_questions": 0, "attempted": 0, "avg_streak": 0},
+        "practice": {"total_questions": 0, "attempted": 0, "correct": 0, "avg_streak": 0},
         "daily_activity": [],
         "weekly_activity": [],
         "monthly_activity": [],
