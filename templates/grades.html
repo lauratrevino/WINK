@@ -28,6 +28,11 @@
     .btn-secondary{background:#fff;color:var(--navy);border:1.5px solid var(--navy)}
     .btn-secondary:hover{border-color:var(--orange);color:#c75e00}
     .your-score-note{background:#fff7ec;border-left:4px solid var(--orange);border-radius:8px;padding:10px 12px;font-size:13px;line-height:1.5;color:var(--ink);margin:0 0 14px}
+    .mode-toggle{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+    .mode-btn{border:1.5px solid var(--line);background:#fff;color:var(--muted);border-radius:999px;padding:8px 14px;font-size:12.5px;font-weight:800;cursor:pointer}
+    .mode-btn.active{border-color:var(--navy);color:var(--navy);background:var(--cream)}
+    .mode-btn:hover{border-color:var(--orange)}
+    .mode-note{font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5}
     .weights-table{width:100%;border-collapse:collapse;margin-bottom:8px}
     .weights-table thead th{background:var(--navy);color:#fff;text-align:left;font-size:11.5px;letter-spacing:.03em;padding:10px 12px;border-radius:0}
     .weights-table thead th:first-child{border-radius:10px 0 0 10px}
@@ -89,6 +94,12 @@
     <div class="card" id="weights-card" style="display:none;">
       <h2>2. Grading breakdown</h2>
       <p class="your-score-note"><strong>Your Score</strong> — Most assignments are graded on a 100 point basis. If you scored 80 out of 100, enter 80 into the Your Score column.</p>
+      <div class="mode-toggle" role="group" aria-label="Scoring mode">
+        <button type="button" class="mode-btn active" id="mode-actual-btn" onclick="setMode('actual')">📌 Actual Scores</button>
+        <button type="button" class="mode-btn" id="mode-whatif-btn" onclick="setMode('whatif')">🧪 What-If Scenario</button>
+        <button type="button" class="btn btn-secondary" id="reset-whatif-btn" onclick="resetWhatIf()" style="display:none;">↺ Reset to my actual scores</button>
+      </div>
+      <div class="mode-note" id="mode-note">Actual Scores autosave and drive your real Current Grade. Switch to What-If Scenario to test hypothetical scores — nothing there gets saved, so you can't lose your real data.</div>
       <table class="weights-table" id="weights-table">
         <thead>
           <tr><th>Category</th><th style="width:90px;">Weight %</th><th style="width:150px;">YOUR SCORE (out of 100 points)</th><th style="width:36px;"></th></tr>
@@ -101,14 +112,14 @@
         </tfoot>
       </table>
       <div class="weights-empty" id="weights-empty" style="display:none;">No categories yet — extract from a course document above, or add one manually.</div>
-      <button class="btn btn-secondary add-row-btn" onclick="addRow('', '', '')">+ Add category</button>
-      <div class="extract-note">You can remove an item or add an item but your total grade weight must add to 100%. Most assignments are graded on a scale of 100 — enter your grades on a 100-point scale (for example, 92, not 0.92).</div>
+      <button class="btn btn-secondary add-row-btn" id="add-row-btn" onclick="addRow('', '', '')">+ Add category</button>
+      <div class="extract-note">You can remove an item or add an item but your total grade weight must add to 100%. Weights are shown as percentages, but every score you enter should be on a 100-point scale (for example, 92, not 0.92).</div>
     </div>
 
     <div class="card" id="current-grade-card" style="display:none;">
-      <h2>3. Current grade</h2>
+      <h2 id="current-grade-title">3. Current grade</h2>
       <div class="result-card">
-        <span class="result-label">Based on the categories you've entered a score for:</span>
+        <span class="result-label" id="current-grade-label">Based on the categories you've entered a score for:</span>
         <span class="result-value" id="current-grade-value">—</span>
       </div>
       <div class="result-sub" id="current-grade-sub"></div>
@@ -152,6 +163,9 @@
     let rowSeq = 0;
     let currentCourse = '';
     let saveTimer = null;
+    let mode = 'actual'; // 'actual' (autosaved, real grade) or 'whatif' (sandbox, never saved)
+    let actualScoresByCategory = {};   // mirrors what's saved for real
+    let whatIfScoresByCategory = {};   // hypothetical scratch pad, never persisted
 
     function currentCourseName() {
       return document.getElementById('course-input').value.trim();
@@ -204,13 +218,68 @@
     }
 
     function onScoreChanged() {
-      const course = currentCourseName();
-      if (course) {
-        const scores = {};
-        getRows().forEach(r => { if (r.score !== null && !isNaN(r.score)) scores[r.category] = r.score; });
-        saveScores(course, scores);
+      if (mode === 'actual') {
+        syncActualFromRows();
+        const course = currentCourseName();
+        if (course) saveScores(course, actualScoresByCategory);
+      } else {
+        whatIfScoresByCategory = {};
+        getRows().forEach(r => { if (r.score !== null && !isNaN(r.score)) whatIfScoresByCategory[r.category] = r.score; });
       }
       recompute();
+    }
+
+    function syncActualFromRows() {
+      actualScoresByCategory = {};
+      getRows().forEach(r => { if (r.score !== null && !isNaN(r.score)) actualScoresByCategory[r.category] = r.score; });
+    }
+
+    function applyScoresToInputs(scoresByCategory) {
+      document.querySelectorAll('#weights-tbody tr').forEach(tr => {
+        const cat = tr.querySelector('.category-input').value.trim();
+        const scoreInput = tr.querySelector('.score-input');
+        const val = scoresByCategory[cat];
+        scoreInput.value = (val !== undefined && val !== null) ? val : '';
+      });
+    }
+
+    function setMode(newMode) {
+      if (newMode === mode) return;
+      if (newMode === 'whatif') {
+        syncActualFromRows();
+        whatIfScoresByCategory = { ...actualScoresByCategory };
+        applyScoresToInputs(whatIfScoresByCategory);
+      } else {
+        applyScoresToInputs(actualScoresByCategory);
+      }
+      mode = newMode;
+      updateModeUI();
+      recompute();
+    }
+
+    function resetWhatIf() {
+      whatIfScoresByCategory = { ...actualScoresByCategory };
+      applyScoresToInputs(whatIfScoresByCategory);
+      recompute();
+    }
+
+    function updateModeUI() {
+      const inWhatIf = mode === 'whatif';
+      document.getElementById('mode-actual-btn').classList.toggle('active', !inWhatIf);
+      document.getElementById('mode-whatif-btn').classList.toggle('active', inWhatIf);
+      document.getElementById('reset-whatif-btn').style.display = inWhatIf ? 'inline-block' : 'none';
+      document.getElementById('mode-note').textContent = inWhatIf
+        ? 'What-If Scenario: test hypothetical scores freely — nothing here is saved, so your real scores are safe. Clear a category to solve for it below, even if it already has a real score.'
+        : "Actual Scores autosave and drive your real Current Grade. Switch to What-If Scenario to test hypothetical scores — nothing there gets saved, so you can't lose your real data.";
+      document.getElementById('current-grade-title').textContent = inWhatIf ? '3. What-if grade preview' : '3. Current grade';
+      document.getElementById('current-grade-label').textContent = inWhatIf
+        ? 'Based on your what-if scores:'
+        : "Based on the categories you've entered a score for:";
+      document.querySelectorAll('.category-input, .weight-input').forEach(el => el.disabled = inWhatIf);
+      const addBtn = document.getElementById('add-row-btn');
+      if (addBtn) addBtn.disabled = inWhatIf;
+      document.getElementById('course-input').disabled = inWhatIf;
+      document.getElementById('extract-btn').disabled = inWhatIf || !currentCourseName();
     }
 
     function onWeightsChanged() {
@@ -301,7 +370,8 @@
       if (remainingWeight === 0) {
         const finalGrade = totalWeight > 0 ? knownWeighted / totalWeight : 0;
         resultEl.className = finalGrade >= target ? 'target-result' : 'target-result bad';
-        resultEl.innerHTML = `Every category already has a score — your final grade is <strong>${finalGrade.toFixed(2)}%</strong>, nothing left to solve for.`;
+        const nudge = mode === 'actual' ? ' Want to explore a hypothetical? Switch to What-If Scenario above and clear or change a score.' : ' Clear a category above to solve for it.';
+        resultEl.innerHTML = `Every category already has a score — your final grade is <strong>${finalGrade.toFixed(2)}%</strong>, nothing left to solve for.${nudge}`;
         return;
       }
 
@@ -353,6 +423,10 @@
       }
       const scores = loadScores(course);
       weights.forEach(w => addRow(w.category, w.weight, scores[w.category] ?? ''));
+      mode = 'actual';
+      syncActualFromRows();
+      whatIfScoresByCategory = { ...actualScoresByCategory };
+      updateModeUI();
     }
 
     async function extractWeights() {
@@ -382,6 +456,10 @@
         (data.weights || []).forEach(w => addRow(w.category, w.weight, scores[w.category] ?? ''));
         document.getElementById('weights-card').style.display = 'block';
         document.getElementById('no-course-state').style.display = 'none';
+        mode = 'actual';
+        syncActualFromRows();
+        whatIfScoresByCategory = { ...actualScoresByCategory };
+        updateModeUI();
       } catch (e) {
         console.error('extractWeights error', e);
         showExtractMessage('Network error — please try again.');
