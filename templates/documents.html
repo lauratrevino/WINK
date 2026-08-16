@@ -84,7 +84,7 @@
       color: #FF8200;
     }
 
-    .doctype-cards { gap: 8px; }
+    .doctype-cards { gap: 8px; justify-content: center; }
     .doctype-card {
       display: flex;
       align-items: center;
@@ -113,7 +113,7 @@
       content: "";
       position: absolute;
       inset: 0;
-      background: linear-gradient(115deg, rgba(0,40,85,0.88) 0%, rgba(0,40,85,0.72) 38%, rgba(0,40,85,0.30) 65%, rgba(0,40,85,0.05) 100%);
+      background: linear-gradient(115deg, rgba(0,40,85,0.60) 0%, rgba(0,40,85,0.46) 38%, rgba(0,40,85,0.20) 65%, rgba(0,40,85,0.03) 100%);
       z-index: 0;
     }
     .hero-card .hero-text {
@@ -123,6 +123,7 @@
     .hero-card .hero-line-1,
     .hero-card .hero-line-2 {
       color: #fff;
+      text-shadow: 0 1px 6px rgba(0,20,45,0.55);
     }
     .hero-card .hero-text p {
       color: #eef2fb !important;
@@ -133,6 +134,14 @@
     }
     .hero-card .hero-text {
       text-align: left;
+      margin-left: 0.25in;
+    }
+    .hero-card .hero-wink-word {
+      display: inline-block;
+      font-size: 1.5em;
+      font-weight: 900;
+      position: relative;
+      left: -0.5in;
     }
 </style>
 </head>
@@ -145,7 +154,7 @@
 
     <div class="hero-card">
       <div class="hero-text">
-        <div class="hero-line-1">Give WINK</div>
+        <div class="hero-line-1">Give <span class="hero-wink-word">WINK</span></div>
         <div class="hero-line-2">Your Course Material</div>
         <p style="margin-bottom:18px;color:#1a1a24;font-weight:500;">
           Upload a syllabus, course calendar, assignment instructions, notes, slides, or hand-outs for each
@@ -220,8 +229,8 @@
       </span>
       <div class="stale-file-warning-text">
         <strong>Keep your files current.</strong> If a syllabus, calendar, or any other document changes
-        after you upload it — a new due date, a corrected policy, an updated schedule — you must upload
-        the new version here to replace it. WINK can only answer from what you've actually given it, so
+        after you upload it — a new due date, a corrected policy, an updated schedule — <strong style="color:#dc2626;">you must upload
+        the new version here to replace it</strong>. WINK can only answer from what you've actually given it, so
         its answers are only as accurate and up to date as your uploaded files.
       </div>
     </div>
@@ -501,6 +510,10 @@
     }
     courseInput.addEventListener('input', tryAutofillCrn);
     courseInput.addEventListener('change', tryAutofillCrn);
+    // Safari doesn't reliably fire input/change when a datalist option is
+    // clicked (a known long-standing quirk) — blur is the fallback that
+    // always fires once the field loses focus, so autofill still happens.
+    courseInput.addEventListener('blur', tryAutofillCrn);
 
     function setSelectedFile(file) {
       const progressWrap = document.getElementById('upload-progress-wrap');
