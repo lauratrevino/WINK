@@ -15,17 +15,27 @@ bp = Blueprint("misc", __name__)
 _APP_START_TIME = time.time()
 
 
+PRIVACY_EFFECTIVE_DATE = "Monday, August 17th, 2026"
+TERMS_EFFECTIVE_DATE = "Monday, August 17th, 2026"
+
+
 @bp.route("/")
 def landing():
     try:
-        return render_template("landing.html")
+        return render_template(
+            "landing.html",
+            admin_email=config.ADMIN_EMAIL,
+            privacy_updated_date=PRIVACY_EFFECTIVE_DATE,
+            terms_updated_date=TERMS_EFFECTIVE_DATE,
+        )
     except Exception as e:
         log_error("misc.landing", e)
-        return render_template("landing.html")
-
-
-PRIVACY_EFFECTIVE_DATE = "Monday, August 17th, 2026"
-TERMS_EFFECTIVE_DATE = "Monday, August 17th, 2026"
+        return render_template(
+            "landing.html",
+            admin_email=config.ADMIN_EMAIL,
+            privacy_updated_date=PRIVACY_EFFECTIVE_DATE,
+            terms_updated_date=TERMS_EFFECTIVE_DATE,
+        )
 
 
 @bp.route("/privacy")
