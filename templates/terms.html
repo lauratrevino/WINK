@@ -6,89 +6,134 @@
 <title>Terms of Use — WINK</title>
 <style nonce="{{ csp_nonce() }}">
   :root {
-    --navy: #002855; --navy-deep: #001833; --orange: #FF8200;
-    --light-bg: #f4f6fb; --muted: #6b7a99; --border: #dde3f0; --gray-text: #2d3548;
+    --navy: #002855; --orange: #FF8200; --muted: #6b7a99; --gray-text: #26364f;
   }
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
-    background: var(--light-bg); color: var(--gray-text); min-height: 100vh;
+    background: var(--navy);
     -webkit-font-smoothing: antialiased;
   }
-  header.top {
-    background: var(--navy); padding: 18px 24px; display: flex; align-items: center;
+
+  /* Modal shell — matches the About/Services info-modal exactly */
+  .wink-modal-overlay {
+    display: flex; position: fixed; inset: 0; background: rgba(0,20,50,0.45);
+    z-index: 9000; align-items: center; justify-content: center; padding: 20px;
   }
-  header.top a { color: #fff; font-size: 22px; font-weight: 800; text-decoration: none; }
-  header.top a span { color: var(--orange); }
-  .page-shell { max-width: 760px; margin: 0 auto; padding: 40px 24px 72px; }
-  h1 { font-size: 28px; font-weight: 800; color: var(--navy); letter-spacing: -0.3px; margin-bottom: 6px; }
-  .updated { font-size: 13px; color: var(--muted); margin-bottom: 32px; }
-  h2 { font-size: 18px; font-weight: 700; color: var(--navy); margin: 28px 0 10px; }
-  p, li { font-size: 14.5px; line-height: 1.65; color: var(--gray-text); }
-  ul { margin: 8px 0 8px 22px; }
-  li { margin-bottom: 6px; }
+  .wink-modal-card {
+    background: #fff; border-radius: 14px; width: 100%;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3); position: relative;
+  }
+  .wink-modal-close {
+    position: absolute; top: 14px; right: 16px; z-index: 3;
+    background: none; border: none; font-size: 24px; color: #fff; cursor: pointer;
+  }
+  .wink-modal-close:hover { color: var(--orange); background: transparent; }
+
+  .info-modal-card {
+    max-width: 760px; padding: 0; overflow: hidden;
+    border: 2px solid var(--navy); border-top: 7px solid var(--orange);
+    box-shadow: 0 24px 70px rgba(0,20,50,.38);
+  }
+  .info-modal-content {
+    max-height: 72vh; overflow-y: auto; padding: 0 28px 28px;
+    color: var(--gray-text); line-height: 1.58; font-size: 14px;
+  }
+  .info-title-band {
+    margin: 0 -28px 22px; padding: 13px 28px 11px;
+    background: linear-gradient(135deg, #002855 0%, #0b477e 100%);
+    border-bottom: 5px solid var(--orange); color: #fff;
+  }
+  .info-title-band h2 { color: #fff; margin: 2px 0 0; font-size: 19px; }
+  .info-kicker { color: #ffad55; font-size: 11px; font-weight: 900; letter-spacing: .14em; }
+
+  .updated { font-size: 13px; color: var(--muted); margin: 18px 0 22px; }
+  .info-modal-content h3 { color: var(--navy); font-size: 16px; font-weight: 700; margin: 24px 0 8px; }
+  .info-modal-content p { font-size: 14.5px; line-height: 1.65; margin-bottom: 12px; }
   a.inline { color: var(--navy); font-weight: 600; }
-  .research-highlight { background: #fff3e6; border-left: 3px solid var(--orange); border-radius: 6px; padding: 14px 16px; margin: 8px 0; }
-  .back { display: inline-block; margin-top: 36px; font-size: 13.5px; color: var(--muted); text-decoration: none; }
-  .back:hover { color: var(--navy); }
+  .info-warning {
+    background: #fff7ec; border: 1.5px solid #ffb15d; border-left: 5px solid var(--orange);
+    border-radius: 9px; padding: 13px 15px; margin: 15px 0;
+  }
+  .info-warning p:last-child { margin-bottom: 0; }
+
+  @media (max-width: 600px) {
+    .info-modal-content { padding-left: 18px; padding-right: 18px; }
+    .info-title-band { margin-left: -18px; margin-right: -18px; padding-left: 18px; padding-right: 18px; }
+    .wink-modal-overlay { padding: 0; }
+    .wink-modal-card { border-radius: 0; min-height: 100vh; }
+    .info-modal-content { max-height: calc(100vh - 60px); }
+  }
 </style>
 </head>
 <body>
-<header class="top">
-  <a href="/">WINK<span>.</span></a>
-</header>
-<main class="page-shell">
-  <h1>Terms of Use</h1>
-  <p class="updated">Effective Date: {{ updated_date }}</p>
+<div class="wink-modal-overlay" id="page-modal">
+  <div class="wink-modal-card info-modal-card">
+    <button type="button" class="wink-modal-close" id="page-modal-close" aria-label="Close">&times;</button>
+    <div class="info-modal-content">
+      <div class="info-title-band">
+        <span class="info-kicker">WINK</span>
+        <h2>Terms of Use</h2>
+      </div>
+      <p class="updated">Effective Date: {{ updated_date }}</p>
 
-  <p>These Terms of Use govern access to and use of WINK. By creating an account, accessing WINK, or using its services, you agree to these Terms.</p>
+      <p>These Terms of Use govern access to and use of WINK. By creating an account, accessing WINK, or using its services, you agree to these Terms.</p>
 
-  <h2>1. WINK Research Pilot</h2>
-  <p>WINK is an experimental AI-powered student success platform being evaluated as part of a research project. Access is provided free of charge during the Fall 2026 pilot period, currently scheduled from August 17, 2026 through December 20, 2026.</p>
+      <h3>1. WINK Research Pilot</h3>
+      <p>WINK is an experimental AI-powered student success platform being evaluated as part of a research project. Access is provided free of charge during the Fall 2026 pilot period, currently scheduled from August 17, 2026 through December 20, 2026.</p>
 
-  <h2>2. Use of WINK</h2>
-  <p>WINK is intended to assist students with academic organization and information. Users agree not to misuse WINK, interfere with its operation, attempt unauthorized access, introduce malicious software, impersonate another person, or use the service for unlawful purposes.</p>
+      <h3>2. Use of WINK</h3>
+      <p>WINK is intended to assist students with academic organization and information. Users agree not to misuse WINK, interfere with its operation, attempt unauthorized access, introduce malicious software, impersonate another person, or use the service for unlawful purposes.</p>
 
-  <h2>3. User Responsibility</h2>
-  <p>Students remain responsible for their own academic work, decisions, deadlines, registrations, submissions, attendance, and compliance with course and university requirements. Important information should be verified through official sources.</p>
+      <h3>3. User Responsibility</h3>
+      <p>Students remain responsible for their own academic work, decisions, deadlines, registrations, submissions, attendance, and compliance with course and university requirements. Important information should be verified through official sources.</p>
 
-  <h2>4. Artificial Intelligence</h2>
-  <p>AI systems can make mistakes. WINK may provide information that is inaccurate, incomplete, outdated, or based on an incorrect interpretation of uploaded materials.</p>
+      <h3>4. Artificial Intelligence</h3>
+      <p>AI systems can make mistakes. WINK may provide information that is inaccurate, incomplete, outdated, or based on an incorrect interpretation of uploaded materials.</p>
 
-  <h2>5. Academic Integrity</h2>
-  <p>Users are responsible for complying with the academic integrity requirements of their institution and individual courses. WINK should not be used for cheating, plagiarism, unauthorized collaboration, or other prohibited conduct.</p>
+      <h3>5. Academic Integrity</h3>
+      <p>Users are responsible for complying with the academic integrity requirements of their institution and individual courses. WINK should not be used for cheating, plagiarism, unauthorized collaboration, or other prohibited conduct.</p>
 
-  <h2>6. Uploaded Content</h2>
-  <p>Users retain responsibility for materials they upload. By uploading content, users authorize WINK to store, process, and analyze that content as necessary to provide the service and conduct the approved research associated with the pilot.</p>
+      <h3>6. Uploaded Content</h3>
+      <p>Users retain responsibility for materials they upload. By uploading content, users authorize WINK to store, process, and analyze that content as necessary to provide the service and conduct the approved research associated with the pilot.</p>
 
-  <h2>7. Research Participation and Data</h2>
-  <div class="research-highlight">
-    <p>During the research pilot, interactions with WINK will be recorded and analyzed, including questions, AI-generated responses, uploaded information, and use of WINK's features. Access to research data is limited to Dr. Laura Trevino and the small number of research team members who need it to conduct the study, and it will be anonymized before use in research publications or presentations.</p>
-    <p>Deleting your account is how you withdraw from the study: it immediately replaces your name and email with a non-identifying label and disables your login, while your already-collected activity data is retained in that de-identified form to support the research rather than being deleted outright. See the <a href="/privacy">Privacy Policy</a> for full details.</p>
+      <h3>7. Research Participation and Data</h3>
+      <div class="info-warning">
+        <p>During the research pilot, interactions with WINK will be recorded and analyzed, including questions, AI-generated responses, uploaded information, and use of WINK's features. Access to research data is limited to Dr. Laura Trevino and the small number of research team members who need it to conduct the study, and it will be anonymized before use in research publications or presentations.</p>
+        <p>Deleting your account is how you withdraw from the study: it immediately replaces your name and email with a non-identifying label and disables your login, while your already-collected activity data is retained in that de-identified form to support the research rather than being deleted outright. See the <a class="inline" href="/privacy">Privacy Policy</a> for full details.</p>
+      </div>
+
+      <h3>8. Availability</h3>
+      <p>WINK is provided on an experimental basis. Continuous or uninterrupted access is not guaranteed.</p>
+
+      <h3>9. No Guarantee of Results</h3>
+      <p>Use of WINK does not guarantee improved grades, academic performance, course completion, retention, graduation, or any other academic outcome.</p>
+
+      <h3>10. Limitation of Reliance</h3>
+      <p>Users should not rely on WINK for emergency, medical, mental health, legal, financial, or other professional advice.</p>
+
+      <h3>11. Account Security</h3>
+      <p>Users are responsible for maintaining the confidentiality of their account credentials and for activity conducted through their accounts.</p>
+
+      <h3>12. Suspension or Termination</h3>
+      <p>Access may be limited, suspended, or terminated when necessary to protect users, maintain system security, enforce these Terms, comply with legal or institutional requirements, or operate the research project.</p>
+
+      <h3>13. Changes to WINK</h3>
+      <p>WINK is under active development. Features may be added, modified, removed, or temporarily unavailable during the pilot. These Terms may also be updated when necessary.</p>
+
+      <h3>14. Acceptance</h3>
+      <p>By creating an account or continuing to use WINK, you acknowledge that you have read and understood these Terms of Use and the <a class="inline" href="/privacy">WINK Privacy Policy</a> and agree to comply with them.</p>
+    </div>
   </div>
+</div>
 
-  <h2>8. Availability</h2>
-  <p>WINK is provided on an experimental basis. Continuous or uninterrupted access is not guaranteed.</p>
-
-  <h2>9. No Guarantee of Results</h2>
-  <p>Use of WINK does not guarantee improved grades, academic performance, course completion, retention, graduation, or any other academic outcome.</p>
-
-  <h2>10. Limitation of Reliance</h2>
-  <p>Users should not rely on WINK for emergency, medical, mental health, legal, financial, or other professional advice.</p>
-
-  <h2>11. Account Security</h2>
-  <p>Users are responsible for maintaining the confidentiality of their account credentials and for activity conducted through their accounts.</p>
-
-  <h2>12. Suspension or Termination</h2>
-  <p>Access may be limited, suspended, or terminated when necessary to protect users, maintain system security, enforce these Terms, comply with legal or institutional requirements, or operate the research project.</p>
-
-  <h2>13. Changes to WINK</h2>
-  <p>WINK is under active development. Features may be added, modified, removed, or temporarily unavailable during the pilot. These Terms may also be updated when necessary.</p>
-
-  <h2>14. Acceptance</h2>
-  <p>By creating an account or continuing to use WINK, you acknowledge that you have read and understood these Terms of Use and the <a class="inline" href="/privacy">WINK Privacy Policy</a> and agree to comply with them.</p>
-
-  <a class="back" href="/">&larr; Back to WINK</a>
-</main>
+<script nonce="{{ csp_nonce() }}">
+  document.getElementById('page-modal-close').addEventListener('click', () => {
+    window.location.href = '/';
+  });
+  document.getElementById('page-modal').addEventListener('click', (e) => {
+    if (e.target.id === 'page-modal') window.location.href = '/';
+  });
+</script>
 </body>
 </html>

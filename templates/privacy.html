@@ -6,93 +6,136 @@
 <title>Privacy Policy — WINK</title>
 <style nonce="{{ csp_nonce() }}">
   :root {
-    --navy: #002855; --navy-deep: #001833; --orange: #FF8200;
-    --light-bg: #f4f6fb; --muted: #6b7a99; --border: #dde3f0; --gray-text: #2d3548;
+    --navy: #002855; --orange: #FF8200; --muted: #6b7a99; --gray-text: #26364f;
   }
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
-    background: var(--light-bg); color: var(--gray-text); min-height: 100vh;
+    background: var(--navy);
     -webkit-font-smoothing: antialiased;
   }
-  header.top {
-    background: var(--navy); padding: 18px 24px; display: flex; align-items: center;
+
+  /* Modal shell — matches the About/Services info-modal exactly */
+  .wink-modal-overlay {
+    display: flex; position: fixed; inset: 0; background: rgba(0,20,50,0.45);
+    z-index: 9000; align-items: center; justify-content: center; padding: 20px;
   }
-  header.top a { color: #fff; font-size: 22px; font-weight: 800; text-decoration: none; }
-  header.top a span { color: var(--orange); }
-  .page-shell { max-width: 760px; margin: 0 auto; padding: 40px 24px 72px; }
-  h1 { font-size: 28px; font-weight: 800; color: var(--navy); letter-spacing: -0.3px; margin-bottom: 6px; }
-  .updated { font-size: 13px; color: var(--muted); margin-bottom: 32px; }
-  h2 { font-size: 18px; font-weight: 700; color: var(--navy); margin: 28px 0 10px; }
-  p, li { font-size: 14.5px; line-height: 1.65; color: var(--gray-text); }
-  ul { margin: 8px 0 8px 22px; }
-  li { margin-bottom: 6px; }
+  .wink-modal-card {
+    background: #fff; border-radius: 14px; width: 100%;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3); position: relative;
+  }
+  .wink-modal-close {
+    position: absolute; top: 14px; right: 16px; z-index: 3;
+    background: none; border: none; font-size: 24px; color: #fff; cursor: pointer;
+  }
+  .wink-modal-close:hover { color: var(--orange); background: transparent; }
+
+  .info-modal-card {
+    max-width: 760px; padding: 0; overflow: hidden;
+    border: 2px solid var(--navy); border-top: 7px solid var(--orange);
+    box-shadow: 0 24px 70px rgba(0,20,50,.38);
+  }
+  .info-modal-content {
+    max-height: 72vh; overflow-y: auto; padding: 0 28px 28px;
+    color: var(--gray-text); line-height: 1.58; font-size: 14px;
+  }
+  .info-title-band {
+    margin: 0 -28px 22px; padding: 13px 28px 11px;
+    background: linear-gradient(135deg, #002855 0%, #0b477e 100%);
+    border-bottom: 5px solid var(--orange); color: #fff;
+  }
+  .info-title-band h2 { color: #fff; margin: 2px 0 0; font-size: 19px; }
+  .info-kicker { color: #ffad55; font-size: 11px; font-weight: 900; letter-spacing: .14em; }
+
+  .updated { font-size: 13px; color: var(--muted); margin: 18px 0 22px; }
+  .info-modal-content h3 { color: var(--navy); font-size: 16px; font-weight: 700; margin: 24px 0 8px; }
+  .info-modal-content p { font-size: 14.5px; line-height: 1.65; margin-bottom: 12px; }
+  .info-modal-content ul { margin: 8px 0 12px 22px; }
+  .info-modal-content li { font-size: 14.5px; line-height: 1.65; margin-bottom: 6px; }
   a.inline { color: var(--navy); font-weight: 600; }
-  .back { display: inline-block; margin-top: 36px; font-size: 13.5px; color: var(--muted); text-decoration: none; }
-  .back:hover { color: var(--navy); }
+
+  @media (max-width: 600px) {
+    .info-modal-content { padding-left: 18px; padding-right: 18px; }
+    .info-title-band { margin-left: -18px; margin-right: -18px; padding-left: 18px; padding-right: 18px; }
+    .wink-modal-overlay { padding: 0; }
+    .wink-modal-card { border-radius: 0; min-height: 100vh; }
+    .info-modal-content { max-height: calc(100vh - 60px); }
+  }
 </style>
 </head>
 <body>
-<header class="top">
-  <a href="/">WINK<span>.</span></a>
-</header>
-<main class="page-shell">
-  <h1>Privacy Policy</h1>
-  <p class="updated">Effective Date: {{ updated_date }}</p>
+<div class="wink-modal-overlay" id="page-modal">
+  <div class="wink-modal-card info-modal-card">
+    <button type="button" class="wink-modal-close" id="page-modal-close" aria-label="Close">&times;</button>
+    <div class="info-modal-content">
+      <div class="info-title-band">
+        <span class="info-kicker">WINK</span>
+        <h2>Privacy Policy</h2>
+      </div>
+      <p class="updated">Effective Date: {{ updated_date }}</p>
 
-  <p>WINK ("What I Need to Know") is an academic support platform for university students. This page explains what information we collect, how it's used, and how it's protected.</p>
+      <p>WINK ("What I Need to Know") is an academic support platform for university students. This page explains what information we collect, how it's used, and how it's protected.</p>
 
-  <h2>Information We Collect</h2>
-  <ul>
-    <li><strong>Account information:</strong> name, university email address, and password (stored as a secure hash, never in plain text).</li>
-    <li><strong>Academic profile:</strong> major and classification, provided to personalize support.</li>
-    <li><strong>Uploaded documents:</strong> course materials (e.g. syllabi) you upload, used to power calendar, chat, and study features.</li>
-    <li><strong>Usage data:</strong> questions asked, pages viewed, and similar activity, used to operate and improve the platform.</li>
-  </ul>
+      <h3>Information We Collect</h3>
+      <ul>
+        <li><strong>Account information:</strong> name, university email address, and password (stored as a secure hash, never in plain text).</li>
+        <li><strong>Academic profile:</strong> major and classification, provided to personalize support.</li>
+        <li><strong>Uploaded documents:</strong> course materials (e.g. syllabi) you upload, used to power calendar, chat, and study features.</li>
+        <li><strong>Usage data:</strong> questions asked, pages viewed, and similar activity, used to operate and improve the platform.</li>
+      </ul>
 
-  <h2>How We Use Email</h2>
-  <p>We send transactional email only — account verification and password reset messages triggered directly by your actions. We do not send marketing email, and we do not sell, rent, or share your email address with third parties.</p>
+      <h3>How We Use Email</h3>
+      <p>We send transactional email only — account verification and password reset messages triggered directly by your actions. We do not send marketing email, and we do not sell, rent, or share your email address with third parties.</p>
 
-  <h2>How We Use Information</h2>
-  <ul>
-    <li>To provide and operate the WINK platform for you.</li>
-    <li>To send account-related transactional email (verification, password reset).</li>
-    <li>To improve WINK's accuracy and features during the pilot phase.</li>
-    <li>To evaluate how students use AI-supported academic tools and conduct research related to artificial intelligence and student success.</li>
-  </ul>
+      <h3>How We Use Information</h3>
+      <ul>
+        <li>To provide and operate the WINK platform for you.</li>
+        <li>To send account-related transactional email (verification, password reset).</li>
+        <li>To improve WINK's accuracy and features during the pilot phase.</li>
+        <li>To evaluate how students use AI-supported academic tools and conduct research related to artificial intelligence and student success.</li>
+      </ul>
 
-  <h2>Research Data</h2>
-  <p>This is a small research pilot — currently fewer than 10 students — studying how AI-supported academic tools affect student success. User interactions with WINK, including questions and AI-generated responses, may be recorded and analyzed for research purposes. Access to research data is limited to Dr. Laura Trevino and the small number of research team members who need it to conduct the study, and it is kept on secured, access-controlled systems. Data will be anonymized before being used in research publications or presentations, and reporting will not intentionally identify individual students.</p>
+      <h3>Research Data</h3>
+      <p>This is a small research pilot — currently fewer than 10 students — studying how AI-supported academic tools affect student success. User interactions with WINK, including questions and AI-generated responses, will be recorded and analyzed for research purposes. Access to research data is limited to Dr. Laura Trevino and the small number of research team members who need it to conduct the study, and it is kept on secured, access-controlled systems. Data will be anonymized before being used in research publications or presentations, and reporting will not intentionally identify individual students.</p>
 
-  <h2>Uploaded Information</h2>
-  <p>Users should upload only information they are authorized to provide. Students should not upload passwords, Social Security numbers, financial account information, medical records, or other highly sensitive information unnecessary for WINK's academic functions.</p>
+      <h3>Uploaded Information</h3>
+      <p>Users should upload only information they are authorized to provide. Students should not upload passwords, Social Security numbers, financial account information, medical records, or other highly sensitive information unnecessary for WINK's academic functions.</p>
 
-  <h2>Data Sharing</h2>
-  <p>We do not sell your personal information. We use trusted third-party services (such as Amazon Web Services) solely to operate WINK's infrastructure and deliver transactional email. Information may be processed by these third-party technology and infrastructure providers — including artificial intelligence, hosting, storage, and email services — when necessary to provide WINK's functionality.</p>
+      <h3>Data Sharing</h3>
+      <p>We do not sell your personal information. We use trusted third-party services (such as Amazon Web Services) solely to operate WINK's infrastructure and deliver transactional email. Information may be processed by these third-party technology and infrastructure providers — including artificial intelligence, hosting, storage, and email services — when necessary to provide WINK's functionality.</p>
 
-  <h2>Data Security</h2>
-  <p>Reasonable technical and organizational measures are used to protect information maintained by WINK. However, no internet-based service or electronic storage system can guarantee absolute security.</p>
+      <h3>Data Security</h3>
+      <p>Reasonable technical and organizational measures are used to protect information maintained by WINK. However, no internet-based service or electronic storage system can guarantee absolute security.</p>
 
-  <h2>Data Retention, Deletion &amp; Anonymization</h2>
-  <p>Account data is retained for as long as your account is active. If you delete your account, it takes effect immediately: your name and email are replaced with a non-identifying participant label, your password is invalidated, and you're logged out and can no longer sign in. Your activity data — documents, conversations, and similar records — is retained in this de-identified form rather than being deleted outright, so it can continue to support the research study described above, consistent with the consent given at registration.</p>
-  <p>This pilot involves a small number of participants over a limited period. WINK does not plan to retain data at this scope or duration on an ongoing basis beyond the pilot.</p>
+      <h3>Data Retention, Deletion &amp; Anonymization</h3>
+      <p>Account data is retained for as long as your account is active. If you delete your account, it takes effect immediately: your name and email are replaced with a non-identifying participant label, your password is invalidated, and you're logged out and can no longer sign in. Your activity data — documents, conversations, and similar records — is retained in this de-identified form rather than being deleted outright, so it can continue to support the research study described above, consistent with the consent given at registration.</p>
+      <p>This pilot involves a small number of participants over a limited period. WINK does not plan to retain data at this scope or duration on an ongoing basis beyond the pilot.</p>
 
-  <h2>Withdrawing From the Research Study</h2>
-  <p>Deleting your account (available from your Dashboard) is how you withdraw: it immediately and permanently removes your name and email from your record and disables your login. As described above, your already-collected activity data is retained in de-identified form rather than deleted outright — there is currently no separate mechanism to withdraw participation while continuing to use WINK, or to remove already-collected data entirely rather than anonymizing it. If you have questions about this before deciding, reach out using the contact information below.</p>
+      <h3>Withdrawing From the Research Study</h3>
+      <p>Deleting your account (available from your Dashboard) is how you withdraw: it immediately and permanently removes your name and email from your record and disables your login. As described above, your already-collected activity data is retained in de-identified form rather than deleted outright — there is currently no separate mechanism to withdraw participation while continuing to use WINK, or to remove already-collected data entirely rather than anonymizing it. If you have questions about this before deciding, reach out using the contact information below.</p>
 
-  <h2>Accuracy of AI Responses</h2>
-  <p>Information generated by artificial intelligence may contain errors. Users should verify important academic information using official course materials, instructors, advisors, or university systems.</p>
+      <h3>Accuracy of AI Responses</h3>
+      <p>Information generated by artificial intelligence may contain errors. Users should verify important academic information using official course materials, instructors, advisors, or university systems.</p>
 
-  <h2>Children</h2>
-  <p>WINK is designed for college students and is not intended for children under 13.</p>
+      <h3>Children</h3>
+      <p>WINK is designed for college students and is not intended for children under 13.</p>
 
-  <h2>Changes to This Policy</h2>
-  <p>This Privacy Policy may be updated as WINK develops or its research and services change. The current version will always be available at this page.</p>
+      <h3>Changes to This Policy</h3>
+      <p>This Privacy Policy may be updated as WINK develops or its research and services change. The current version will always be available at this page.</p>
 
-  <h2>Contact</h2>
-  <p>Questions about this policy or your data can be sent to <a class="inline" href="mailto:{{ admin_email }}">{{ admin_email }}</a>.</p>
+      <h3>Contact</h3>
+      <p>Questions about this policy or your data can be sent to <a class="inline" href="mailto:{{ admin_email }}">{{ admin_email }}</a>.</p>
+    </div>
+  </div>
+</div>
 
-  <a class="back" href="/">&larr; Back to WINK</a>
-</main>
+<script nonce="{{ csp_nonce() }}">
+  document.getElementById('page-modal-close').addEventListener('click', () => {
+    window.location.href = '/';
+  });
+  document.getElementById('page-modal').addEventListener('click', (e) => {
+    if (e.target.id === 'page-modal') window.location.href = '/';
+  });
+</script>
 </body>
 </html>
