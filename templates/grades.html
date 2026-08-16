@@ -6,6 +6,52 @@
   <title>Grade Calculator — WINK</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/nav.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/grades.css') }}">
+  <style nonce="{{ csp_nonce() }}">
+    :root{--navy:#002855;--navy2:#0b477e;--orange:#FF8200;--cream:#fff7ec;--ink:#26364f;--muted:#6b7a99;--line:#dde3f0;--bg:#f4f6fb}
+    body{background:var(--bg)}
+    .page-shell{max-width:900px;margin:0 auto;padding:28px 22px 60px}
+    .gc-header{background:linear-gradient(135deg,#fffaf3 0%,#fff2df 55%,#fdecdd 100%);border:2px solid var(--orange);border-radius:24px;box-shadow:0 16px 40px rgba(0,40,85,.14);padding:32px 36px;margin-bottom:22px}
+    .gc-header h1{margin:0 0 8px;color:var(--navy);font-size:32px;letter-spacing:-.5px}
+    .gc-header p{margin:0;color:#53627b;line-height:1.6;max-width:640px}
+    .empty-state{background:#fff;border:2px dashed #cfd8e6;border-radius:18px;padding:36px;text-align:center;color:var(--muted);margin-bottom:22px}
+    .empty-icon{font-size:34px;display:block;margin-bottom:10px}
+    .empty-state h3{margin:0 0 6px;color:var(--navy)}
+    .card{background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:0 3px 14px rgba(0,40,85,.07);padding:22px 24px;margin-bottom:20px;border-top:5px solid var(--orange)}
+    .card h2{margin:0 0 14px;color:var(--navy);font-size:19px}
+    .course-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    #course-input{flex:1;min-width:180px;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;font-size:14px;color:var(--ink);background:#fff}
+    .btn{border:0;border-radius:999px;padding:10px 18px;font-size:13px;font-weight:800;cursor:pointer;transition:transform .05s ease}
+    .btn:active{transform:scale(.97)}
+    .btn-primary{background:var(--orange);color:#fff;box-shadow:0 4px 12px rgba(255,130,0,.3)}
+    .btn-primary:hover{background:#e97600}
+    .btn-primary:disabled{background:#f0c497;cursor:not-allowed;box-shadow:none}
+    .btn-secondary{background:#fff;color:var(--navy);border:1.5px solid var(--navy)}
+    .btn-secondary:hover{border-color:var(--orange);color:#c75e00}
+    .your-score-note{background:#fff7ec;border-left:4px solid var(--orange);border-radius:8px;padding:10px 12px;font-size:13px;line-height:1.5;color:var(--ink);margin:0 0 14px}
+    .weights-table{width:100%;border-collapse:collapse;margin-bottom:8px}
+    .weights-table thead th{background:var(--navy);color:#fff;text-align:left;font-size:11.5px;letter-spacing:.03em;padding:10px 12px;border-radius:0}
+    .weights-table thead th:first-child{border-radius:10px 0 0 10px}
+    .weights-table thead th:last-child{border-radius:0 10px 10px 0}
+    .weights-table tbody tr:nth-child(even){background:#f7f9fc}
+    .weights-table td{padding:8px 10px;border-bottom:1px solid var(--line)}
+    .weights-table input{border:1.5px solid var(--line);border-radius:8px;padding:7px 9px;font-size:13px;color:var(--ink);width:100%}
+    .weights-table input:focus{outline:2px solid var(--orange);outline-offset:1px;border-color:var(--orange)}
+    .btn-danger{background:#fdecec;color:#c0392b;border:1px solid #f3c9c9;border-radius:8px;cursor:pointer;padding:5px 9px}
+    .weight-total-row td{padding-top:10px;font-size:12.5px;color:var(--muted);border-bottom:0}
+    .over100{color:#c0392b;font-weight:800}
+    .add-row-btn{margin-top:6px}
+    .extract-note{margin-top:14px;font-size:12px;color:var(--muted);line-height:1.5}
+    .extract-msg{font-size:12.5px;color:var(--navy2);margin-top:8px}
+    .result-card{background:var(--cream);border-radius:14px;padding:18px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+    .result-label{font-size:13px;color:var(--muted)}
+    .result-value{font-size:28px;font-weight:900;color:var(--navy)}
+    .result-sub{font-size:12.5px;color:var(--muted);margin-top:10px}
+    .target-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    #target-input{padding:9px 11px;border:1.5px solid var(--line);border-radius:10px;font-size:14px;width:100px}
+    .target-result{margin-top:14px;font-size:13.5px;line-height:1.6;color:var(--ink);background:#f3f7fb;border-left:4px solid var(--navy2);border-radius:8px;padding:12px 14px}
+    .target-result.bad{background:#fdecec;border-left-color:#c0392b}
+    .target-result.warn{background:#fff7ec;border-left-color:var(--orange)}
+  </style>
   <meta name="csrf-token" content="{{ csrf_token() }}">
 </head>
 <body>
@@ -26,7 +72,7 @@
     </div>
 
     <div class="card">
-      <h2>Pick a course</h2>
+      <h2>1. Pick a course</h2>
       <div class="course-row">
         <select id="course-input" aria-label="Course">
           {% if known_courses %}
@@ -42,9 +88,10 @@
 
     <div class="card" id="weights-card" style="display:none;">
       <h2>2. Grading breakdown</h2>
+      <p class="your-score-note"><strong>Your Score</strong> — Most assignments are graded on a 100 point basis. If you scored 80 out of 100, enter 80 into the Your Score column.</p>
       <table class="weights-table" id="weights-table">
         <thead>
-          <tr><th>Category</th><th style="width:90px;">Weight %</th><th style="width:90px;">Your score %</th><th style="width:36px;"></th></tr>
+          <tr><th>Category</th><th style="width:90px;">Weight %</th><th style="width:150px;">YOUR SCORE (out of 100 points)</th><th style="width:36px;"></th></tr>
         </thead>
         <tbody id="weights-tbody"></tbody>
         <tfoot>
