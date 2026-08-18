@@ -17,6 +17,19 @@
       max-height: calc(100vh - 60px);
     }
 
+    /* Base rule (desktop/tablet default) — hidden and taken out of grid
+       flow via position:fixed. Without this, the element had NO styling
+       at all above 768px (it was only ever styled inside the mobile
+       media query below), so it defaulted to display:block/position:static
+       and became a real, unintended THIRD grid item — shoving
+       .chat-sidebar into column 2 and wrapping .chat-main down into a
+       second row. The media query below only needs to override display
+       to show/hide it on mobile now, not define position/inset/z-index
+       from scratch. */
+    .mobile-sidebar-backdrop {
+      display: none; position: fixed; inset: 0; background: rgba(0,10,25,0.45); z-index: 390;
+    }
+
     .chat-sidebar {
       background: #002855;
       border-right: 1px solid #001c3d;
@@ -260,9 +273,9 @@
         box-shadow: 4px 0 24px rgba(0,0,0,0.3);
       }
       .chat-sidebar.mobile-open { transform: translateX(0); }
-      .mobile-sidebar-backdrop {
-        display: none; position: fixed; inset: 0; background: rgba(0,10,25,0.45); z-index: 390;
-      }
+      /* display:none/position:fixed now already set as the base rule
+         above (applies at all widths) — only the show/hide toggle needs
+         to live here. */
       .mobile-sidebar-backdrop.show { display: block; }
       #mobile-sidebar-btn { display: inline-flex !important; }
 
