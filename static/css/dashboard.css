@@ -198,6 +198,18 @@
       .dash-grid { grid-template-columns: 1fr; }
       .welcome-actions { flex-direction: column; }
     }
+    @media (max-width: 560px) {
+      .page-shell { padding: 20px 14px 48px; }
+      /* The banner was a strict row (space-between) with no wrap and
+         nowrap chips — on a true phone width that pushes the greeting
+         text and chips into each other rather than actually stacking. */
+      .welcome-banner { flex-direction: column; align-items: flex-start; padding: 22px 20px; gap: 16px; }
+      .welcome-text h1 { font-size: 20px; }
+      .welcome-chips { align-items: flex-start; margin-left: 0; flex-wrap: wrap; flex-direction: row; }
+      .welcome-actions { width: 100%; }
+      .welcome-actions .btn-cta { width: 100%; justify-content: center; }
+      .stats-row { grid-template-columns: 1fr; }
+    }
 
     .wink-toast {
       position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);

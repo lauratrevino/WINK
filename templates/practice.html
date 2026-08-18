@@ -239,6 +239,7 @@
         : `<div>${escapeHtml(q.answer)}</div>`;
       wrap.innerHTML = `
         <div class="q-text">${escapeHtml(q.question)}<span class="grade-badge"></span></div>
+        <div class="q-self-check-hint">Think through your own answer, then reveal it below to check yourself.</div>
         <div class="q-answer" id="answer-${escapeHtml(String(q.id || Math.random()))}">${answerHtml}</div>
         <div class="q-actions"></div>`;
 

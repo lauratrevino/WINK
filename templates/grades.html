@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Grade Calculator — WINK</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/nav.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/grades.css') }}">
@@ -56,6 +56,41 @@
     .target-result{margin-top:14px;font-size:13.5px;line-height:1.6;color:var(--ink);background:#f3f7fb;border-left:4px solid var(--navy2);border-radius:8px;padding:12px 14px}
     .target-result.bad{background:#fdecec;border-left-color:#c0392b}
     .target-result.warn{background:#fff7ec;border-left-color:var(--orange)}
+
+    @media (max-width: 640px) {
+      .page-shell { padding: 18px 14px 48px; }
+      .card { padding: 16px 14px; }
+      .page-header h1 { font-size: 20px; }
+
+      /* Course picker: stack instead of forcing the dropdown and button
+         onto one cramped row; 16px input avoids iOS Safari's zoom-on-
+         focus (anything under 16px triggers it). */
+      .course-row { flex-direction: column; align-items: stretch; }
+      #course-input { font-size: 16px; min-width: 0; padding: 12px; }
+      .course-row .btn { width: 100%; padding: 12px 18px; }
+
+      .mode-toggle { flex-direction: column; align-items: stretch; }
+      .mode-btn { padding: 11px 14px; }
+
+      /* The grading table has 4 columns of real content (category,
+         weight, score, delete) — that doesn't fit a narrow phone width
+         no matter how tight the padding gets. Scrolling the table
+         horizontally inside its card keeps every column reachable and
+         legible, instead of clipping columns off-screen or squeezing
+         input fields down to unusable widths. */
+      .weights-table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -14px; padding: 0 14px; }
+      .weights-table { min-width: 480px; }
+      .weights-table input { font-size: 16px; padding: 9px; }
+      .weights-table th, .weights-table td { padding: 10px 8px; }
+      .btn-danger { padding: 8px 11px; }
+
+      .result-card { flex-direction: column; align-items: flex-start; }
+      .result-value { font-size: 24px; }
+
+      .target-row { flex-direction: column; align-items: stretch; }
+      #target-input { font-size: 16px; width: 100%; padding: 11px; }
+      .target-row .btn { width: 100%; padding: 12px 18px; }
+    }
   </style>
   <meta name="csrf-token" content="{{ csrf_token() }}">
 </head>
@@ -100,6 +135,7 @@
         <button type="button" class="btn btn-secondary" id="reset-whatif-btn" onclick="resetWhatIf()" style="display:none;">↺ Reset to my actual scores</button>
       </div>
       <div class="mode-note" id="mode-note">Actual Scores autosave and drive your real Current Grade. Switch to What-If Scenario to test hypothetical scores — nothing there gets saved, so you can't lose your real data.</div>
+      <div class="weights-table-scroll">
       <table class="weights-table" id="weights-table">
         <thead>
           <tr><th>Category</th><th style="width:90px;">Weight %</th><th style="width:150px;">YOUR SCORE (out of 100 points)</th><th style="width:36px;"></th></tr>
@@ -111,6 +147,7 @@
           </tr>
         </tfoot>
       </table>
+      </div>
       <div class="weights-empty" id="weights-empty" style="display:none;">No categories yet — extract from a course document above, or add one manually.</div>
       <button class="btn btn-secondary add-row-btn" id="add-row-btn" onclick="addRow('', '', '')">+ Add category</button>
       <div class="extract-note">You can remove an item or add an item but your total grade weight must add to 100%. Weights are shown as percentages, but every score you enter should be on a 100-point scale (for example, 92, not 0.92).</div>
@@ -278,7 +315,10 @@
       document.querySelectorAll('.category-input, .weight-input').forEach(el => el.disabled = inWhatIf);
       const addBtn = document.getElementById('add-row-btn');
       if (addBtn) addBtn.disabled = inWhatIf;
-      document.getElementById('course-input').disabled = inWhatIf;
+      // Course selection stays enabled even in What-If mode — loadCourse()
+      // already resets back to Actual mode for whichever course gets
+      // selected, so there's no need to force the student to back out of
+      // What-If first just to look at a different class.
       document.getElementById('extract-btn').disabled = inWhatIf || !currentCourseName();
     }
 

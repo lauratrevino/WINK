@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Ask WINK — Chat</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/nav.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.css') }}">
@@ -20,6 +20,7 @@
   <script src="{{ url_for('static', filename='js/scroll-reset.js') }}"></script>
 
   <div class="chat-container">
+    <div class="mobile-sidebar-backdrop" id="mobile-sidebar-backdrop" onclick="closeMobileSidebar()"></div>
 
     <aside class="chat-sidebar">
       <div class="wink-profile">
@@ -57,6 +58,7 @@
 
     <div class="chat-main">
       <div class="chat-toolbar">
+        <button class="toolbar-btn" id="mobile-sidebar-btn" onclick="toggleMobileSidebar()" style="display:none;">☰ Conversations</button>
         <button class="toolbar-btn" id="export-btn" onclick="exportConversation()" disabled>⬇ Download</button>
         <button class="toolbar-btn" id="share-btn" onclick="shareConversation()" disabled>🔗 Share</button>
         <span style="width:1px;height:20px;background:#dde3f0;margin:0 4px;"></span>
@@ -494,6 +496,7 @@
     }
 
     function startNewChat() {
+      closeMobileSidebar();
       messages = [];
       currentConversationId = null;
       currentTempDoc = null;
@@ -594,6 +597,7 @@
     }
 
     async function loadConversation(id) {
+      closeMobileSidebar();
       try {
         const res = await fetch(`/conversations/${id}`);
         if (!res.ok) return;
@@ -628,6 +632,15 @@
       if (currentConversationId === id) startNewChat();
       loadConversationList();
       winkToast('Conversation deleted.');
+    }
+
+    function toggleMobileSidebar() {
+      document.querySelector('.chat-sidebar').classList.toggle('mobile-open');
+      document.getElementById('mobile-sidebar-backdrop').classList.toggle('show');
+    }
+    function closeMobileSidebar() {
+      document.querySelector('.chat-sidebar').classList.remove('mobile-open');
+      document.getElementById('mobile-sidebar-backdrop').classList.remove('show');
     }
 
     function exportConversation() {

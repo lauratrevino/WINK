@@ -29,10 +29,12 @@
   .app-nav .nav-logo span {
     color: #FF8200 !important;
   }
-  .app-nav .nav-right {
-    display: flex !important;
-    align-items: center !important;
-  }
+  /* .nav-right intentionally has no override here anymore — nav.css's
+     own rule (display:flex on desktop, display:none on mobile until the
+     hamburger menu opens) was previously being forced to always-visible
+     by a !important rule that used to live here, which meant the
+     greeting/logout controls never actually hid on phone screens the
+     way nav.css intended, and could overlay or push other content. */
   .app-nav .nav-user {
     white-space: nowrap;
     flex-shrink: 0;

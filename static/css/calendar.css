@@ -182,7 +182,7 @@
     }
     .ai-form-group input[type="text"], .ai-form-group input[type="date"], .ai-form-group select {
       width: 100%; padding: 9px 12px; border: 1.5px solid #dde3f0; border-radius: 8px;
-      font-size: 14px; color: #002855; background: #f8f9ff; outline: none; font-family: inherit;
+      font-size: 16px; color: #002855; background: #f8f9ff; outline: none; font-family: inherit;
     }
     .ai-form-group input:focus, .ai-form-group select:focus { border-color: #FF8200; background: #fff; }
     .ai-checkbox-row label { display: flex; align-items: center; gap: 8px; font-weight: 600; cursor: pointer; }

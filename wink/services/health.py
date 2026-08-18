@@ -24,8 +24,6 @@ from .. import config
 from ..errors import log_error
 from ..extensions import get_db
 
-_APP_START_TIME = time.time()
-
 # Checks in this set can flip the overall status to "fail" (HTTP 503 on
 # the public /health endpoint). Everything else can still show a warning
 # on the admin page, but won't take the public uptime check down.
@@ -224,21 +222,40 @@ def run_health_checks():
         log_error("services.health.chunking", e)
         checks["chunking"] = ("warn", f"Couldn't check: {str(e)[:150]}")
 
-    # --- Upload directory writable ------------------------------------
+    # --- Upload directory writable, and actually persistent -----------
     try:
         upload_dir = getattr(config, "UPLOAD_FOLDER", None) or tempfile.gettempdir()
         test_path = os.path.join(upload_dir, ".health_check_tmp")
         with open(test_path, "w") as f:
             f.write("ok")
         os.remove(test_path)
-        checks["upload_storage"] = ("ok", f"Writable ({upload_dir})")
+        # Matches the same convention used elsewhere in this app (see
+        # wink/__init__.py's SESSION_COOKIE_SECURE and CSP setup) —
+        # anything that isn't explicitly "development" is treated as
+        # production-like, rather than requiring FLASK_ENV to be the
+        # exact string "production".
+        is_production_like = os.environ.get("FLASK_ENV") != "development"
+        upload_env_var_set = bool(os.environ.get("UPLOAD_FOLDER"))
+        if is_production_like and not upload_env_var_set:
+            # On Render, the app's own filesystem is ephemeral — anything
+            # not on a mounted Persistent Disk is wiped on every
+            # redeploy/restart. Falling through to the BASE_DIR default
+            # here means uploads are one deploy away from silently
+            # disappearing, so this is a "warn" even though the
+            # directory is currently writable right now.
+            checks["upload_storage"] = ("warn", f"Writable ({upload_dir}), but UPLOAD_FOLDER isn't set via environment variable in production — this path is very likely NOT a persistent disk and uploads will be lost on the next redeploy/restart. Set UPLOAD_FOLDER to a mounted Render Persistent Disk path.")
+        else:
+            checks["upload_storage"] = ("ok", f"Writable ({upload_dir})")
     except Exception as e:
         log_error("services.health.storage", e)
         checks["upload_storage"] = ("fail", "Not writable")
 
-    # --- Disk space -----------------------------------------------------
+    # --- Disk space (checks the upload directory's filesystem, since ---
+    # --- that's what actually matters for this app, not / in general) --
     try:
-        total, _, free = shutil.disk_usage("/")
+        upload_dir = getattr(config, "UPLOAD_FOLDER", None) or tempfile.gettempdir()
+        os.makedirs(upload_dir, exist_ok=True)
+        total, _, free = shutil.disk_usage(upload_dir)
         free_pct = round((free / total) * 100)
         if free_pct > 20:
             status = "ok"
@@ -246,7 +263,7 @@ def run_health_checks():
             status = "warn"
         else:
             status = "fail"
-        checks["disk_space"] = (status, f"{free_pct}% free")
+        checks["disk_space"] = (status, f"{free_pct}% free on {upload_dir}'s filesystem")
     except Exception as e:
         log_error("services.health.disk", e)
         checks["disk_space"] = ("fail", "Check failed")

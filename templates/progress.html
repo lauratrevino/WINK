@@ -144,7 +144,7 @@
   .course-color-10{background:#F97316}.course-color-11{background:#06B6D4}
   .course-color-fallback{background:#94A3B8}
   .hidden{display:none}
-  .week-val { font-size: 10.5px; font-weight: 700; color: var(--navy); margin-top: 6px; }
+  .week-val { font-size: 10.5px; font-weight: 700; color: var(--navy); margin-bottom: 6px; }
   .week-label { font-size: 9.5px; color: var(--muted); margin-top: 1px; white-space: nowrap; }
 
   /* ── Metric rows — a clean list, not colored blocks. A number, a
@@ -352,8 +352,8 @@ function renderActivityChart(view) {
     if (e.count > 0 && pct === 0) pct = 5;
     return `
     <div class="week-col">
-      <div class="week-bar-track"><div class="week-bar-fill h-${pct}"></div></div>
       <div class="week-val">${e.count}</div>
+      <div class="week-bar-track"><div class="week-bar-fill h-${pct}"></div></div>
       <div class="week-label">${activityLabel(view, e)}</div>
     </div>`;
   }).join('');

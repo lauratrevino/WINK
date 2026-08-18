@@ -9,7 +9,15 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
+# Configurable via env var because this MUST point at a mounted Render
+# Persistent Disk in production — Render's own application filesystem is
+# ephemeral and gets wiped on every redeploy/restart. Falling back to a
+# path under BASE_DIR (inside the app's own code directory) is fine for
+# local development, but would silently lose every uploaded document on
+# the next deploy if left as the default in production. See
+# services/health.py's upload_storage check, which warns if this is
+# still pointing at the BASE_DIR fallback while ENV=production.
+UPLOAD_FOLDER = os.environ.get("UPLOAD_FOLDER") or os.path.join(BASE_DIR, "uploads")
 ALLOWED_EXT = {"pdf", "docx", "txt", "pptx", "xlsx", "png", "jpg", "jpeg"}
 
 MAX_ZIP_UNCOMPRESSED_BYTES = 200 * 1024 * 1024  

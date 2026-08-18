@@ -28,12 +28,11 @@
     }
 
     .hero {
-      min-height: 420px;
-      max-height: 620px;
+      min-height: 480px;
       max-width: 900px;
       margin: 0 auto;
       padding-bottom: 0;
-      overflow: hidden;
+      overflow: visible;
       background-image: none;
     }
     .hero-bg-img {
@@ -259,8 +258,14 @@
     }
     .service-item strong { display: block; color: #002855; margin-bottom: 4px; }
     .service-item span { font-size: 13px; }
-    #info-modal-close { color: #fff; z-index: 3; font-size: 24px; }
-    #info-modal-close:hover { color: #FF8200; background: transparent; }
+    #info-modal-close {
+      color: #fff; z-index: 3; font-size: 20px;
+      background: rgba(0,40,85,0.55); border-radius: 50%;
+      width: 32px; height: 32px; line-height: 1;
+      display: flex; align-items: center; justify-content: center;
+      backdrop-filter: blur(2px);
+    }
+    #info-modal-close:hover { color: #fff; background: #FF8200; }
 
     .footer-brand-badge {
       color: #FF8200 !important;
@@ -276,7 +281,7 @@
       .info-title-band { margin-left: -18px; margin-right: -18px; padding-left: 18px; padding-right: 18px; }
     }
     @media (min-width: 821px) {
-      html, body { height: 100%; overflow: hidden; }
+      html, body { height: 100%; overflow-y: auto; overflow-x: hidden; }
     }
 </style>
 </head>

@@ -240,8 +240,54 @@
     }
 
     @media (max-width: 768px) {
-      .chat-container { grid-template-columns: 1fr; }
-      .chat-sidebar { display: none; }
+      /* Dynamic viewport height accounts for the mobile browser chrome
+         (address bar, etc.) collapsing/expanding as the user scrolls or
+         the keyboard opens — 100vh alone is set once on load and doesn't
+         track that, leaving a gap (or clipping the input bar) once the
+         browser UI changes size. dvh isn't supported on very old mobile
+         browsers, so vh stays as the fallback value browsers without dvh
+         support will use instead. */
+      .chat-container { grid-template-columns: 1fr; max-height: 100vh; max-height: 100dvh; }
+      html, body { height: 100vh; height: 100dvh; }
+
+      /* The sidebar becomes a slide-in drawer instead of just vanishing
+         with no way to reach conversation history or start a new chat
+         from a phone. */
+      .chat-sidebar {
+        display: flex;
+        position: fixed; top: 0; left: 0; bottom: 0; width: 82%; max-width: 300px;
+        z-index: 400; transform: translateX(-100%); transition: transform 0.22s ease;
+        box-shadow: 4px 0 24px rgba(0,0,0,0.3);
+      }
+      .chat-sidebar.mobile-open { transform: translateX(0); }
+      .mobile-sidebar-backdrop {
+        display: none; position: fixed; inset: 0; background: rgba(0,10,25,0.45); z-index: 390;
+      }
+      .mobile-sidebar-backdrop.show { display: block; }
+      #mobile-sidebar-btn { display: inline-flex !important; }
+
+      .chat-toolbar { padding: 8px 12px 0; flex-wrap: wrap; gap: 6px; }
+      .messages-wrap { padding: 16px; }
+      .msg { max-width: 100%; }
+      .msg-bubble { max-width: calc(100% - 46px); word-break: break-word; overflow-wrap: break-word; }
+      .wink-map, .wink-image, .wink-photo { max-width: 100%; }
+      .wink-diagram { padding: 8px; }
+
+      .chat-input-bar {
+        padding: 10px 12px;
+        /* Safe-area padding keeps the send button clear of the home
+           indicator / rounded-corner cutout on iPhones (and equivalents
+           on Android), rather than sitting flush against it. */
+        padding-bottom: calc(10px + env(safe-area-inset-bottom));
+      }
+      #chat-input {
+        /* 16px, not 14px: any input/textarea under 16px triggers iOS
+           Safari to automatically zoom the whole page in on focus, which
+           is jarring and doesn't zoom back out on its own. This is a
+           well-known, guaranteed-to-reproduce mobile bug at font-size
+           14px, scoped here to mobile only so desktop keeps its 14px. */
+        font-size: 16px;
+      }
     }
 
     .wink-toast {
