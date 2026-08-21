@@ -61,6 +61,17 @@ except ImportError:
     # installed and this except branch stops being hit.
     app.jinja_env.globals.setdefault("csrf_token", lambda: "")
 
+# Templates use {{ csp_nonce() }} on inline <style>/<script> tags.
+# Keep the helper available on every render. The current CSP still permits
+# inline styles/scripts, so this restores template compatibility without
+# changing the existing security policy.
+def _csp_nonce():
+    if not hasattr(g, "_csp_nonce"):
+        g._csp_nonce = secrets.token_urlsafe(16)
+    return g._csp_nonce
+
+app.jinja_env.globals["csp_nonce"] = _csp_nonce
+
 @app.after_request
 def set_security_headers(response):
     # NOTE: script-src/style-src include 'unsafe-inline' because every page in
