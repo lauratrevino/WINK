@@ -1,0 +1,1049 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Ask WINK — Chat</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/nav.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.css') }}">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <!-- mermaid.min.js (~3.5MB) is no longer loaded here unconditionally on
+       every visit to this page — see ensureMermaidLoaded()/
+       resolveDiagramMarkers() below, which injects it on demand only once
+       a response actually contains a ```mermaid block. Most chat sessions
+       never trigger a diagram, so this was pure dead weight on initial
+       page load for the common case. -->
+</head>
+<body>
+
+  {% include "_nav.html" %}
+  <script src="{{ url_for('static', filename='js/scroll-reset.js') }}"></script>
+
+  <div class="chat-container">
+    <div class="mobile-sidebar-backdrop" id="mobile-sidebar-backdrop" onclick="closeMobileSidebar()"></div>
+
+    <aside class="chat-sidebar">
+      <div class="wink-profile">
+        <div class="wink-avatar-badge" aria-hidden="true">
+          <img class="wink-avatar-img" src="/static/WINK.png" alt="">
+        </div>
+        <div class="wink-name">WINK</div>
+        <div class="wink-role">Your AI Academic Coach</div>
+        <div class="online-badge"><span class="online-dot"></span> Online & Ready</div>
+      </div>
+
+      <div class="sidebar-section">
+        <button class="new-chat-btn" onclick="startNewChat()">+ New Chat</button>
+        <h3>Recent Chats (Last 3)</h3>
+        <div id="conv-list">
+          <div class="conv-empty">Loading…</div>
+        </div>
+        <button onclick="openAllConversations()" style="background:none;border:none;color:rgba(255,255,255,0.6);font-size:12px;font-weight:600;cursor:pointer;padding:6px 0;text-decoration:underline;">View all conversations →</button>
+      </div>
+
+      <div class="sidebar-section">
+        <h3>Try Asking</h3>
+        <button class="prompt-btn" onclick="setPrompt('I feel really overwhelmed and behind already. Where do I even start?')">😮‍💨 I feel overwhelmed — where do I start?</button>
+        <button class="prompt-btn" onclick="setPrompt('I\'m scared I\'m not smart enough to be here. Is that normal?')">😟 Am I smart enough to be here?</button>
+        <button class="prompt-btn" onclick="setPrompt('I don\'t really know anyone here yet and I feel pretty lonely. What can I do?')">🙁 I feel lonely — what can I do?</button>
+        <button class="prompt-btn" onclick="setPrompt('I\'m anxious about failing a class. What should I do if I\'m struggling?')">😰 I'm scared of failing — help</button>
+        <button class="prompt-btn" onclick="setPrompt('How do I deal with homesickness and missing my family?')">🏠 I'm homesick — any advice?</button>
+      </div>
+
+      <div class="sidebar-section" style="margin-top: auto; border-bottom: none;">
+        <a class="sidebar-link-btn" href="/terms" target="_blank" rel="noopener" style="text-decoration:none;">📄 Terms of Agreement</a>
+        <a class="sidebar-link-btn" href="/manual" target="_blank" rel="noopener">📖 User's Guide</a>
+      </div>
+    </aside>
+
+    <div class="chat-main">
+      <div class="chat-toolbar">
+        <button class="toolbar-btn" id="mobile-sidebar-btn" onclick="toggleMobileSidebar()" style="display:none;">☰ Conversations</button>
+        <button class="toolbar-btn" id="export-btn" onclick="exportConversation()" disabled>⬇ Download</button>
+        <button class="toolbar-btn" id="share-btn" onclick="shareConversation()" disabled>🔗 Share</button>
+        <span style="width:1px;height:20px;background:#dde3f0;margin:0 4px;"></span>
+        <button class="toolbar-btn" id="read-aloud-btn" onclick="readLatestAnswerAloud()">🔊 Read latest answer</button>
+      </div>
+      <div class="messages-wrap" id="messages" role="log" aria-live="polite" aria-atomic="false" aria-relevant="additions">
+
+        <div class="welcome-msg" id="welcome">
+          <h2>Let&rsquo;s work on your success&mdash;together.</h2>
+          <p class="welcome-sub">I can help you with:</p>
+          <div class="welcome-cards">
+            <div class="welcome-card">
+              <div class="welcome-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="m9 14 2 2 4-4"/></svg></div>
+              <div class="welcome-card-title">Plan Your Semester</div>
+              <div class="welcome-card-desc">Map out your courses, deadlines, and goals.</div>
+            </div>
+            <div class="welcome-card">
+              <div class="welcome-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div>
+              <div class="welcome-card-title">Stay on Track</div>
+              <div class="welcome-card-desc">Get reminders, prioritize tasks, and build good habits.</div>
+            </div>
+            <div class="welcome-card">
+              <div class="welcome-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4h6a4 4 0 0 1 4 4v12a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v12a3 3 0 0 1 3-3h7z"/></svg></div>
+              <div class="welcome-card-title">Understand Your Course</div>
+              <div class="welcome-card-desc">Break down topics, review concepts, and practice.</div>
+            </div>
+            <div class="welcome-card">
+              <div class="welcome-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h12v3a6 6 0 0 1-12 0z"/><path d="M6 5H3a1 1 0 0 0-1 1 5 5 0 0 0 4 5M18 5h3a1 1 0 0 1 1 1 5 5 0 0 1-4 5"/><path d="M12 15v3m-4 3h8"/></svg></div>
+              <div class="welcome-card-title">Reach Your Goals</div>
+              <div class="welcome-card-desc">Celebrate wins and keep growing.</div>
+            </div>
+          </div>
+          <div class="welcome-prompt-box">
+            <span class="welcome-prompt-icon" aria-hidden="true">💬</span>
+            <div>
+              <div class="welcome-prompt-title">What would you like to work on today?</div>
+              <div class="welcome-prompt-sub">Ask me anything or choose a topic above.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="msg wink typing" id="typing-indicator">
+          <div class="msg-avatar wink-av">🎓</div>
+          <div class="msg-bubble">
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="chat-input-bar">
+        <div class="chat-input-row">
+          <button class="btn-icon-round" id="upload-btn" onclick="document.getElementById('chat-file-input').click()" title="Upload a document" aria-label="Upload a document">＋</button>
+          <input type="file" id="chat-file-input" style="display:none" onchange="handleChatFileUpload(event)" aria-label="Upload a document">
+          <textarea id="chat-input" placeholder="Ask WINK anything about your courses…" rows="1" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+          <button class="btn-icon-round" id="mic-btn" onclick="toggleVoiceInput()" title="Speak your question" aria-label="Speak your question">🎤</button>
+          <button class="btn-send" id="send-btn" onclick="sendMessage()" aria-label="Send message">➤</button>
+        </div>
+        <div class="input-hint">Press Enter to send · Shift+Enter for new line · Answers come from your uploaded documents</div>
+      </div>
+    </div>
+
+    <div class="wink-modal-overlay" id="wink-modal" onclick="if(event.target===this) closeWinkModal()">
+      <div class="wink-modal-card" role="dialog" aria-modal="true">
+        <button class="wink-modal-close" onclick="closeWinkModal()" aria-label="Close">✕</button>
+        <div id="wink-modal-body"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="{{ url_for('static', filename='js/csrf-fetch.js') }}"></script>
+<script nonce="{{ csp_nonce() }}">
+
+    // Handles broken images from markdown embeds (see formatMessage()'s
+    // wink-md-image class below) — 'error' events don't bubble, so this
+    // has to be attached with capture:true on an ancestor that exists from
+    // page load, rather than on the images themselves (which don't exist
+    // yet, and are inserted via innerHTML so they'd have no listener
+    // attached anyway). One listener here covers every such image for the
+    // life of the page, including ones not inserted yet.
+    document.addEventListener('error', function(e) {
+      if (e.target && e.target.classList && e.target.classList.contains('wink-md-image')) {
+        const wrap = e.target.closest('.wink-embed');
+        if (wrap) wrap.style.display = 'none';
+      }
+    }, true);
+
+    const TEXT_SCALE_STEPS = [0.85, 1, 1.15, 1.3, 1.45, 1.6];
+    function applyTextScale(scale) {
+      document.documentElement.style.setProperty('--wink-text-scale', scale);
+      localStorage.setItem('winkTextScale', String(scale));
+    }
+    function adjustTextSize(direction) {
+      const current = parseFloat(localStorage.getItem('winkTextScale')) || 1;
+      let idx = TEXT_SCALE_STEPS.reduce((closest, v, i) =>
+        Math.abs(v - current) < Math.abs(TEXT_SCALE_STEPS[closest] - current) ? i : closest, 0);
+      idx = Math.max(0, Math.min(TEXT_SCALE_STEPS.length - 1, idx + direction));
+      applyTextScale(TEXT_SCALE_STEPS[idx]);
+    }
+    (function restoreTextScale() {
+      const saved = parseFloat(localStorage.getItem('winkTextScale'));
+      if (saved) applyTextScale(saved);
+    })();
+
+    function readLatestAnswerAloud() {
+      const btn = document.getElementById('read-aloud-btn');
+      if (window.speechSynthesis.speaking) {
+        window.speechSynthesis.cancel();
+        btn.textContent = '🔊 Read latest answer';
+        return;
+      }
+      const winkMessages = document.querySelectorAll('.msg.wink .msg-bubble');
+      if (winkMessages.length === 0) return;
+      const latest = winkMessages[winkMessages.length - 1];
+      const utterance = new SpeechSynthesisUtterance(latest.textContent);
+      utterance.onend = () => { btn.textContent = '🔊 Read latest answer'; };
+      utterance.onerror = () => { btn.textContent = '🔊 Read latest answer'; };
+      btn.textContent = '⏹ Stop reading';
+      window.speechSynthesis.speak(utterance);
+    }
+
+    function winkToast(msg, isError = false) {
+      let t = document.getElementById('wink-toast');
+      if (!t) {
+        t = document.createElement('div');
+        t.id = 'wink-toast';
+        t.className = 'wink-toast';
+        t.setAttribute('role', 'status');
+        t.setAttribute('aria-live', 'polite');
+        document.body.appendChild(t);
+      }
+      t.textContent = msg;
+      t.className = 'wink-toast show' + (isError ? ' error' : '');
+      clearTimeout(t._hideTimer);
+      t._hideTimer = setTimeout(() => t.classList.remove('show'), 3200);
+    }
+
+    function winkConfirm({ title, message, confirmLabel = 'Confirm', cancelLabel = 'Cancel', danger = false }) {
+      return new Promise(resolve => {
+        let overlay = document.getElementById('wink-modal-overlay');
+        if (!overlay) {
+          overlay = document.createElement('div');
+          overlay.id = 'wink-modal-overlay';
+          overlay.className = 'wink-modal-overlay';
+          overlay.innerHTML = `<div class="wink-modal-card" role="dialog" aria-modal="true" aria-labelledby="wink-modal-title">
+            <h3 id="wink-modal-title"></h3>
+            <p id="wink-modal-message"></p>
+            <div class="wink-modal-actions">
+              <button class="wink-modal-btn secondary" id="wink-modal-cancel"></button>
+              <button class="wink-modal-btn primary" id="wink-modal-confirm"></button>
+            </div>
+          </div>`;
+          document.body.appendChild(overlay);
+          overlay.addEventListener('click', e => { if (e.target === overlay) finish(false); });
+        }
+        document.getElementById('wink-modal-title').textContent = title;
+        document.getElementById('wink-modal-message').textContent = message;
+        const confirmBtn = document.getElementById('wink-modal-confirm');
+        const cancelBtn = document.getElementById('wink-modal-cancel');
+        confirmBtn.textContent = confirmLabel;
+        cancelBtn.textContent = cancelLabel;
+        confirmBtn.className = 'wink-modal-btn ' + (danger ? 'danger' : 'primary');
+        overlay.classList.add('open');
+        function finish(result) {
+          overlay.classList.remove('open');
+          confirmBtn.onclick = null; cancelBtn.onclick = null;
+          resolve(result);
+        }
+        confirmBtn.onclick = () => finish(true);
+        cancelBtn.onclick = () => finish(false);
+      });
+    }
+
+    const STUDENT_FIRST_NAME = {{ s.first_name | tojson }};
+
+    let messages = [];
+    let currentConversationId = null;
+    let currentTempDoc = null;
+    let photoMarkerId = 0;
+    let diagramMarkerId = 0;
+
+    const WELCOME_HTML = `<div class="welcome-msg" id="welcome">
+      <h2>Let&rsquo;s work on your success&mdash;together.</h2>
+      <p class="welcome-sub">I can help you with:</p>
+      <div class="welcome-cards">
+        <div class="welcome-card">
+          <div class="welcome-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="m9 14 2 2 4-4"/></svg></div>
+          <div class="welcome-card-title">Plan Your Semester</div>
+          <div class="welcome-card-desc">Map out your courses, deadlines, and goals.</div>
+        </div>
+        <div class="welcome-card">
+          <div class="welcome-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div>
+          <div class="welcome-card-title">Stay on Track</div>
+          <div class="welcome-card-desc">Get reminders, prioritize tasks, and build good habits.</div>
+        </div>
+        <div class="welcome-card">
+          <div class="welcome-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4h6a4 4 0 0 1 4 4v12a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v12a3 3 0 0 1 3-3h7z"/></svg></div>
+          <div class="welcome-card-title">Understand Your Course</div>
+          <div class="welcome-card-desc">Break down topics, review concepts, and practice.</div>
+        </div>
+        <div class="welcome-card">
+          <div class="welcome-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h12v3a6 6 0 0 1-12 0z"/><path d="M6 5H3a1 1 0 0 0-1 1 5 5 0 0 0 4 5M18 5h3a1 1 0 0 1 1 1 5 5 0 0 1-4 5"/><path d="M12 15v3m-4 3h8"/></svg></div>
+          <div class="welcome-card-title">Reach Your Goals</div>
+          <div class="welcome-card-desc">Celebrate wins and keep growing.</div>
+        </div>
+      </div>
+      <div class="welcome-prompt-box">
+        <span class="welcome-prompt-icon" aria-hidden="true">💬</span>
+        <div>
+          <div class="welcome-prompt-title">What would you like to work on today?</div>
+          <div class="welcome-prompt-sub">Ask me anything or choose a topic above.</div>
+        </div>
+      </div>
+    </div>`;
+    const TYPING_HTML = `<div class="msg wink typing" id="typing-indicator">
+      <div class="msg-avatar wink-av">🎓</div>
+      <div class="msg-bubble">
+        <div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>
+      </div>
+    </div>`;
+
+    function setPrompt(text) {
+      document.getElementById('chat-input').value = text;
+      document.getElementById('chat-input').focus();
+    }
+
+    function autoResize(el) {
+      el.style.height = 'auto';
+      el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+    }
+
+    function handleKey(e) {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+    }
+
+    function escapeHtml(text) {
+      return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function formatMessage(text) {
+      // Convert markdown-ish formatting to HTML
+      let html = escapeHtml(text);
+
+      // Anything we render as real markup (maps, images) gets stashed behind a
+      // placeholder token first, so later passes (URL linkifier, paragraph
+      // wrapping) can't reach inside their src="..." attributes and corrupt them.
+      const embeds = [];
+      const stash = (snippet) => {
+        embeds.push(snippet);
+        return `\u0000EMBED${embeds.length - 1}\u0000`;
+      };
+
+      // Embedded maps: [[map: some place or address]] -> live Google Maps embed
+      // referrerpolicy="no-referrer" (not "no-referrer-when-downgrade", the
+      // previous value): a map query necessarily sends the place/address
+      // itself to Google as a URL parameter — that's inherent to a live
+      // embed and can't be avoided without giving up the embed entirely —
+      // but there's no reason to ALSO hand Google the referring WINK page
+      // URL on every embed. This stops that second, avoidable leak.
+      html = html.replace(/\[\[\s*map:\s*([^\]]+)\]\]/gi, (m, query) => {
+        const q = encodeURIComponent(query.trim());
+        return stash(`<div class="wink-embed wink-map"><iframe src="https://www.google.com/maps?q=${q}&output=embed" loading="lazy" referrerpolicy="no-referrer" allowfullscreen></iframe></div>`);
+      });
+      // Photo of a real person/place/notable subject: [[image: Heather Wilson]]
+      // Resolved after render via a free Wikipedia lookup — see resolvePhotoMarkers().
+      html = html.replace(/\[\[\s*image:\s*([^\]]+)\]\]/gi, (m, query) => {
+        const id = `wink-photo-${++photoMarkerId}`;
+        return stash(`<div class="wink-embed wink-photo-pending" id="${id}" data-query="${query.trim().replace(/"/g,'&quot;')}"><span class="wink-photo-loading">🔎 Looking for a photo…</span></div>`);
+      });
+      // Diagrams: ```mermaid fenced code blocks -> an actual rendered
+      // diagram via the self-hosted mermaid.js — resolved after insert,
+      // same async pattern as resolvePhotoMarkers() (see
+      // resolveDiagramMarkers() below). text was already escapeHtml()'d
+      // above, so decode entities back to real characters before mermaid
+      // parses them, then safely re-escape into the data attribute.
+      html = html.replace(/```mermaid\n([\s\S]*?)```/g, (m, code) => {
+        const id = `wink-diagram-${++diagramMarkerId}`;
+        const raw = code.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'");
+        return stash(`<div class="wink-embed wink-diagram-pending" id="${id}" data-mermaid="${raw.replace(/"/g,'&quot;')}"><span class="wink-photo-loading">📊 Rendering diagram…</span></div>`);
+      });
+      // Images: standard markdown ![alt](url) -> an actual rendered image.
+      // No inline onerror attribute here on purpose — a dynamically-built
+      // attribute like that can't be covered by the build-time CSP hash
+      // scan (which only sees what's literally in the .html template
+      // files), so it would need 'unsafe-inline' to function. Handled
+      // instead by a single delegated 'error' listener set up once below.
+      html = html.replace(/!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g, (m, alt, url) => {
+        return stash(`<div class="wink-embed wink-image"><img src="${url}" alt="${alt.replace(/"/g,'&quot;')}" loading="lazy" class="wink-md-image"></div>`);
+      });
+
+      // Source citations: the system prompt instructs the model to name
+      // the actual uploaded file it drew an answer from (e.g.
+      // "Spring2026Syllabus.docx"), not just say "your documents" —
+      // highlight any such filename distinctly so a student can see at a
+      // glance which answers are grounded in something they uploaded.
+      // Runs after the map/image stashing above so it can't accidentally
+      // match inside an already-stashed embed's URL.
+      //
+      // NOTE (accuracy caveat): this is a text match on the model's own
+      // output after the fact — it confirms the model *wrote* a filename,
+      // not that the retrieved passage actually came from that file or
+      // supports the claim next to it. The title attribute says so
+      // directly rather than implying a verified citation; a real
+      // passage-level citation system (chunk id + page → the actual
+      // excerpt) would be a stronger version of this.
+      // NOTE (URL exclusion): \S+ is greedy and URL-unaware, so a
+      // filename-shaped tail inside a URL (e.g.
+      // "https://example.edu/handouts/notes.pdf") gets captured whole by
+      // this pattern — the "://" ends up INSIDE the match itself, not
+      // before it, so a lookbehind can't exclude it. Filtering the
+      // matched string post-hoc (skip anything containing "://" or
+      // starting with "/") is the same approach as the backend's
+      // _extract_citation_filenames() in wink/blueprints/chat.py — the
+      // two are meant to agree on what counts as a citation.
+      html = html.replace(/\b(\S+\.(?:docx|pdf|pptx|xlsx|txt|png|jpe?g))\b/gi, (m, filename) => {
+        if (filename.includes('/')) return m;
+        return `<cite class="wink-citation" title="Mentioned by name — not an independently verified citation">${filename}</cite>`;
+      });
+
+      // Bold
+      html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+      // Bullet lists
+      html = html.replace(/^[•\-\*] (.+)$/gm, '<li>$1</li>');
+      html = html.replace(/(<li>.*<\/li>\n?)+/g, m => `<ul>${m}</ul>`);
+      // Numbered lists
+      html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+      // Paragraphs
+      html = html.replace(/\n\n+/g, '</p><p>');
+      html = html.replace(/\n/g, '<br>');
+      html = '<p>' + html + '</p>';
+      html = html.replace(/<p><\/p>/g, '');
+      // URLs (anything left over that wasn't part of a stashed embed)
+      html = html.replace(/(https?:\/\/[^\s<>"]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
+
+      // Swap the real markup back in for its placeholder tokens
+      html = html.replace(/\u0000EMBED(\d+)\u0000/g, (m, i) => embeds[parseInt(i, 10)]);
+      return html;
+    }
+
+    // Resolves any [[image: subject]] placeholders inside a container into a
+    // real photo, using Wikipedia's free public API (no key, no server call —
+    // works entirely client-side). Falls back to hiding the placeholder if
+    // the subject has no Wikipedia page or no photo on it.
+    async function resolvePhotoMarkers(container) {
+      const pending = container.querySelectorAll('.wink-photo-pending');
+      for (const el of pending) {
+        const query = el.dataset.query;
+        try {
+          const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`, { referrerPolicy: 'no-referrer' });
+          if (!res.ok) throw new Error('not found');
+          const data = await res.json();
+          const src = data.thumbnail && data.thumbnail.source;
+          if (!src || !/^https:\/\//.test(src)) throw new Error('no photo available');
+          el.classList.remove('wink-photo-pending');
+          el.classList.add('wink-photo');
+          el.innerHTML = `<img src="${escapeHtml(src)}" alt="${escapeHtml(query)}" loading="lazy">
+            <div class="wink-photo-credit">Photo via Wikipedia</div>`;
+        } catch (e) {
+          el.innerHTML = `<span class="wink-photo-missing">📷 No photo found for "${escapeHtml(query)}"</span>`;
+          el.classList.remove('wink-photo-pending');
+        }
+      }
+    }
+
+    let mermaidInitDone = false;
+    let _mermaidLoadPromise = null;
+    // Loads mermaid.min.js (~3.5MB) on demand the FIRST time a response
+    // actually contains a ```mermaid block, instead of on every visit to
+    // this page regardless of whether it's ever used. script-src-elem
+    // includes 'self' in the CSP (see wink/__init__.py), so a same-origin
+    // <script src> injected here is allowed without needing a nonce.
+    // Cached in a module-level promise so a second diagram in the same
+    // session reuses the same in-flight/completed load rather than
+    // injecting the tag again.
+    function ensureMermaidLoaded() {
+      if (typeof mermaid !== 'undefined') return Promise.resolve();
+      if (_mermaidLoadPromise) return _mermaidLoadPromise;
+      _mermaidLoadPromise = new Promise((resolve) => {
+        const script = document.createElement('script');
+        script.src = '/static/mermaid.min.js';
+        script.onload = () => resolve();
+        script.onerror = () => resolve(); // resolved either way — resolveDiagramMarkers() below still checks typeof mermaid and shows a graceful fallback if it never actually loaded
+        document.head.appendChild(script);
+      });
+      return _mermaidLoadPromise;
+    }
+
+    async function resolveDiagramMarkers(container) {
+      const pending = container.querySelectorAll('.wink-diagram-pending');
+      if (pending.length === 0) return;
+      // Kick off the on-demand load (no-op if already loaded/loading),
+      // then wait briefly for it — a fast AI response with a diagram can
+      // arrive before the library has finished loading.
+      await ensureMermaidLoaded();
+      if (typeof mermaid === 'undefined') {
+        const deadline = Date.now() + 5000;
+        while (typeof mermaid === 'undefined' && Date.now() < deadline) {
+          await new Promise(r => setTimeout(r, 150));
+        }
+      }
+      if (typeof mermaid === 'undefined') {
+        pending.forEach(el => {
+          el.innerHTML = '<span class="wink-photo-missing">📊 Diagram rendering isn\'t available right now.</span>';
+          el.classList.remove('wink-diagram-pending');
+        });
+        return;
+      }
+      if (!mermaidInitDone) {
+        mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'strict' });
+        mermaidInitDone = true;
+      }
+      for (const el of pending) {
+        const source = el.dataset.mermaid;
+        try {
+          const { svg } = await mermaid.render('wink-mermaid-' + el.id, source);
+          el.innerHTML = svg;
+          el.classList.remove('wink-diagram-pending');
+          el.classList.add('wink-diagram');
+        } catch (e) {
+          el.innerHTML = '<span class="wink-photo-missing">📊 Couldn\'t render that diagram.</span>';
+          el.classList.remove('wink-diagram-pending');
+        }
+      }
+    }
+
+    function addMessage(role, text) {
+      const welcome = document.getElementById('welcome');
+      if (welcome) welcome.remove();
+
+      const wrap = document.getElementById('messages');
+      const typing = document.getElementById('typing-indicator');
+
+      const div = document.createElement('div');
+      div.className = `msg ${role === 'user' ? 'user' : 'wink'}`;
+
+      const avatar = document.createElement('div');
+      avatar.className = `msg-avatar ${role === 'user' ? 'user-av' : 'wink-av'}`;
+      avatar.textContent = role === 'user' ? (STUDENT_FIRST_NAME[0] || 'U') : '🎓';
+
+      const bubble = document.createElement('div');
+      bubble.className = 'msg-bubble';
+      bubble.innerHTML = role === 'user' ? escapeHtml(text) : formatMessage(text);
+
+      div.appendChild(avatar);
+      div.appendChild(bubble);
+      wrap.insertBefore(div, typing);
+      wrap.scrollTop = wrap.scrollHeight;
+      return bubble;
+    }
+
+    function addFeedbackButtons(container, convId, msgIndex) {
+      if (!convId && convId !== 0) return;
+      const fb = document.createElement('div');
+      fb.className = 'msg-feedback';
+      const up = document.createElement('button');
+      up.type = 'button'; up.className = 'feedback-btn'; up.setAttribute('aria-label', 'Good answer'); up.textContent = '👍';
+      up.addEventListener('click', function() { submitFeedback(convId, msgIndex, 'up', up); });
+      const down = document.createElement('button');
+      down.type = 'button'; down.className = 'feedback-btn'; down.setAttribute('aria-label', 'Not helpful'); down.textContent = '👎';
+      down.addEventListener('click', function() { submitFeedback(convId, msgIndex, 'down', down); });
+      fb.appendChild(up);
+      fb.appendChild(down);
+      container.appendChild(fb);
+    }
+
+    async function submitFeedback(convId, msgIndex, rating, btnEl) {
+      const group = btnEl.parentElement;
+      try {
+        const resp = await fetch('/rate-answer', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ conversation_id: convId, message_index: msgIndex, rating: rating }),
+        });
+        if (resp.ok) {
+          group.innerHTML = '<span class="feedback-thanks">Thanks for the feedback.</span>';
+        }
+      } catch (e) {  }
+    }
+
+    function setToolbarEnabled(enabled) {
+      document.getElementById('export-btn').disabled = !enabled;
+      document.getElementById('share-btn').disabled = !enabled;
+    }
+
+    function startNewChat() {
+      closeMobileSidebar();
+      messages = [];
+      currentConversationId = null;
+      currentTempDoc = null;
+      document.getElementById('messages').innerHTML = WELCOME_HTML + TYPING_HTML;
+      setToolbarEnabled(false);
+      highlightActiveConversation(null);
+      document.getElementById('chat-input').focus();
+    }
+
+    function highlightActiveConversation(id) {
+      document.querySelectorAll('.conv-item').forEach(el => {
+        el.classList.toggle('active', String(el.dataset.id) === String(id));
+      });
+    }
+
+    let allConversationsCache = [];
+
+    async function loadConversationList() {
+      try {
+        const res = await fetch('/conversations');
+        const data = await res.json();
+        allConversationsCache = data.conversations || [];
+        const list = document.getElementById('conv-list');
+        const convs = allConversationsCache.slice(0, 3);
+        if (convs.length === 0) {
+          list.innerHTML = '<div class="conv-empty">No past chats yet</div>';
+          return;
+        }
+        list.innerHTML = '';
+        convs.forEach(c => {
+          const item = document.createElement('div');
+          item.className = 'conv-item';
+          item.dataset.id = c.id;
+          item.innerHTML = `<span class="conv-title">${escapeHtml(c.title || 'Conversation')}</span>
+                             <button class="conv-delete" title="Delete" aria-label="Delete conversation">🗑</button>`;
+          item.querySelector('.conv-title').addEventListener('click', () => loadConversation(c.id));
+          item.querySelector('.conv-delete').addEventListener('click', (e) => {
+            e.stopPropagation(); deleteConversation(c.id);
+          });
+          list.appendChild(item);
+        });
+        highlightActiveConversation(currentConversationId);
+      } catch (e) {
+        console.error('loadConversationList error', e);
+      }
+    }
+
+    function openAllConversations() {
+      let overlay = document.getElementById('wink-allconvs-overlay');
+      if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'wink-allconvs-overlay';
+        overlay.className = 'wink-modal-overlay';
+        overlay.innerHTML = `
+          <div class="wink-modal-card" role="dialog" aria-modal="true" aria-labelledby="ac-title" style="max-width:420px;max-height:70vh;display:flex;flex-direction:column;">
+            <h3 id="ac-title">All Conversations</h3>
+            <input type="text" id="ac-search" placeholder="Search by title…" style="width:100%;padding:9px 12px;border:1.5px solid #dde3f0;border-radius:6px;font-size:14px;margin-bottom:12px;" aria-label="Search conversations">
+            <div id="ac-list" style="overflow-y:auto;flex:1;"></div>
+            <div class="wink-modal-actions" style="margin-top:14px;">
+              <button class="wink-modal-btn secondary" id="ac-close">Close</button>
+            </div>
+          </div>`;
+        document.body.appendChild(overlay);
+        overlay.querySelector('#ac-close').onclick = () => overlay.classList.remove('open');
+        overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('open'); });
+        overlay.querySelector('#ac-search').addEventListener('input', (e) => renderAllConversations(e.target.value));
+      }
+      overlay.querySelector('#ac-search').value = '';
+      renderAllConversations('');
+      overlay.classList.add('open');
+    }
+
+    function renderAllConversations(query) {
+      const listEl = document.getElementById('ac-list');
+      const q = query.trim().toLowerCase();
+      const filtered = allConversationsCache.filter(c => (c.title || 'Conversation').toLowerCase().includes(q));
+      if (filtered.length === 0) {
+        listEl.innerHTML = '<div class="conv-empty" style="padding:16px 0;">No conversations match.</div>';
+        return;
+      }
+      listEl.innerHTML = filtered.map(c => `
+        <div class="conv-item" style="color:#002855;" data-id="${c.id}">
+          <span class="conv-title" style="cursor:pointer;">${escapeHtml(c.title || 'Conversation')}</span>
+          <button class="conv-delete" title="Delete" aria-label="Delete conversation">🗑</button>
+        </div>`).join('');
+      listEl.querySelectorAll('.conv-item').forEach(item => {
+        const id = parseInt(item.dataset.id, 10);
+        item.querySelector('.conv-title').addEventListener('click', () => {
+          loadConversation(id);
+          document.getElementById('wink-allconvs-overlay').classList.remove('open');
+        });
+        item.querySelector('.conv-delete').addEventListener('click', async (e) => {
+          e.stopPropagation();
+          await deleteConversation(id);
+          renderAllConversations(document.getElementById('ac-search').value);
+        });
+      });
+    }
+
+    async function loadConversation(id) {
+      closeMobileSidebar();
+      try {
+        const res = await fetch(`/conversations/${id}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        messages = (data.messages || []).map(m => ({ role: m.role, content: m.content }));
+        currentConversationId = id;
+        currentTempDoc = null;
+        document.getElementById('messages').innerHTML = TYPING_HTML;
+        messages.forEach((m, i) => {
+          const bubble = addMessage(m.role, m.content);
+          if (m.role !== 'user' && bubble) {
+            resolvePhotoMarkers(bubble);
+            resolveDiagramMarkers(bubble);
+            addFeedbackButtons(bubble.parentElement, currentConversationId, i);
+          }
+        });
+        setToolbarEnabled(true);
+        highlightActiveConversation(id);
+      } catch (e) {
+        console.error('loadConversation error', e);
+      }
+    }
+
+    async function deleteConversation(id) {
+      const ok = await winkConfirm({
+        title: 'Delete this conversation?',
+        message: 'This can\'t be undone — the conversation and its messages will be permanently removed.',
+        confirmLabel: 'Delete', danger: true
+      });
+      if (!ok) return;
+      await fetch(`/conversations/${id}/delete`, { method: 'POST' });
+      if (currentConversationId === id) startNewChat();
+      loadConversationList();
+      winkToast('Conversation deleted.');
+    }
+
+    function toggleMobileSidebar() {
+      document.querySelector('.chat-sidebar').classList.toggle('mobile-open');
+      document.getElementById('mobile-sidebar-backdrop').classList.toggle('show');
+    }
+    function closeMobileSidebar() {
+      document.querySelector('.chat-sidebar').classList.remove('mobile-open');
+      document.getElementById('mobile-sidebar-backdrop').classList.remove('show');
+    }
+
+    function exportConversation() {
+      if (!currentConversationId) return;
+      window.open(`/conversations/${currentConversationId}/export`, '_blank');
+    }
+
+    async function shareConversation() {
+      if (!currentConversationId) return;
+      try {
+        const res = await fetch(`/conversations/${currentConversationId}/share`, { method: 'POST' });
+        const data = await res.json();
+        if (data.share_url) {
+          openShareModal(data.share_url, currentConversationId);
+        } else {
+          alert(data.error || 'Could not create share link.');
+        }
+      } catch (e) {
+        alert('Could not create share link.');
+      }
+    }
+
+    function openShareModal(shareUrl, convId) {
+      document.getElementById('wink-modal-body').innerHTML = `
+        <h2>Share This Conversation</h2>
+        <p>Anyone with this link can view this conversation, until you stop sharing it.</p>
+        <p style="word-break:break-all;background:#f4f6fb;border:1px solid #dde3f0;border-radius:8px;padding:10px 12px;font-size:12px;color:#002855;">${shareUrl}</p>
+        <div class="wink-modal-actions">
+          <button type="button" class="wink-modal-btn danger" id="share-stop-btn">Stop Sharing</button>
+          <button type="button" class="wink-modal-btn primary" id="share-copy-btn">Copy Link</button>
+        </div>
+      `;
+      document.getElementById('wink-modal').classList.add('open');
+      document.getElementById('share-copy-btn').onclick = async () => {
+        await navigator.clipboard.writeText(shareUrl).catch(() => {});
+        const btn = document.getElementById('share-copy-btn');
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy Link'; }, 1500);
+      };
+      document.getElementById('share-stop-btn').onclick = async () => {
+        try {
+          const res = await fetch(`/conversations/${convId}/unshare`, { method: 'POST' });
+          const data = await res.json();
+          if (data.ok) {
+            closeWinkModal();
+            winkToast('This conversation is no longer shared.');
+          } else {
+            alert(data.error || 'Could not stop sharing.');
+          }
+        } catch (e) {
+          alert('Could not stop sharing.');
+        }
+      };
+    }
+
+    function startRateLimitCountdown(seconds) {
+      const sendBtn = document.getElementById('send-btn');
+      const input = document.getElementById('chat-input');
+      let remaining = Math.max(1, Math.ceil(seconds));
+      sendBtn.disabled = true;
+      input.disabled = true;
+      const originalPlaceholder = input.placeholder;
+      const tick = () => {
+        input.placeholder = `Please wait ${remaining}s before asking again…`;
+        if (remaining <= 0) {
+          clearInterval(timer);
+          input.placeholder = originalPlaceholder;
+          input.disabled = false;
+          sendBtn.disabled = false;
+          input.focus();
+          return;
+        }
+        remaining -= 1;
+      };
+      tick();
+      const timer = setInterval(tick, 1000);
+    }
+
+    async function sendMessage() {
+      const input = document.getElementById('chat-input');
+      const text = input.value.trim();
+      if (!text) return;
+
+      input.value = '';
+      input.style.height = 'auto';
+      document.getElementById('send-btn').disabled = true;
+
+      messages.push({ role: 'user', content: text });
+      addMessage('user', text);
+
+      const typing = document.getElementById('typing-indicator');
+      typing.style.display = 'flex';
+      document.getElementById('messages').scrollTop = 99999;
+
+      try {
+        const res = await fetch('/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages, conversation_id: currentConversationId, temp_doc: currentTempDoc })
+        });
+
+        if (!res.ok || !res.body) {
+          const data = await res.json().catch(() => ({}));
+          typing.style.display = 'none';
+          if (res.status === 429) {
+            addMessage('wink', '⏳ ' + (data.error || "You're asking questions faster than I can keep up."));
+            startRateLimitCountdown(data.retry_after || 15);
+          } else {
+            addMessage('wink', '❌ Error: ' + (data.error || 'Something went wrong.'));
+            document.getElementById('send-btn').disabled = false;
+          }
+          return;
+        }
+
+        const returnedConvId = res.headers.get('X-Conversation-Id');
+        const isNewConversation = returnedConvId && !currentConversationId;
+        if (returnedConvId) currentConversationId = returnedConvId;
+
+        typing.style.display = 'none';
+
+        const wrap = document.getElementById('messages');
+        const div = document.createElement('div');
+        div.className = 'msg wink';
+        const avatar = document.createElement('div');
+        avatar.className = 'msg-avatar wink-av';
+        avatar.textContent = '🎓';
+        const bubble = document.createElement('div');
+        bubble.className = 'msg-bubble';
+        div.appendChild(avatar);
+        div.appendChild(bubble);
+        wrap.insertBefore(div, typing);
+
+        div.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let fullText = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          fullText += decoder.decode(value, { stream: true });
+          bubble.innerHTML = formatMessage(fullText);
+        }
+
+        messages.push({ role: 'assistant', content: fullText });
+        resolvePhotoMarkers(bubble);
+        resolveDiagramMarkers(bubble);
+        addFeedbackButtons(div, currentConversationId, messages.length - 1);
+        setToolbarEnabled(true);
+        if (isNewConversation) loadConversationList();
+
+      } catch(e) {
+        typing.style.display = 'none';
+        addMessage('wink', '\u274c Connection error. Please try again.');
+      }
+      document.getElementById('send-btn').disabled = false;
+      document.getElementById('chat-input').focus();
+    }
+
+    function closeWinkModal() {
+      document.getElementById('wink-modal').classList.remove('open');
+    }
+
+    function winkUploadChoice(fileName) {
+      return new Promise(resolve => {
+        let overlay = document.getElementById('wink-upload-overlay');
+        if (!overlay) {
+          overlay = document.createElement('div');
+          overlay.id = 'wink-upload-overlay';
+          overlay.className = 'wink-modal-overlay';
+          overlay.innerHTML = `
+            <div class="wink-modal-card" role="dialog" aria-modal="true" aria-labelledby="wu-title">
+              <h3 id="wu-title">Add <span id="wu-filename"></span></h3>
+              <div id="wu-step-choice">
+                <p>Save this permanently so you (and WINK) can come back to it later, or just use it for this one conversation?</p>
+                <div class="wink-modal-actions" style="justify-content:stretch;flex-direction:column;">
+                  <button class="wink-modal-btn primary" id="wu-choose-permanent" style="width:100%;margin-bottom:8px;">📌 Save Permanently</button>
+                  <button class="wink-modal-btn secondary" id="wu-choose-temp" style="width:100%;margin-bottom:8px;">💬 Just This Conversation</button>
+                </div>
+                <p style="font-size:12px;color:#6b7a99;margin-bottom:0;">Permanent uploads count toward your 20-document limit and show up in My Documents. This-conversation-only uploads don't count toward that limit and disappear when you leave this chat.</p>
+                <div class="wink-modal-actions" style="margin-top:14px;">
+                  <button class="wink-modal-btn secondary" id="wu-cancel-1">Cancel</button>
+                </div>
+              </div>
+              <div id="wu-step-details" style="display:none;">
+                <p style="margin-bottom:10px;">Which course is this for?</p>
+                <input type="text" id="wu-course" placeholder="e.g., MIS 4310" style="width:100%;padding:9px 12px;border:1.5px solid #dde3f0;border-radius:6px;font-size:14px;margin-bottom:10px;" aria-label="Course name">
+                <input type="text" id="wu-crn" placeholder="CRN#" style="width:100%;padding:9px 12px;border:1.5px solid #dde3f0;border-radius:6px;font-size:14px;margin-bottom:6px;" aria-label="CRN number">
+                <div id="wu-error" style="color:#b91c1c;font-size:12px;margin-bottom:8px;"></div>
+                <div class="wink-modal-actions">
+                  <button class="wink-modal-btn secondary" id="wu-back">← Back</button>
+                  <button class="wink-modal-btn primary" id="wu-submit">Upload</button>
+                </div>
+              </div>
+            </div>`;
+          document.body.appendChild(overlay);
+        }
+        overlay.querySelector('#wu-filename').textContent = `"${fileName}"`;
+        const stepChoice = overlay.querySelector('#wu-step-choice');
+        const stepDetails = overlay.querySelector('#wu-step-details');
+        const courseInput = overlay.querySelector('#wu-course');
+        const crnInput = overlay.querySelector('#wu-crn');
+        const errorEl = overlay.querySelector('#wu-error');
+        stepChoice.style.display = 'block';
+        stepDetails.style.display = 'none';
+        courseInput.value = ''; crnInput.value = ''; errorEl.textContent = '';
+
+        function close(result) { overlay.classList.remove('open'); resolve(result); }
+
+        overlay.querySelector('#wu-choose-temp').onclick = () => close({ permanent: false });
+        overlay.querySelector('#wu-cancel-1').onclick = () => close(null);
+        overlay.querySelector('#wu-choose-permanent').onclick = () => {
+          stepChoice.style.display = 'none';
+          stepDetails.style.display = 'block';
+          courseInput.focus();
+        };
+        overlay.querySelector('#wu-back').onclick = () => {
+          stepDetails.style.display = 'none';
+          stepChoice.style.display = 'block';
+        };
+        overlay.querySelector('#wu-submit').onclick = () => {
+          const course = courseInput.value.trim();
+          const crn = crnInput.value.trim();
+          if (!course || !crn) {
+            errorEl.textContent = 'Please fill in both the course name and CRN#.';
+            return;
+          }
+          close({ permanent: true, course, crn });
+        };
+        overlay.addEventListener('click', function selfClose(e) {
+          if (e.target === overlay) { close(null); }
+        }, { once: true });
+        overlay.classList.add('open');
+      });
+    }
+
+    async function handleChatFileUpload(event) {
+      const file = event.target.files[0];
+      event.target.value = '';
+      if (!file) return;
+
+      const choice = await winkUploadChoice(file.name);
+      if (!choice) return; // cancelled
+
+      const keepPermanently = choice.permanent;
+      const course = choice.course || null;
+      const crn = choice.crn || null;
+
+      const uploadBtn = document.getElementById('upload-btn');
+      uploadBtn.textContent = '…';
+      uploadBtn.disabled = true;
+
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('temporary', keepPermanently ? 'false' : 'true');
+        if (keepPermanently) {
+          formData.append('course', course);
+          formData.append('crn', crn);
+        }
+        if (currentConversationId) formData.append('conversation_id', currentConversationId);
+        const res = await fetch('/upload', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (res.status === 429) {
+          winkToast(data.error || 'Too many uploads in a row — please wait a moment.', true);
+          if (data.retry_after) startUploadCountdown(data.retry_after);
+        } else if (data.success) {
+          if (keepPermanently) {
+            addMessage('wink', `📎 Got it — **${file.name}** is uploaded for **${course} (CRN ${crn})** and ready to reference.`);
+          } else {
+            currentTempDoc = { name: data.name || file.name, content: data.content || '' };
+            addMessage('wink', `📎 Got it — **${file.name}** is loaded for this conversation only, so ask away. It won't be saved after this chat — if you'd like to keep it for later, you can upload it permanently anytime from **My Documents**.`);
+          }
+        } else {
+          winkToast(data.error || 'Upload failed — please try again.', true);
+        }
+      } catch (e) {
+        winkToast('Upload failed — please try again.', true);
+      }
+      uploadBtn.textContent = '＋';
+      uploadBtn.disabled = false;
+    }
+
+    function startUploadCountdown(seconds) {
+      const uploadBtn = document.getElementById('upload-btn');
+      let remaining = Math.max(1, Math.ceil(seconds));
+      uploadBtn.disabled = true;
+      const tick = () => {
+        uploadBtn.textContent = remaining;
+        if (remaining <= 0) {
+          clearInterval(timer);
+          uploadBtn.textContent = '＋';
+          uploadBtn.disabled = false;
+          return;
+        }
+        remaining -= 1;
+      };
+      tick();
+      const timer = setInterval(tick, 1000);
+    }
+
+    let winkRecognition = null;
+    let winkListening = false;
+    function toggleVoiceInput() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        alert("Voice input isn't supported in this browser — try Chrome or Edge.");
+        return;
+      }
+      const micBtn = document.getElementById('mic-btn');
+      if (winkListening) {
+        winkRecognition && winkRecognition.stop();
+        return;
+      }
+      winkRecognition = new SpeechRecognition();
+      winkRecognition.lang = 'en-US';
+      winkRecognition.interimResults = false;
+      winkRecognition.maxAlternatives = 1;
+
+      winkRecognition.onstart = () => {
+        winkListening = true;
+        micBtn.classList.add('recording');
+        micBtn.title = 'Listening… click to stop';
+      };
+      winkRecognition.onresult = (e) => {
+        const transcript = e.results[0][0].transcript;
+        const input = document.getElementById('chat-input');
+        input.value = (input.value ? input.value + ' ' : '') + transcript;
+        autoResize(input);
+        input.focus();
+      };
+      winkRecognition.onerror = () => {
+        micBtn.classList.remove('recording');
+        micBtn.title = 'Speak your question';
+        winkListening = false;
+      };
+      winkRecognition.onend = () => {
+        micBtn.classList.remove('recording');
+        micBtn.title = 'Speak your question';
+        winkListening = false;
+      };
+      winkRecognition.start();
+    }
+
+    loadConversationList();
+  </script>
+
+</body>
+</html>
