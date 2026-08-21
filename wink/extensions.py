@@ -1,4 +1,5 @@
 import logging
+import time
 
 import httpx
 import anthropic as ac
@@ -84,7 +85,25 @@ def get_db():
     if getattr(g, "_db_conn", None) is not None:
         return g._db_conn
     if _db_pool:
-        conn = _db_pool.getconn()
+        # Under concurrent load the pool can be briefly exhausted even
+        # when every request releases its connection promptly before
+        # streaming starts (see release_db() and the pool-starvation test
+        # in test_concurrency_real_db.py).  psycopg2's ThreadedConnectionPool
+        # raises PoolError immediately rather than blocking; retry a handful
+        # of times with a short sleep so a burst of simultaneous requests
+        # doesn't cause spurious authentication failures (the PoolError
+        # propagates up through current_student() → login_required → 401).
+        last_exc = None
+        for _ in range(10):
+            try:
+                conn = _db_pool.getconn()
+                last_exc = None
+                break
+            except _pg_pool.PoolError as exc:
+                last_exc = exc
+                time.sleep(0.01)
+        if last_exc is not None:
+            raise last_exc
     else:
         conn = psycopg2.connect(config.DB_URL, cursor_factory=RealDictCursor)
     g._db_conn = conn
