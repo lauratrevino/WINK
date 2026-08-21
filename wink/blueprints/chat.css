@@ -1,0 +1,361 @@
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+      background: #f4f6fb; color: #444455;
+      display: flex; flex-direction: column;
+    }
+
+    .app-nav { position: static; flex-shrink: 0; }
+
+    .chat-container {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      min-height: 0;
+      max-height: calc(100vh - 60px);
+    }
+
+    /* Base rule (desktop/tablet default) — hidden and taken out of grid
+       flow via position:fixed. Without this, the element had NO styling
+       at all above 768px (it was only ever styled inside the mobile
+       media query below), so it defaulted to display:block/position:static
+       and became a real, unintended THIRD grid item — shoving
+       .chat-sidebar into column 2 and wrapping .chat-main down into a
+       second row. The media query below only needs to override display
+       to show/hide it on mobile now, not define position/inset/z-index
+       from scratch. */
+    .mobile-sidebar-backdrop {
+      display: none; position: fixed; inset: 0; background: rgba(0,10,25,0.45); z-index: 390;
+    }
+
+    .chat-sidebar {
+      background: #002855;
+      border-right: 1px solid #001c3d;
+      display: flex; flex-direction: column;
+      overflow-y: auto;
+    }
+    .sidebar-section { padding: 20px 18px; border-bottom: 1px solid rgba(255,255,255,0.10); }
+    .sidebar-section h3 { font-size: 12px; font-weight: 700; color: #FF8200; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 12px; }
+    .wink-profile { text-align: center; padding: 24px 18px 18px; border-bottom: 1px solid rgba(255,255,255,0.10); }
+    .wink-avatar-badge {
+      width: 110px; height: 110px; border-radius: 50%;
+      border: 4px solid #FF8200;
+      margin: 0 auto 10px;
+      background: linear-gradient(150deg, #0b477e 0%, #002855 100%);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.35);
+    }
+    .wink-avatar-icon { font-size: 46px; line-height: 1; }
+    .wink-avatar-img { width: 100px; height: 100px; object-fit: contain; display: block; }
+    .wink-name { font-size: 16px; font-weight: 800; color: #fff; }
+    .wink-role { font-size: 12px; color: rgba(255,255,255,0.65); margin-top: 2px; }
+    .online-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 11px; color: #4ade80; font-weight: 600;
+      margin-top: 8px;
+    }
+    .online-dot { width: 6px; height: 6px; border-radius: 50%; background: #4ade80; }
+
+    .new-chat-btn {
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      width: 100%; padding: 8px 10px; margin-bottom: 12px;
+      background: #FF8200; color: #fff; border: none; border-radius: 6px;
+      font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.15s;
+    }
+    .new-chat-btn:hover { background: #e57200; }
+    .conv-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 8px; border-radius: 6px; cursor: pointer;
+      font-size: 12px; color: rgba(255,255,255,0.85); margin-bottom: 3px;
+      transition: background 0.15s;
+    }
+    .conv-item:hover { background: rgba(255,255,255,0.08); }
+    .conv-item.active { background: rgba(255,130,0,0.18); }
+    .conv-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .conv-delete {
+      background: none; border: none; color: rgba(255,255,255,0.45); cursor: pointer;
+      font-size: 13px; padding: 2px 4px; flex-shrink: 0; border-radius: 4px;
+    }
+    .conv-delete:hover { color: #ff8080; background: rgba(255,255,255,0.10); }
+    .conv-empty { font-size: 12px; color: rgba(255,255,255,0.45); padding: 4px 0; }
+
+    .sidebar-link-btn {
+      display: flex; align-items: center; gap: 8px; width: 100%;
+      text-align: left; padding: 9px 10px; margin-bottom: 6px;
+      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 6px; font-size: 12px; font-weight: 600; color: #fff;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .sidebar-link-btn:last-child { margin-bottom: 0; }
+    .sidebar-link-btn:hover { background: rgba(255,130,0,0.18); border-color: #FF8200; }
+
+    .chat-toolbar {
+      display: flex; align-items: center; justify-content: flex-end; gap: 8px;
+      padding: 10px 24px 0; flex-shrink: 0;
+    }
+    .toolbar-btn {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 12px; font-weight: 600; color: #002855;
+      background: #f4f6fb; border: 1px solid #dde3f0; border-radius: 6px;
+      padding: 5px 12px; cursor: pointer; transition: all 0.15s;
+    }
+    .toolbar-btn:hover { border-color: #FF8200; color: #FF8200; }
+    .toolbar-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .prompt-btn {
+      display: block; width: 100%;
+      text-align: left; padding: 8px 10px;
+      background: #f8f9ff; border: 1px solid #eef0f6;
+      border-radius: 6px; font-size: 12px; color: #002855;
+      cursor: pointer; margin-bottom: 6px;
+      transition: all 0.15s;
+    }
+    .prompt-btn:hover { background: #fff3e6; border-color: #FF8200; }
+    .prompt-btn:last-child { margin-bottom: 0; }
+
+    .chat-main {
+      display: flex; flex-direction: column;
+      min-height: 0; overflow: hidden;
+    }
+
+    .messages-wrap {
+      flex: 1; overflow-y: auto;
+      padding: 24px 32px;
+      display: flex; flex-direction: column; gap: 20px;
+    }
+
+    .welcome-msg {
+      text-align: center; padding: 32px 24px;
+      max-width: 920px; margin: 0 auto;
+    }
+    .welcome-msg h2 { font-size: 24px; font-weight: 700; color: #002855; }
+    .welcome-sub { font-size: 15px; color: #444455; margin-top: 8px; margin-bottom: 26px; }
+
+    .welcome-cards {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+      margin-bottom: 22px;
+    }
+    .welcome-card {
+      background: #fff; border: 1px solid #e5e9f2; border-radius: 14px;
+      padding: 22px 14px; text-align: center;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .welcome-card:hover { border-color: #FF8200; box-shadow: 0 4px 14px rgba(0,0,0,0.06); }
+    .welcome-card-icon {
+      width: 42px; height: 42px; margin: 0 auto 12px;
+      color: #FF8200;
+    }
+    .welcome-card-icon svg { width: 100%; height: 100%; }
+    .welcome-card-title { font-size: 14px; font-weight: 700; color: #002855; margin-bottom: 6px; }
+    .welcome-card-desc { font-size: 12.5px; color: #6b7a99; line-height: 1.45; }
+
+    .welcome-prompt-box {
+      display: flex; align-items: center; gap: 12px;
+      background: #FDEBDC; border-radius: 12px;
+      padding: 14px 20px; text-align: left;
+      max-width: 640px; margin: 0 auto;
+    }
+    .welcome-prompt-icon { font-size: 22px; flex-shrink: 0; }
+    .welcome-prompt-title { font-size: 14.5px; font-weight: 700; color: #002855; }
+    .welcome-prompt-sub { font-size: 12.5px; color: #6b7a99; margin-top: 2px; }
+
+    @media (max-width: 720px) {
+      .welcome-cards { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    .msg { display: flex; gap: 12px; align-items: flex-start; max-width: 760px; }
+    .msg.user { flex-direction: row-reverse; margin-left: auto; }
+    .msg-avatar {
+      width: 34px; height: 34px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; flex-shrink: 0; font-weight: 700;
+    }
+    .msg-avatar.wink-av { background: #002855; color: #FF8200; border: 2px solid #FF8200; }
+    .msg-avatar.user-av { background: #FF8200; color: #fff; }
+    .msg-bubble {
+      padding: 12px 16px; border-radius: 12px;
+      font-size: calc(14px * var(--wink-text-scale, 1)); line-height: 1.65;
+      max-width: calc(100% - 50px);
+    }
+    .msg.wink .msg-bubble { background: #fff; border: 1px solid #dde3f0; color: #333; border-radius: 2px 12px 12px 12px; }
+    .msg.user .msg-bubble { background: #002855; color: #fff; border-radius: 12px 2px 12px 12px; }
+    .msg-feedback { display: flex; gap: 4px; margin-top: 4px; }
+    .wink-citation {
+      font-style: normal; font-weight: 600; color: #002855; background: #eef4ff;
+      padding: 1px 6px; border-radius: 4px; font-size: 0.92em; border: 1px solid #cfe0ff;
+    }
+    .feedback-btn {
+      background: none; border: none; cursor: pointer; font-size: 14px;
+      padding: 2px 6px; border-radius: 6px; opacity: 0.55; transition: all 0.15s;
+    }
+    .feedback-btn:hover { opacity: 1; background: #f0f2fa; }
+    .feedback-thanks { font-size: 11px; color: #6b7a99; padding: 2px 0; }
+    .msg-bubble a { color: #FF8200; }
+    .msg-bubble p { margin-bottom: 8px; }
+    .wink-embed { margin: 8px 0; border-radius: 10px; overflow: hidden; }
+    .wink-map { width: 100%; max-width: 420px; height: 230px; border: 1px solid #dde3f0; }
+    .wink-diagram { max-width: 100%; overflow-x: auto; padding: 12px; background: #fff; border: 1px solid #dde3f0; border-radius: 10px; }
+    .wink-diagram svg { max-width: 100%; height: auto; }
+    .wink-map iframe { width: 100%; height: 100%; border: 0; display: block; }
+    .wink-image { max-width: 340px; }
+    .wink-image img { width: 100%; height: auto; display: block; border: 1px solid #dde3f0; border-radius: 10px; }
+    .wink-photo-pending, .wink-photo, .wink-photo-missing-wrap {
+      display: inline-flex; flex-direction: column; align-items: flex-start;
+    }
+    .wink-photo-loading, .wink-photo-missing {
+      font-size: 12px; color: #6b7a99; background: #f4f6fb;
+      border: 1px dashed #dde3f0; border-radius: 8px; padding: 8px 12px;
+    }
+    .wink-photo { max-width: 220px; }
+    .wink-photo img {
+      width: 100%; height: auto; display: block;
+      border: 1px solid #dde3f0; border-radius: 10px;
+    }
+    .wink-photo-credit { font-size: 10px; color: #9ca3af; margin-top: 4px; }
+    .msg-bubble p:last-child { margin-bottom: 0; }
+    .msg-bubble ul, .msg-bubble ol { padding-left: 20px; margin: 6px 0; }
+    .msg-bubble li { margin-bottom: 4px; }
+    .msg-bubble strong { font-weight: 700; }
+    .msg-bubble code { background: rgba(0,40,85,0.08); padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+
+    .typing { display: none; }
+    .typing .msg-bubble { display: flex; align-items: center; gap: 4px; padding: 14px 18px; }
+    .typing-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: #6b7a99; animation: typing 1.2s ease-in-out infinite;
+    }
+    .typing-dot:nth-child(2) { animation-delay: .2s; }
+    .typing-dot:nth-child(3) { animation-delay: .4s; }
+    @keyframes typing { 0%,80%,100%{transform:scale(0.7);opacity:.5} 40%{transform:scale(1);opacity:1} }
+
+    .chat-input-bar {
+      flex-shrink: 0;
+      padding: 16px 24px;
+      background: #fff;
+      border-top: 1px solid #dde3f0;
+    }
+    .chat-input-row {
+      display: flex; align-items: flex-end; gap: 10px;
+      background: #f4f6fb; border: 1.5px solid #dde3f0;
+      border-radius: 12px; padding: 10px 10px 10px 16px;
+      transition: border-color 0.15s;
+    }
+    .chat-input-row:focus-within { border-color: #FF8200; }
+    #chat-input {
+      flex: 1; border: none; background: transparent;
+      font-size: 14px; color: #333; outline: none;
+      resize: none; min-height: 24px; max-height: 120px;
+      font-family: inherit; line-height: 1.5;
+    }
+    .btn-send {
+      width: 38px; height: 38px; border-radius: 8px;
+      background: #FF8200; border: none; color: #fff;
+      font-size: 18px; cursor: pointer; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.18s;
+    }
+    .btn-send:hover { background: #e57200; }
+    .btn-send:disabled { background: #dde3f0; cursor: not-allowed; }
+    .btn-icon-round {
+      width: 38px; height: 38px; border-radius: 8px;
+      background: #fff; border: 1.5px solid #dde3f0; color: #002855;
+      font-size: 17px; cursor: pointer; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.18s;
+    }
+    .btn-icon-round:hover { border-color: #FF8200; color: #FF8200; }
+    .btn-icon-round.recording { background: #dc2626; border-color: #dc2626; color: #fff; animation: pulse-rec 1.2s ease-in-out infinite; }
+    @keyframes pulse-rec { 0%,100%{opacity:1} 50%{opacity:.55} }
+    .input-hint { font-size: 11px; color: #9ca3af; margin-top: 6px; text-align: center; }
+
+    .wink-modal-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,20,50,0.5);
+      z-index: 300; align-items: center; justify-content: center; padding: 20px;
+    }
+    .wink-modal-overlay.open { display: flex; }
+    .wink-modal-card {
+      background: #fff; border-radius: 14px; max-width: 520px; width: 100%;
+      max-height: 80vh; overflow-y: auto; padding: 26px;
+    }
+    .wink-modal-card h2 { font-size: 18px; font-weight: 800; color: #002855; margin-bottom: 12px; }
+    .wink-modal-card p { font-size: 13px; color: #444; line-height: 1.7; margin-bottom: 10px; }
+    .wink-modal-close {
+      float: right; background: none; border: none; font-size: 20px;
+      color: #9ca3af; cursor: pointer;
+    }
+
+    @media (max-width: 768px) {
+      /* Dynamic viewport height accounts for the mobile browser chrome
+         (address bar, etc.) collapsing/expanding as the user scrolls or
+         the keyboard opens — 100vh alone is set once on load and doesn't
+         track that, leaving a gap (or clipping the input bar) once the
+         browser UI changes size. dvh isn't supported on very old mobile
+         browsers, so vh stays as the fallback value browsers without dvh
+         support will use instead. */
+      .chat-container { grid-template-columns: 1fr; max-height: 100vh; max-height: 100dvh; }
+      html, body { height: 100vh; height: 100dvh; }
+
+      /* The sidebar becomes a slide-in drawer instead of just vanishing
+         with no way to reach conversation history or start a new chat
+         from a phone. */
+      .chat-sidebar {
+        display: flex;
+        position: fixed; top: 0; left: 0; bottom: 0; width: 82%; max-width: 300px;
+        z-index: 400; transform: translateX(-100%); transition: transform 0.22s ease;
+        box-shadow: 4px 0 24px rgba(0,0,0,0.3);
+      }
+      .chat-sidebar.mobile-open { transform: translateX(0); }
+      /* display:none/position:fixed now already set as the base rule
+         above (applies at all widths) — only the show/hide toggle needs
+         to live here. */
+      .mobile-sidebar-backdrop.show { display: block; }
+      #mobile-sidebar-btn { display: inline-flex !important; }
+
+      .chat-toolbar { padding: 8px 12px 0; flex-wrap: wrap; gap: 6px; }
+      .messages-wrap { padding: 16px; }
+      .msg { max-width: 100%; }
+      .msg-bubble { max-width: calc(100% - 46px); word-break: break-word; overflow-wrap: break-word; }
+      .wink-map, .wink-image, .wink-photo { max-width: 100%; }
+      .wink-diagram { padding: 8px; }
+
+      .chat-input-bar {
+        padding: 10px 12px;
+        /* Safe-area padding keeps the send button clear of the home
+           indicator / rounded-corner cutout on iPhones (and equivalents
+           on Android), rather than sitting flush against it. */
+        padding-bottom: calc(10px + env(safe-area-inset-bottom));
+      }
+      #chat-input {
+        /* 16px, not 14px: any input/textarea under 16px triggers iOS
+           Safari to automatically zoom the whole page in on focus, which
+           is jarring and doesn't zoom back out on its own. This is a
+           well-known, guaranteed-to-reproduce mobile bug at font-size
+           14px, scoped here to mobile only so desktop keeps its 14px. */
+        font-size: 16px;
+      }
+    }
+
+    .wink-toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      background: #002855; color: #fff; padding: 12px 22px; border-radius: 9px;
+      font-size: 14px; font-weight: 600; box-shadow: 0 8px 28px rgba(0,0,0,0.25);
+      z-index: 9999; opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+      max-width: 90vw; text-align: center;
+    }
+    .wink-toast.show { opacity: 1; pointer-events: auto; }
+    .wink-toast.error { background: #b91c1c; }
+    .wink-modal-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,20,50,0.45);
+      z-index: 9000; align-items: center; justify-content: center; padding: 20px;
+    }
+    .wink-modal-overlay.open { display: flex; }
+    .wink-modal-card { background: #fff; border-radius: 14px; max-width: 440px; width: 100%; padding: 26px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+    .wink-modal-card h3 { font-size: 17px; color: #002855; margin-bottom: 10px; }
+    .wink-modal-card p { font-size: 14px; color: #444; margin-bottom: 18px; line-height: 1.5; }
+    .wink-modal-actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+    .wink-modal-btn { padding: 9px 18px; border-radius: 7px; font-size: 13px; font-weight: 700; cursor: pointer; border: none; }
+    .wink-modal-btn.primary { background: #FF8200; color: #fff; }
+    .wink-modal-btn.secondary { background: #eef0f6; color: #002855; }
+    .wink-modal-btn.danger { background: #b91c1c; color: #fff; }

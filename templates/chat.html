@@ -25,7 +25,7 @@
     <aside class="chat-sidebar">
       <div class="wink-profile">
         <div class="wink-avatar-badge" aria-hidden="true">
-          <span class="wink-avatar-icon">🎓</span>
+          <img class="wink-avatar-img" src="/static/WINK.png" alt="">
         </div>
         <div class="wink-name">WINK</div>
         <div class="wink-role">Your AI Academic Coach</div>
@@ -67,9 +67,37 @@
       <div class="messages-wrap" id="messages" role="log" aria-live="polite" aria-atomic="false" aria-relevant="additions">
 
         <div class="welcome-msg" id="welcome">
-          <img src="/static/WINK.jpeg" alt="WINK" style="width:64px;height:78px;border-radius:50%;object-fit:cover;margin:0 auto 12px;display:block;border:3px solid #FF8200;">
-          <h2>Hi {{ s.first_name }}, I'm WINK!</h2>
-          <p>Ask me anything about your courses, deadlines, assignments, or UTEP campus resources. I'll answer from your uploaded materials first.</p>
+          <h2>Let&rsquo;s work on your success&mdash;together.</h2>
+          <p class="welcome-sub">I can help you with:</p>
+          <div class="welcome-cards">
+            <div class="welcome-card">
+              <div class="welcome-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="m9 14 2 2 4-4"/></svg></div>
+              <div class="welcome-card-title">Plan Your Semester</div>
+              <div class="welcome-card-desc">Map out your courses, deadlines, and goals.</div>
+            </div>
+            <div class="welcome-card">
+              <div class="welcome-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div>
+              <div class="welcome-card-title">Stay on Track</div>
+              <div class="welcome-card-desc">Get reminders, prioritize tasks, and build good habits.</div>
+            </div>
+            <div class="welcome-card">
+              <div class="welcome-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4h6a4 4 0 0 1 4 4v12a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v12a3 3 0 0 1 3-3h7z"/></svg></div>
+              <div class="welcome-card-title">Understand Your Course</div>
+              <div class="welcome-card-desc">Break down topics, review concepts, and practice.</div>
+            </div>
+            <div class="welcome-card">
+              <div class="welcome-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h12v3a6 6 0 0 1-12 0z"/><path d="M6 5H3a1 1 0 0 0-1 1 5 5 0 0 0 4 5M18 5h3a1 1 0 0 1 1 1 5 5 0 0 1-4 5"/><path d="M12 15v3m-4 3h8"/></svg></div>
+              <div class="welcome-card-title">Reach Your Goals</div>
+              <div class="welcome-card-desc">Celebrate wins and keep growing.</div>
+            </div>
+          </div>
+          <div class="welcome-prompt-box">
+            <span class="welcome-prompt-icon" aria-hidden="true">💬</span>
+            <div>
+              <div class="welcome-prompt-title">What would you like to work on today?</div>
+              <div class="welcome-prompt-sub">Ask me anything or choose a topic above.</div>
+            </div>
+          </div>
         </div>
 
         <div class="msg wink typing" id="typing-indicator">
@@ -216,9 +244,37 @@
     let diagramMarkerId = 0;
 
     const WELCOME_HTML = `<div class="welcome-msg" id="welcome">
-      <img src="/static/WINK.jpeg" alt="WINK" style="width:64px;height:78px;border-radius:50%;object-fit:cover;margin:0 auto 12px;display:block;border:3px solid #FF8200;">
-      <h2>Hi ${escapeHtml(STUDENT_FIRST_NAME)}, I'm WINK!</h2>
-      <p>Ask me anything about your courses, deadlines, assignments, or UTEP campus resources. I'll answer from your uploaded materials first.</p>
+      <h2>Let&rsquo;s work on your success&mdash;together.</h2>
+      <p class="welcome-sub">I can help you with:</p>
+      <div class="welcome-cards">
+        <div class="welcome-card">
+          <div class="welcome-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="m9 14 2 2 4-4"/></svg></div>
+          <div class="welcome-card-title">Plan Your Semester</div>
+          <div class="welcome-card-desc">Map out your courses, deadlines, and goals.</div>
+        </div>
+        <div class="welcome-card">
+          <div class="welcome-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div>
+          <div class="welcome-card-title">Stay on Track</div>
+          <div class="welcome-card-desc">Get reminders, prioritize tasks, and build good habits.</div>
+        </div>
+        <div class="welcome-card">
+          <div class="welcome-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4h6a4 4 0 0 1 4 4v12a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v12a3 3 0 0 1 3-3h7z"/></svg></div>
+          <div class="welcome-card-title">Understand Your Course</div>
+          <div class="welcome-card-desc">Break down topics, review concepts, and practice.</div>
+        </div>
+        <div class="welcome-card">
+          <div class="welcome-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h12v3a6 6 0 0 1-12 0z"/><path d="M6 5H3a1 1 0 0 0-1 1 5 5 0 0 0 4 5M18 5h3a1 1 0 0 1 1 1 5 5 0 0 1-4 5"/><path d="M12 15v3m-4 3h8"/></svg></div>
+          <div class="welcome-card-title">Reach Your Goals</div>
+          <div class="welcome-card-desc">Celebrate wins and keep growing.</div>
+        </div>
+      </div>
+      <div class="welcome-prompt-box">
+        <span class="welcome-prompt-icon" aria-hidden="true">💬</span>
+        <div>
+          <div class="welcome-prompt-title">What would you like to work on today?</div>
+          <div class="welcome-prompt-sub">Ask me anything or choose a topic above.</div>
+        </div>
+      </div>
     </div>`;
     const TYPING_HTML = `<div class="msg wink typing" id="typing-indicator">
       <div class="msg-avatar wink-av">🎓</div>
