@@ -1140,11 +1140,15 @@ def dashboard():
         docs = get_docs(s["id"])
         upcoming_deadlines = get_upcoming_deadlines(s["id"], days_ahead=7)
         questions_this_month = get_questions_this_month(s["id"])
+        # dashboard.html expects a progress snapshot. Keep the dashboard render-safe
+        # even when no progress activity has been recorded yet.
+        progress = {"snapshot": {"active_days": 0}}
         log_event(s["id"], "page_view", {"page":"dashboard"})
         return render_template("dashboard.html", s=s, admin_email=ADMIN_EMAIL, docs=docs,
                                active="dashboard", max_docs=MAX_DOCS_PER_STUDENT,
                                upcoming_deadlines=upcoming_deadlines,
-                               questions_this_month=questions_this_month)
+                               questions_this_month=questions_this_month,
+                               progress=progress)
     except Exception as e:
         print(f"dashboard error: {e}"); traceback.print_exc()
         return "<h2>Something went wrong</h2><p>Please try again, or <a href='/logout'>log out</a> and back in.</p>", 500
