@@ -1,9 +1,3 @@
-"""
-Entry point. Kept as a top-level app.py (rather than moving the gunicorn
-target) so existing deploy config — `gunicorn app:app` — doesn't need to
-change. All actual application code lives in wink/ (see wink/__init__.py
-for the app factory and a map of what moved where).
-"""
 from wink import create_app
 
 app = create_app()

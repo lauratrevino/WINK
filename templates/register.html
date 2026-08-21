@@ -7,16 +7,6 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/register.css') }}">
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <style nonce="{{ csp_nonce() }}">
-    /* Full-page background using the same hero photo as the login page.
-       Uses a dedicated fixed-position layer (same technique as login.html's
-       .page-bg) rather than putting background-attachment:fixed directly on
-       the flex container — that approach depends on the container's own box
-       model filling the full viewport correctly, which is more fragile than
-       a plain position:fixed; inset:0 layer that's guaranteed to cover the
-       whole screen regardless of what else is going on with layout. The
-       register form is much taller than the login form (many more fields),
-       so — unlike login.html — the page itself still scrolls normally; only
-       the background layers are fixed in place. */
     * { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; width: 100%; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; display: block; }
@@ -28,9 +18,7 @@
     }
     .register-bg-overlay {
       position: fixed; inset: 0; z-index: -1;
-      /* Transparent on the left (photo shown at full brightness) fading in
-         toward the right, roughly where the card sits — not a uniform veil
-         over the whole image. */
+
       background: linear-gradient(90deg,
         rgba(240,244,252,0) 0%,
         rgba(240,244,252,0) 35%,
@@ -43,8 +31,8 @@
       position: relative;
       min-height: 100vh;
       display: flex;
-      align-items: flex-start; /* anchor near the top instead of dead-center, so there's no large blank gap above the card on tall screens */
-      justify-content: flex-end; /* card on the right, matching login.html */
+      align-items: flex-start;
+      justify-content: flex-end;
       padding: 32px 6vw 56px;
     }
     .register-card-wrap { width: 100%; max-width: 428px; }
@@ -68,9 +56,7 @@
       position: relative;
       overflow: hidden;
     }
-    /* Three soft decorative blobs tucked into the card's corners — a
-       playful, more saturated touch than a flat white card, without
-       competing with the form itself. */
+
     .register-card::before, .register-card::after {
       content: ''; position: absolute; border-radius: 50%; pointer-events: none;
     }
@@ -98,9 +84,6 @@
       background: linear-gradient(90deg, #FF8200, #002855);
     }
 
-    /* Colorful section labels break up the long form into digestible
-       groups — a small eyebrow tag with a colored accent bar, rather than
-       one long undifferentiated list of fields. */
     .form-section-label {
       display: flex; align-items: center; gap: 8px;
       font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
@@ -132,14 +115,14 @@
     .form-group input:focus, .form-group select:focus {
       border-color: #FF8200; background: #ffffff; box-shadow: 0 0 0 3px rgba(255,130,0,0.12);
     }
-    /* Show/hide password toggle — same pattern used on the landing page's
-       sign-in box, so a typo is easy to catch without retyping. */
+
     .field-with-icon { position: relative; display: flex; align-items: center; }
     .field-with-icon input { padding-right: 34px; }
     .field-icon-btn {
       position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
       background: none; border: none; cursor: pointer; padding: 4px 6px;
       font-size: 13px; line-height: 1; color: #6b7a99; border-radius: 4px;
+      display: inline-flex; align-items: center; justify-content: center;
     }
     .field-icon-btn:hover { color: #002855; background: rgba(0,40,85,0.06); }
 
@@ -174,25 +157,18 @@
       }
     }
 
-    /* ── Accessibility ── */
-    /* Screen-reader-only text: visually hidden but still announced —
-       used for the "(required)" cue and the university search box's label. */
     .sr-only {
       position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
       overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
     }
-    /* Skip link: hidden until keyboard-focused, then jumps straight to the
-       form — lets a screen-reader or keyboard user bypass the WINK
-       wordmark/heading on every visit instead of tabbing through it each time. */
+
     .skip-link {
       position: absolute; top: -60px; left: 12px; z-index: 1000;
       background: #002855; color: #fff; padding: 10px 18px; border-radius: 8px;
       font-size: 13px; font-weight: 700; text-decoration: none; transition: top 0.15s;
     }
     .skip-link:focus { top: 12px; }
-    /* Visible keyboard-focus outline in addition to the orange glow above —
-       the glow alone can be invisible in Windows High Contrast/forced-colors
-       mode, so a real outline is a more robust fallback for that. */
+
     .form-group input:focus-visible, .form-group select:focus-visible,
     .btn-submit:focus-visible, .auth-alt a:focus-visible, .back-link:focus-visible {
       outline: 2px solid #002855; outline-offset: 2px;
@@ -200,11 +176,11 @@
     .required-marker { color: #b91c1c; margin-left: 2px; }
     .pw-hint { font-size: 11px; color: #9ca3af; margin-top: 4px; padding-left: 16px; }
     .pw-hint li { margin-top: 2px; }
+    .field-hint { font-size: 11.5px; color: #9ca3af; margin-top: 5px; line-height: 1.4; }
     @media (prefers-reduced-motion: reduce) {
       .btn-submit, .btn-submit:hover { transition: none; transform: none; }
     }
 
-    /* WINK Terms of Agreement gate */
     .terms-overlay {
       display: none; position: fixed; inset: 0; z-index: 10000;
       background: rgba(0,20,50,.68); backdrop-filter: blur(3px);
@@ -225,6 +201,7 @@
     }
     .terms-header h2 { margin: 0 0 5px; font-size: 22px; }
     .terms-header p { margin: 0; font-size: 12.5px; opacity: .9; }
+    .terms-header p .before-highlight { font-weight: 800; color: #FF8200; font-size: 20.5px; }
     .terms-scroll {
       padding: 20px 26px; overflow-y: auto; line-height: 1.55;
       color: #26364f; font-size: 13px;
@@ -261,10 +238,10 @@
       .terms-card { max-height: 94vh; border-radius: 14px; }
       .terms-header, .terms-scroll, .terms-consents { padding-left: 18px; padding-right: 18px; }
     }
-
-  </style>
+</style>
 </head>
 <body>
+<script src="{{ url_for('static', filename='js/scroll-reset.js') }}"></script>
   <div class="register-bg"></div>
   <div class="register-bg-overlay"></div>
   <a href="#register-form" class="skip-link">Skip to registration form</a>
@@ -2662,7 +2639,17 @@
             <div class="field-with-icon">
               <input type="password" id="password" name="password" placeholder="At least 8 characters" required aria-required="true" minlength="8"
                      autocomplete="new-password" aria-describedby="password-hint">
-              <button type="button" class="field-icon-btn" id="toggle-password-btn" aria-label="Show password">👁️</button>
+              <button type="button" class="field-icon-btn" id="toggle-password-btn" aria-label="Show password">
+                <svg id="eye-icon-visible" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+                <svg id="eye-icon-hidden" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:none;">
+                  <path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a21.86 21.86 0 0 1 5.06-6.06M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a21.8 21.8 0 0 1-3.22 4.51"></path>
+                  <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"></path>
+                  <path d="M1 1l22 22"></path>
+                </svg>
+              </button>
             </div>
             <ul class="pw-hint" id="password-hint">
               <li>At least 8 characters</li>
@@ -2679,7 +2666,6 @@
                 {% for c in classifications %}
                   <option value="{{ c }}">{{ c }}</option>
                 {% endfor %}
-                <option value="Other">Other</option>
               </select>
             </div>
             <div class="form-group">
@@ -2693,11 +2679,15 @@
             </div>
           </div>
 
-          <div class="form-group" style="margin-top:4px;">
-            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-weight:600;">
-              <input type="checkbox" id="first_generation" name="first_generation" style="width:18px;height:18px;accent-color:#f47c20;">
-              <span>I am a first generation college student.</span>
-            </label>
+          <div class="form-group">
+            <label for="preferred_language">Preferred Reply Language</label>
+            <select id="preferred_language" name="preferred_language">
+              <option value="">Auto-detect (match whatever language I type in)</option>
+              {% for l in preferred_languages %}
+                <option value="{{ l }}">{{ l }}</option>
+              {% endfor %}
+            </select>
+            <p class="field-hint">Leave this on auto-detect and WINK will reply in whichever language you write in. Choose a specific language here if you'd rather WINK always reply in that language, even on messages you type in English.</p>
           </div>
 
           <button type="submit" class="btn-submit">Create My Account →</button>
@@ -2716,11 +2706,12 @@
     <div class="terms-card">
       <div class="terms-header">
         <h2 id="terms-title">WINK Terms of Agreement</h2>
-        <p>Please read this information before creating your account.</p>
+        <p>Please read this information <span class="before-highlight">before</span> creating your account. (<a href="/terms" target="_blank" rel="noopener" style="color:#fff;text-decoration:underline;">View the full Terms of Use</a> and <a href="/privacy" target="_blank" rel="noopener" style="color:#fff;text-decoration:underline;">Privacy Policy</a> in a new tab.)</p>
       </div>
       <div class="terms-scroll">
         <h3>WINK Research Pilot</h3>
-        <p>WINK is an experimental AI-powered student success platform being evaluated as part of a research project. Access is provided free of charge during the Fall 2026 pilot period, currently scheduled from August 18, 2026 through December 20, 2026.</p>
+        <p>WINK is an experimental AI-powered student success platform being evaluated as part of a research project. Access is provided free of charge during the Fall 2026 pilot period, currently scheduled from August 17, 2026 through December 20, 2026.</p>
+        <p><strong>WINK is not owned, operated, or hosted by UTEP.</strong> It is independently developed and operated by Dr. Laura Trevino, who is both WINK's developer/administrator and the study's investigator. <strong>As administrator, Dr. Trevino can access what you enter into or generate through WINK — including uploads, questions, AI responses, deadlines, practice activity, and grade-calculator information — at any time, for any user. This administrative access applies regardless of whether you agree to the research participation checkbox below</strong> — it is a separate thing from the research use described under "Research Data."</p>
 
         <h3>Your Responsibility</h3>
         <p>WINK is an assistance tool. Students remain responsible for their academic work, decisions, deadlines, registrations, submissions, attendance, and compliance with course and university requirements. Important information should be verified using official course or university sources.</p>
@@ -2730,7 +2721,7 @@
 
         <h3>Information We Collect</h3>
         <div class="terms-data-box">
-          <strong>WINK collects and may store information about your use of the system, including:</strong>
+          <strong>WINK Collects and Stores information about your use of the system, including:</strong>
           <ul>
             <li>Account and profile information you provide</li>
             <li>Course and academic information</li>
@@ -2742,8 +2733,12 @@
           </ul>
         </div>
 
+        <h3>How Information Is Used</h3>
+        <p>Information is used operationally to provide WINK itself — to authenticate your account, answer your questions, process uploaded materials, track deadlines, and calculate your progress. WINK also relies on third-party technology providers (including artificial intelligence, hosting, storage, and email services) to operate, so some information is processed by those providers as part of delivering WINK's functionality.</p>
+
         <h3>Research Data</h3>
-        <p>Your interactions with WINK, including questions and AI-generated responses, may be recorded and analyzed for research purposes. Research data will be accessible only to Dr. Laura Trevino and will be anonymized before being used in research publications or presentations. Research reporting will not intentionally identify individual students.</p>
+        <p>Separately from that operational use, your interactions with WINK — including questions and AI-generated responses — will be recorded and analyzed for research purposes. Access to research data is limited to Dr. Laura Trevino and the small number of research team members who need it to conduct the study, and it is kept on secured, access-controlled systems. Data will be anonymized before being used in research publications or presentations, and reporting will not intentionally identify individual students.</p>
+        <p>If you later delete your account, that's how you'd withdraw: your name and email are immediately replaced with a non-identifying label and you're logged out for good, but your already-collected activity data is retained in this de-identified form to support the study rather than being deleted outright. Full details are in the <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</p>
 
         <h3>Uploaded Content and Privacy</h3>
         <p>Upload only materials you are authorized to provide. Do not upload passwords, Social Security numbers, financial account information, medical records, or other highly sensitive information that is unnecessary for WINK's academic functions.</p>
@@ -2756,12 +2751,12 @@
       </div>
       <div class="terms-consents">
         <label class="consent-row">
-          <input type="checkbox" id="terms-check">
-          <span><strong>I have read and agree to the WINK Terms of Agreement and Privacy Policy, including the collection of my data as described in the Privacy Policy under “Information We Collect” and “Research Data.”</strong></span>
+          <input type="checkbox" id="terms-check" name="terms_agree" form="register-form">
+          <span><strong>I have read and agree to the WINK Terms of Agreement and Privacy Policy, including the collection of my data as described in the Privacy Policy under “Information We Collect” and “Research Data.”</strong> (See above for policy link)</span>
         </label>
         <label class="consent-row">
-          <input type="checkbox" id="research-check">
-          <span><strong>I understand that my WINK data will be collected for research purposes. Research data will be accessible only to Dr. Laura Trevino and will be anonymized before being used in research publications or presentations.</strong></span>
+          <input type="checkbox" id="research-check" name="research_agree" form="register-form">
+          <span><strong>I understand that, separately from Dr. Trevino's standing administrative access described above (which applies regardless of this checkbox), my WINK data may also be collected and analyzed for research purposes if I agree here. Research access is limited to Dr. Trevino and research team members who need it for the study, and data will be anonymized before use in research publications or presentations.</strong> (See above for policy link)</span>
         </label>
         <div class="terms-actions">
           <button type="button" class="terms-cancel-btn" id="terms-cancel">Cancel</button>
@@ -2776,7 +2771,7 @@
       const select = document.getElementById(selectId);
       const q = term.trim().toLowerCase();
       Array.from(select.options).forEach(opt => {
-        if (!opt.value) return; // keep the "Select..." placeholder always visible
+        if (!opt.value) return;
         opt.hidden = !opt.text.toLowerCase().includes(q);
       });
     }
@@ -2784,16 +2779,20 @@
     (function setupPasswordToggle() {
       const btn = document.getElementById('toggle-password-btn');
       const input = document.getElementById('password');
+      const iconVisible = document.getElementById('eye-icon-visible');
+      const iconHidden = document.getElementById('eye-icon-hidden');
       if (!btn || !input) return;
       btn.addEventListener('click', () => {
         const showing = input.type === 'text';
         input.type = showing ? 'password' : 'text';
-        btn.textContent = showing ? '👁️' : '🙈';
+        if (iconVisible && iconHidden) {
+          iconVisible.style.display = showing ? '' : 'none';
+          iconHidden.style.display = showing ? 'none' : '';
+        }
         btn.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
       });
     })();
 
-    // Require explicit agreement before the registration form is submitted.
     (function setupTermsGate() {
       const form = document.getElementById('register-form');
       const overlay = document.getElementById('terms-overlay');
