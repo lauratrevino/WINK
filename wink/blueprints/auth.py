@@ -44,6 +44,7 @@ def register():
             preferred_language = request.form.get("preferred_language", "").strip()
             terms_agree = request.form.get("terms_agree") == "on"
             research_agree = request.form.get("research_agree") == "on"
+            first_generation = request.form.get("first_generation") == "on"
             if not all([email, pw, fn, ln, cl, major, university]):
                 return err("All fields are required, including your university.")
             if not (terms_agree and research_agree):
@@ -66,10 +67,10 @@ def register():
                 cur.close()
                 return err("Account already exists — please log in.")
             cur.execute("""INSERT INTO students(email,password_hash,first_name,last_name,classification,major,university,preferred_language,
-                           terms_accepted_at,terms_version,research_consent,research_consent_at,research_consent_version)
-                           VALUES(%s,%s,%s,%s,%s,%s,%s,%s,NOW(),%s,%s,NOW(),%s) RETURNING id""",
+                           terms_accepted_at,terms_version,research_consent,research_consent_at,research_consent_version,first_generation)
+                           VALUES(%s,%s,%s,%s,%s,%s,%s,%s,NOW(),%s,%s,NOW(),%s,%s) RETURNING id""",
                         (email, generate_password_hash(pw), fn, ln, cl, major, university, preferred_language,
-                         config.TERMS_VERSION, research_agree, config.TERMS_VERSION))
+                         config.TERMS_VERSION, research_agree, config.TERMS_VERSION, first_generation))
             new_id = cur.fetchone()["id"]
             verify_token = secrets.token_urlsafe(32)
             cur.execute("UPDATE students SET verification_token=%s WHERE id=%s", (verify_token, new_id))
@@ -86,7 +87,7 @@ def register():
             session.permanent = True
             session["sid"] = new_id
             session["pw_changed_at"] = None  # freshly created — no password change yet
-            log_event(new_id, "account_created", {"classification": cl, "major": major, "university": university})
+            log_event(new_id, "account_created", {"classification": cl, "major": major, "university": university, "first_generation": first_generation})
             verify_link = url_for("auth.verify_email", token=verify_token, _external=True)
             email_sent = send_email(email, "Verify your WINK email address",
                        f"Hi {fn},\n\nWelcome to WINK! Please confirm your email address by visiting:\n{verify_link}\n\n"
