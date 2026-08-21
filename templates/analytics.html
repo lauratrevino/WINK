@@ -4,46 +4,211 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Analytics — WINK Admin</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/nav.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/analytics.css') }}">
-  <meta name="csrf-token" content="{{ csrf_token() }}">
   <style nonce="{{ csp_nonce() }}">
-    .stats-row {
-      display: grid;
-      grid-template-columns: repeat(6, 1fr);
-      gap: 10px;
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; background: #f4f6fb; color: #444455; min-height: 100vh; }
+    .app-nav { background: #002855; padding: 0 32px; display: flex; align-items: center; height: 60px; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 12px rgba(0,0,0,0.18); }
+    .nav-logo { font-size: 22px; font-weight: 900; color: #fff; letter-spacing: -1px; text-decoration: none; }
+    .nav-logo span { color: #FF8200; }
+    .nav-divider { width: 1px; height: 24px; background: rgba(255,255,255,0.2); margin: 0 20px; }
+    .nav-links { display: flex; align-items: center; gap: 4px; }
+    .nav-links a { color: rgba(255,255,255,0.65); text-decoration: none; font-size: 14px; font-weight: 500; padding: 6px 14px; border-radius: 6px; transition: all 0.15s; }
+    .nav-links a:hover { background: rgba(255,255,255,0.1); color: #fff; }
+    .nav-links a.active { background: #FF8200; color: #fff; }
+    .nav-right { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+    .nav-user { font-size: 13px; color: rgba(255,255,255,0.6); }
+    .nav-user strong { color: #fff; }
+    .btn-logout { font-size: 13px; color: rgba(255,255,255,0.6); text-decoration: none; padding: 5px 12px; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; transition: all 0.15s; }
+    .btn-logout:hover { background: rgba(255,255,255,0.1); color: #fff; }
+    .nav-toggle {
+      display: none; background: none; border: none; color: #fff;
+      font-size: 22px; cursor: pointer; padding: 4px 10px; margin-left: auto;
     }
-    .stats-row .stat-card {
-      padding: 12px 8px;
-      min-width: 0;
-    }
-    .stats-row .stat-value { font-size: 22px; }
-    .stats-row .stat-label { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    @media (max-width: 720px) {
-      .stats-row { gap: 6px; }
-      .stats-row .stat-card { padding: 8px 4px; }
-      .stats-row .stat-value { font-size: 16px; }
-      .stats-row .stat-label { font-size: 9px; }
+    @media (max-width: 860px) {
+      .app-nav { flex-wrap: wrap; height: auto; padding: 10px 16px; }
+      .nav-toggle { display: block; }
+      .nav-links, .nav-right { display: none; width: 100%; }
+      .app-nav.nav-open .nav-links {
+        display: flex; flex-direction: column; align-items: stretch; gap: 2px;
+        margin-top: 10px; order: 3;
+      }
+      .app-nav.nav-open .nav-links a { padding: 10px 12px; }
+      .app-nav.nav-open .nav-right {
+        display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
+        margin-top: 10px; margin-left: 0; order: 4;
+        border-top: 1px solid rgba(255,255,255,0.15); padding-top: 10px;
+      }
+      .nav-divider { display: none; }
     }
 
-    .badge-active { background: #ecfdf5; color: #047857; }
+    .page-shell { max-width: 1200px; margin: 0 auto; padding: 36px 24px 64px; }
+    .page-header { margin-bottom: 28px; display: flex; align-items: center; justify-content: space-between; }
+    .page-header h1 { font-size: 26px; font-weight: 700; color: #002855; }
+    .page-header p { font-size: 14px; color: #6b7a99; margin-top: 3px; }
+    .admin-badge { background: #fff3e6; color: #FF8200; font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 999px; border: 1px solid rgba(255,130,0,0.3); }
 
-    th.sortable {
-      cursor: pointer; user-select: none; white-space: nowrap;
-      position: relative; padding-right: 18px;
+    /* ── Stats ── */
+    .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+    .stat-card { background: #fff; border-radius: 10px; border: 1px solid #dde3f0; border-top: 3px solid #FF8200; padding: 20px; }
+    .stat-card.navy-top { border-top-color: #002855; }
+    .stat-card.green-top { border-top-color: #22c55e; }
+    .stat-value { font-size: 36px; font-weight: 800; color: #002855; line-height: 1; }
+    .stat-label { font-size: 12px; color: #6b7a99; margin-top: 4px; text-transform: uppercase; letter-spacing: .05em; }
+    .stat-loading { width: 48px; height: 36px; background: #eef0f6; border-radius: 6px; animation: shimmer 1.5s infinite; }
+    @keyframes shimmer { 0%,100%{opacity:0.5} 50%{opacity:1} }
+
+    /* ── Tabs ── */
+    .tab-bar { display: flex; gap: 4px; margin-bottom: 20px; }
+    .tab-btn {
+      padding: 8px 18px; border-radius: 6px;
+      font-size: 14px; font-weight: 600;
+      background: transparent; color: #6b7a99;
+      border: 1px solid #dde3f0; cursor: pointer;
+      transition: all 0.15s;
     }
-    th.sortable:hover { color: #FF8200; }
-    th.sortable::after {
-      content: '↕'; position: absolute; right: 4px; opacity: 0.35; font-size: 11px;
+    .tab-btn.active { background: #002855; color: #fff; border-color: #002855; }
+    .tab-btn:hover:not(.active) { background: #f0f2f8; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── Cards & Tables ── */
+    .card { background: #fff; border-radius: 12px; border: 1px solid #dde3f0; box-shadow: 0 1px 4px rgba(0,40,85,0.06); margin-bottom: 20px; }
+    .card-header { padding: 18px 24px; border-bottom: 1px solid #eef0f6; display: flex; align-items: center; justify-content: space-between; }
+    .card-header h2 { font-size: 16px; font-weight: 700; color: #002855; }
+    .card-body { padding: 18px 24px; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead th { background: #002855; color: #fff; padding: 10px 14px; text-align: left; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+    thead th:first-child { border-radius: 6px 0 0 0; }
+    thead th:last-child { border-radius: 0 6px 0 0; }
+    tbody tr { border-bottom: 1px solid #eef0f6; }
+    tbody tr:hover td { background: #f8f9ff; }
+    tbody td { padding: 10px 14px; color: #444; }
+
+    .badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px; }
+    .badge-orange { background: #fff3e6; color: #FF8200; }
+    .badge-navy   { background: #e8edf5; color: #002855; }
+    .badge-green  { background: #f0fdf4; color: #166534; }
+
+    /* General Docs tab */
+    .gd-form-row label { display: block; font-size: 12px; font-weight: 700; color: #002855; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+    .gd-form-row input[type="text"] {
+      width: 100%; max-width: 420px; padding: 10px 12px; border: 1.5px solid #dde3f0;
+      border-radius: 8px; font-size: 14px; font-family: inherit;
     }
-    th.sortable.sort-asc::after { content: '↑'; opacity: 1; color: #FF8200; }
-    th.sortable.sort-desc::after { content: '↓'; opacity: 1; color: #FF8200; }
-</style>
+    .gd-form-row input[type="text"]:focus { outline: none; border-color: #FF8200; }
+    .gd-drop-zone {
+      max-width: 520px; border: 2px dashed #dde3f0; border-radius: 10px; padding: 20px;
+      text-align: center; cursor: pointer; transition: all 0.15s; margin-top: 12px;
+    }
+    .gd-drop-zone:hover, .gd-drop-zone.drag-over { border-color: #FF8200; background: #fff3e6; }
+    .gd-drop-zone input { display: none; }
+    .btn-upload {
+      padding: 10px 22px; background: #FF8200; color: #fff; border: none; border-radius: 8px;
+      font-size: 14px; font-weight: 700; cursor: pointer; transition: all 0.15s; margin-top: 12px;
+    }
+    .btn-upload:hover { background: #e57200; }
+    .btn-upload:disabled { background: #dde3f0; cursor: not-allowed; }
+    .btn-delete-gd {
+      background: none; border: none; color: #9ca3af; cursor: pointer;
+      font-size: 14px; padding: 4px 8px; border-radius: 6px;
+    }
+    .btn-delete-gd:hover { color: #dc2626; background: #fef2f2; }
+
+    /* Event feed */
+    .event-feed { display: flex; flex-direction: column; gap: 8px; max-height: 400px; overflow-y: auto; }
+    .event-item { display: flex; align-items: flex-start; gap: 12px; padding: 10px 14px; border-radius: 8px; background: #f8f9ff; border: 1px solid #eef0f6; }
+    .event-icon { font-size: 18px; flex-shrink: 0; }
+    .event-body { flex: 1; }
+    .event-name { font-size: 13px; font-weight: 600; color: #002855; }
+    .event-detail { font-size: 12px; color: #6b7a99; margin-top: 2px; }
+    .event-time { font-size: 11px; color: #9ca3af; flex-shrink: 0; }
+
+    /* Conversation viewer */
+    .convo-item { border-radius: 8px; border: 1px solid #eef0f6; margin-bottom: 12px; overflow: hidden; }
+    .convo-header { padding: 10px 14px; background: #f8f9ff; border-bottom: 1px solid #eef0f6; display: flex; align-items: center; gap: 10px; cursor: pointer; }
+    .convo-q { font-size: 13px; font-weight: 600; color: #002855; flex: 1; }
+    .convo-meta { font-size: 12px; color: #6b7a99; }
+    .convo-body { padding: 14px; display: none; }
+    .convo-body.open { display: block; }
+    .convo-answer { font-size: 13px; color: #444; line-height: 1.6; white-space: pre-wrap; }
+
+    /* Bar chart */
+    .bar-chart { display: flex; flex-direction: column; gap: 8px; }
+    .bar-row { display: flex; align-items: center; gap: 12px; }
+    .bar-label { font-size: 12px; color: #444; flex: 0 0 140px; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .bar-track { flex: 1; height: 14px; background: #eef0f6; border-radius: 999px; overflow: hidden; }
+    .bar-fill { height: 100%; background: #002855; border-radius: 999px; transition: width 0.5s ease; }
+    .bar-fill.orange { background: #FF8200; }
+    .bar-val { font-size: 12px; color: #6b7a99; flex: 0 0 28px; font-weight: 600; }
+
+    /* ── Insights tab ── */
+    .mini-stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin-bottom: 4px; }
+    .mini-stat { background: #f4f6fb; border-radius: 10px; padding: 14px; text-align: center; }
+    .mini-stat-value { font-size: 24px; font-weight: 800; color: #002855; line-height: 1; }
+    .mini-stat-label { font-size: 11px; color: #6b7a99; margin-top: 6px; text-transform: uppercase; letter-spacing: .04em; }
+    @media (max-width: 900px) { .mini-stats { grid-template-columns: repeat(2, 1fr); } }
+    .heatmap-wrap { overflow-x: auto; }
+    .heatmap-table { border-collapse: collapse; font-size: 11px; }
+    .heatmap-table th { font-weight: 600; color: #6b7a99; padding: 3px 6px; text-align: center; }
+    .heatmap-table td { width: 22px; height: 18px; text-align: center; border-radius: 3px; color: #002855; font-size: 10px; }
+    .heatmap-row-label { text-align: right !important; color: #6b7a99; padding-right: 8px !important; font-weight: 600; white-space: nowrap; }
+    .upload-mix-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .upload-mix-swatch { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+
+    .loading-state { text-align: center; padding: 48px 24px; color: #6b7a99; font-size: 14px; }
+    .btn-refresh { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: #002855; color: #fff; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+    .btn-refresh:hover { background: #003570; }
+
+    @media (max-width: 900px) {
+      .stats-row { grid-template-columns: repeat(2, 1fr); }
+    }
+    /* ── Toast + confirm modal (replaces native alert/confirm) ── */
+    .wink-toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      background: #002855; color: #fff; padding: 12px 22px; border-radius: 9px;
+      font-size: 14px; font-weight: 600; box-shadow: 0 8px 28px rgba(0,0,0,0.25);
+      z-index: 9999; opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+      max-width: 90vw; text-align: center;
+    }
+    .wink-toast.show { opacity: 1; pointer-events: auto; }
+    .wink-toast.error { background: #b91c1c; }
+    .wink-modal-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,20,50,0.45);
+      z-index: 9000; align-items: center; justify-content: center; padding: 20px;
+    }
+    .wink-modal-overlay.open { display: flex; }
+    .wink-modal-card { background: #fff; border-radius: 14px; max-width: 440px; width: 100%; padding: 26px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+    .wink-modal-card h3 { font-size: 17px; color: #002855; margin-bottom: 10px; }
+    .wink-modal-card p { font-size: 14px; color: #444; margin-bottom: 18px; line-height: 1.5; }
+    .wink-modal-actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+    .wink-modal-btn { padding: 9px 18px; border-radius: 7px; font-size: 13px; font-weight: 700; cursor: pointer; border: none; }
+    .wink-modal-btn.primary { background: #FF8200; color: #fff; }
+    .wink-modal-btn.secondary { background: #eef0f6; color: #002855; }
+    .wink-modal-btn.danger { background: #b91c1c; color: #fff; }
+  </style>
+  <meta name="csrf-token" content="{{ csrf_token() }}">
 </head>
 <body>
 
-  {% include "_nav.html" %}
-  <script src="{{ url_for('static', filename='js/scroll-reset.js') }}"></script>
+  <nav class="app-nav" id="app-nav">
+    <a href="/dashboard" class="nav-logo">WINK<span>.</span></a>
+    <div class="nav-divider"></div>
+    <button class="nav-toggle" onclick="toggleNav()" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="app-nav">☰</button>
+    <div class="nav-links">
+      <a href="/dashboard">Dashboard</a>
+      <a href="/documents">Documents</a>
+      <a href="/chat-page">Ask WINK</a>
+      <a href="/calendar-page">Calendar</a>
+      <a href="/practice-page">Practice</a>
+      <a href="/wrapped-page">Wrapped</a>
+      <a href="/analytics-page" class="active">Analytics</a>
+    </div>
+    <div class="nav-right">
+      <div class="nav-user">Hello, <strong>{{ s.first_name }}</strong></div>
+      <a href="/logout" class="btn-logout">Log out</a>
+    </div>
+  </nav>
 
   <div class="page-shell">
     <div class="page-header">
@@ -57,15 +222,16 @@
       </div>
     </div>
 
+    <!-- Stats -->
     <div class="stats-row" id="stats-row">
       <div class="stat-card"><div class="stat-loading"></div><div class="stat-label">Total Students</div></div>
       <div class="stat-card navy-top"><div class="stat-loading"></div><div class="stat-label">Total Sessions</div></div>
       <div class="stat-card"><div class="stat-loading"></div><div class="stat-label">Questions Asked</div></div>
       <div class="stat-card green-top"><div class="stat-loading"></div><div class="stat-label">Files Uploaded</div></div>
       <div class="stat-card navy-top"><div class="stat-loading"></div><div class="stat-label">Upcoming Deadlines</div></div>
-      <div class="stat-card"><div class="stat-loading"></div><div class="stat-label">Est. AI Cost (Pilot)</div></div>
     </div>
 
+    <!-- Tabs -->
     <div class="tab-bar">
       <button class="tab-btn active" onclick="switchTab('students')">👥 Students</button>
       <button class="tab-btn" onclick="switchTab('activity')">⚡ Activity Feed</button>
@@ -76,32 +242,20 @@
       <button class="tab-btn" onclick="switchTab('general-docs')">📁 General Docs</button>
     </div>
 
+    <!-- Students Tab -->
     <div class="tab-panel active" id="tab-students">
       <div class="card">
         <div class="card-header"><h2>Enrolled Students</h2><span id="student-count" style="font-size:13px;color:#6b7a99;"></span></div>
         <div style="overflow-x:auto;">
           <table>
-            <thead><tr>
-              <th class="sortable" data-sort="name" data-type="str">Name</th>
-              <th class="sortable" data-sort="email" data-type="str">Email</th>
-              <th class="sortable" data-sort="university" data-type="str">University</th>
-              <th class="sortable" data-sort="classification" data-type="str">Classification</th>
-              <th class="sortable" data-sort="major" data-type="str">Major</th>
-              <th class="sortable" data-sort="joined" data-type="date">Joined</th>
-              <th class="sortable" data-sort="sessions" data-type="num">Sessions</th>
-              <th class="sortable" data-sort="questions" data-type="num">Questions</th>
-              <th class="sortable" data-sort="uploads" data-type="num">Uploads</th>
-              <th class="sortable" data-sort="time_spent_minutes" data-type="num">Time Spent</th>
-              <th class="sortable" data-sort="total_tokens" data-type="num">Tokens</th>
-              <th class="sortable" data-sort="estimated_cost_usd" data-type="num">Est. Cost</th>
-              <th class="sortable" data-sort="status" data-type="str">Status</th>
-            </tr></thead>
-            <tbody id="students-tbody"><tr><td colspan="13" style="text-align:center;padding:32px;color:#6b7a99;">Loading…</td></tr></tbody>
+            <thead><tr><th>Name</th><th>Email</th><th>Classification</th><th>Major</th><th>First Generation</th><th>Joined</th><th>Sessions</th><th>Questions</th><th>Uploads</th><th>Status</th></tr></thead>
+            <tbody id="students-tbody"><tr><td colspan="10" style="text-align:center;padding:32px;color:#6b7a99;">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>
     </div>
 
+    <!-- Activity Feed Tab -->
     <div class="tab-panel" id="tab-activity">
       <div class="card">
         <div class="card-header"><h2>Recent Activity</h2><span style="font-size:13px;color:#6b7a99;">Last 60 events</span></div>
@@ -111,6 +265,7 @@
       </div>
     </div>
 
+    <!-- Conversations Tab -->
     <div class="tab-panel" id="tab-conversations">
       <div class="card">
         <div class="card-header"><h2>Student Q&amp;A Conversations</h2><span style="font-size:13px;color:#6b7a99;">Click to expand answers</span></div>
@@ -118,6 +273,7 @@
       </div>
     </div>
 
+    <!-- Deadlines Tab -->
     <div class="tab-panel" id="tab-deadlines">
       <div class="card">
         <div class="card-header"><h2>Upcoming Deadlines (All Students)</h2><span style="font-size:13px;color:#6b7a99;">Extracted automatically from uploaded documents</span></div>
@@ -130,6 +286,7 @@
       </div>
     </div>
 
+    <!-- Distributions Tab -->
     <div class="tab-panel" id="tab-distributions">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
         <div class="card">
@@ -143,6 +300,7 @@
       </div>
     </div>
 
+    <!-- Insights Tab -->
     <div class="tab-panel" id="tab-insights">
 
       <div class="card" style="margin-bottom:20px;">
@@ -154,19 +312,6 @@
             <div class="mini-stat"><div class="mini-stat-value">—</div><div class="mini-stat-label">Retention (2+ weeks)</div></div>
             <div class="mini-stat"><div class="mini-stat-value">—</div><div class="mini-stat-label">Time to First Question</div></div>
             <div class="mini-stat"><div class="mini-stat-value">—</div><div class="mini-stat-label">Questions w/ General Docs</div></div>
-          </div>
-        </div>
-      </div>
-
-      <div class="card" style="margin-bottom:20px;">
-        <div class="card-header"><h2>Demo Usage</h2><span style="font-size:13px;color:#6b7a99;">Try WINK Demo — separate from real enrolled students, excluded everywhere else on this page</span></div>
-        <div class="card-body">
-          <div class="mini-stats" id="demo-mini-stats">
-            <div class="mini-stat"><div class="mini-stat-value">—</div><div class="mini-stat-label">Total Demos Started</div></div>
-            <div class="mini-stat"><div class="mini-stat-value">—</div><div class="mini-stat-label">Active Right Now</div></div>
-            <div class="mini-stat"><div class="mini-stat-value">—</div><div class="mini-stat-label">Avg Duration</div></div>
-            <div class="mini-stat"><div class="mini-stat-value">—</div><div class="mini-stat-label">Longest Session</div></div>
-            <div class="mini-stat"><div class="mini-stat-value">—</div><div class="mini-stat-label">Total Questions Asked</div></div>
           </div>
         </div>
       </div>
@@ -237,6 +382,7 @@
 
     </div>
 
+    <!-- General Docs Tab -->
     <div class="tab-panel" id="tab-general-docs">
       <div class="card">
         <div class="card-header">
@@ -258,7 +404,6 @@
                    oninput="filterUniversityOptions(this.value, 'gd-university-select')">
             <select id="gd-university-select" onchange="onGdUniversityChange()">
               <option value="">Select a university…</option>
-                  <option value="ALL" style="font-weight:700;">🌐 All Universities (send to every school)</option>
                   <option value="42 US">42 US</option>
                   <option value="ASA College">ASA College</option>
                   <option value="Aaniiih Nakoda College">Aaniiih Nakoda College</option>
@@ -2603,7 +2748,7 @@
             <input type="text" id="gd-label-input" placeholder="e.g., Academic Calendar, Financial Aid FAQ, Honor Code">
           </div>
           <div class="gd-drop-zone" id="gd-drop-zone" onclick="document.getElementById('gd-file-input').click()">
-            <input type="file" id="gd-file-input" onchange="handleGdFileSelect(this.files[0])" aria-label="Upload a reference document">
+            <input type="file" id="gd-file-input" onchange="handleGdFileSelect(this.files[0])">
             <div style="font-size:13px;color:#6b7a99;" id="gd-drop-zone-text">Click to choose a file, or drag one here</div>
             <div style="font-size:13px;font-weight:700;color:#002855;margin-top:6px;" id="gd-drop-zone-filename"></div>
           </div>
@@ -2625,8 +2770,32 @@
 
   </div>
 
-  <script src="{{ url_for('static', filename='js/csrf-fetch.js') }}"></script>
-<script nonce="{{ csp_nonce() }}">
+  <script nonce="{{ csp_nonce() }}">
+    // Automatically attach the CSRF token to every state-changing fetch()
+    // call on this page, so none of the existing fetch() call sites below
+    // need to be touched individually.
+    (function() {
+      const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+      const originalFetch = window.fetch;
+      window.fetch = function(input, init) {
+        init = init || {};
+        const method = (init.method || 'GET').toUpperCase();
+        if (token && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+          const headers = new Headers(init.headers || {});
+          if (!headers.has('X-CSRFToken')) headers.set('X-CSRFToken', token);
+          init.headers = headers;
+        }
+        return originalFetch(input, init);
+      };
+    })();
+
+    function toggleNav() {
+      const nav = document.getElementById('app-nav');
+      const btn = document.querySelector('.nav-toggle');
+      const open = nav.classList.toggle('nav-open');
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+
     function filterUniversityOptions(term, selectId) {
       const select = document.getElementById(selectId);
       const q = term.trim().toLowerCase();
@@ -2705,155 +2874,6 @@
       file_deleted: '🗑'
     };
 
-    function formatTimeSpent(minutes) {
-      const total = Math.round(Number(minutes) || 0);
-      if (total <= 0) return '—';
-      const hrs = Math.floor(total / 60);
-      const mins = total % 60;
-      return hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
-    }
-
-    function formatTokenCount(tokens) {
-      const n = Math.round(Number(tokens) || 0);
-      return n > 0 ? n.toLocaleString() : '—';
-    }
-    function formatCostUsd(usd) {
-      const n = Number(usd) || 0;
-      if (n === 0) return '$0.00';
-
-      return n < 1 ? `$${n.toFixed(4)}` : `$${n.toFixed(2)}`;
-    }
-
-    let currentStudents = [];
-    let sortState = { field: null, dir: 'asc' };
-
-    function applySort(students) {
-      if (!sortState.field) return students;
-      const { field, dir } = sortState;
-      const th = document.querySelector(`th[data-sort="${field}"]`);
-      const type = th ? th.dataset.type : 'str';
-      const getVal = (s) => {
-        if (field === 'name') return `${s.first_name || ''} ${s.last_name || ''}`.trim().toLowerCase();
-        if (field === 'status') return s.is_active ? 'active' : 'suspended';
-        const v = s[field];
-        if (type === 'str') return String(v || '').toLowerCase();
-        if (type === 'num') return Number(v) || 0;
-        if (type === 'date') return new Date(v || 0).getTime() || 0;
-        return v;
-      };
-      const sorted = [...students].sort((a, b) => {
-        const av = getVal(a), bv = getVal(b);
-        if (av < bv) return dir === 'asc' ? -1 : 1;
-        if (av > bv) return dir === 'asc' ? 1 : -1;
-        return 0;
-      });
-      return sorted;
-    }
-
-    function renderStudentsTable(students) {
-      document.getElementById('student-count').textContent = students.length + ' students';
-      const tbody = document.getElementById('students-tbody');
-      if (students.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:32px;color:#6b7a99;">No students yet.</td></tr>';
-        return;
-      }
-      tbody.innerHTML = students.map(s => `
-        <tr>
-          <td><strong>${escapeHtml(s.first_name)} ${escapeHtml(s.last_name)}</strong></td>
-          <td style="color:#6b7a99;">${escapeHtml(s.email)}</td>
-          <td>${escapeHtml(s.university)}</td>
-          <td><span class="badge badge-navy">${escapeHtml(s.classification)}</span></td>
-          <td>${escapeHtml(s.major)}</td>
-          <td style="color:#6b7a99;">${escapeHtml(s.joined)}</td>
-          <td>${s.sessions}</td>
-          <td><span class="badge badge-orange">${s.questions}</span></td>
-          <td>${s.uploads}</td>
-          <td style="color:#6b7a99;">${formatTimeSpent(s.time_spent_minutes)}</td>
-          <td style="color:#6b7a99;">${formatTokenCount(s.total_tokens)}</td>
-          <td style="color:#6b7a99;">${formatCostUsd(s.estimated_cost_usd)}</td>
-          <td>${renderStudentStatusCell(s)}</td>
-        </tr>`).join('');
-      // Names are attached via dataset + addEventListener rather than baked into an
-      // inline onclick string — untrusted text inside an inline event-handler
-      // attribute is unsafe even when HTML-escaped, since the browser HTML-decodes
-      // the attribute before handing it to the JS engine, undoing the escaping.
-      tbody.querySelectorAll('.student-toggle-btn').forEach((btn, idx) => {
-        const student = students[idx];
-        btn.addEventListener('click', () => {
-          toggleStudentActive(
-            parseInt(btn.dataset.id, 10),
-            `${student.first_name} ${student.last_name}`,
-            btn.dataset.active === 'true'
-          );
-        });
-      });
-      tbody.querySelectorAll('.student-anonymize-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          anonymizeStudent(parseInt(btn.dataset.id, 10));
-        });
-      });
-    }
-
-    function renderStudentStatusCell(s) {
-      if (s.anonymized_at) {
-        return `<span class="badge" style="background:#eef0f6;color:#6b7a99;">Anonymized</span>`;
-      }
-      if (s.account_deleted_at) {
-        return `<span class="badge" style="background:#fef2f2;color:#b91c1c;">Deleted</span>
-                <button class="tab-btn student-anonymize-btn" style="padding:4px 10px;font-size:11px;margin-left:6px;" data-id="${s.id}">Anonymize</button>`;
-      }
-      if (s.is_active) {
-        return `<span class="badge badge-active">Active</span>
-                <button class="tab-btn student-toggle-btn" style="padding:4px 10px;font-size:11px;margin-left:6px;" data-id="${s.id}" data-active="true">Suspend</button>
-                <button class="tab-btn student-anonymize-btn" style="padding:4px 10px;font-size:11px;margin-left:6px;" data-id="${s.id}">Anonymize</button>`;
-      }
-      return `<span class="badge" style="background:#fef2f2;color:#b91c1c;">Suspended</span>
-              <button class="tab-btn student-toggle-btn" style="padding:4px 10px;font-size:11px;margin-left:6px;" data-id="${s.id}" data-active="false">Reactivate</button>
-              <button class="tab-btn student-anonymize-btn" style="padding:4px 10px;font-size:11px;margin-left:6px;" data-id="${s.id}">Anonymize</button>`;
-    }
-
-    async function anonymizeStudent(studentId) {
-      const ok = await winkConfirm({
-        title: 'Anonymize this student?',
-        message: "This is IRREVERSIBLE — their name/email will be replaced with an " +
-          "untraceable label, and they won't be able to log in again. Their " +
-          "conversations, documents, and research data stay intact for analysis, " +
-          "just no longer tied to an identifiable name.",
-        confirmLabel: 'Anonymize',
-        danger: true
-      });
-      if (!ok) return;
-      try {
-        const res = await fetch('/anonymize-student', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ student_id: studentId })
-        });
-        const data = await res.json();
-        if (!data.success) { winkToast(data.error || 'Something went wrong.', true); return; }
-        winkToast(`Anonymized as ${data.label}.`);
-        loadData();
-      } catch (e) {
-        winkToast('Something went wrong — please try again.', true);
-      }
-    }
-
-    document.addEventListener('DOMContentLoaded', () => {
-      document.querySelectorAll('th.sortable').forEach(th => {
-        th.addEventListener('click', () => {
-          const field = th.dataset.sort;
-          if (sortState.field === field) {
-            sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
-          } else {
-            sortState = { field, dir: 'asc' };
-          }
-          document.querySelectorAll('th.sortable').forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
-          th.classList.add(sortState.dir === 'asc' ? 'sort-asc' : 'sort-desc');
-          renderStudentsTable(applySort(currentStudents));
-        });
-      });
-    });
-
     async function loadData() {
       try {
         const res = await fetch('/analytics-data-full');
@@ -2861,21 +2881,58 @@
         if (d.error) { winkToast('Error: ' + d.error, true); return; }
         analyticsData = d;
 
+        // Stats
         const cards = document.querySelectorAll('.stat-card');
-        const vals = [d.total_students, d.total_sessions, d.total_questions, d.total_uploads, d.total_deadlines, formatCostUsd(d.total_estimated_cost_usd)];
+        const vals = [d.total_students, d.total_sessions, d.total_questions, d.total_uploads, d.total_deadlines];
         cards.forEach((c, i) => {
           c.querySelector('.stat-loading') && (c.innerHTML = `<div class="stat-value">${vals[i]}</div><div class="stat-label">${c.querySelector('.stat-label').textContent}</div>`);
           c.querySelector('.stat-value') && (c.querySelector('.stat-value').textContent = vals[i]);
         });
-
+        // Re-render stat row cleanly
         const sr = document.getElementById('stats-row');
-        const labels = ['Total Students','Total Sessions','Questions Asked','Files Uploaded','Upcoming Deadlines','Est. AI Cost (Pilot)'];
-        const tops = ['','navy-top','','green-top','navy-top',''];
+        const labels = ['Total Students','Total Sessions','Questions Asked','Files Uploaded','Upcoming Deadlines'];
+        const tops = ['','navy-top','','green-top','navy-top'];
         sr.innerHTML = vals.map((v,i) => `<div class="stat-card ${tops[i]}"><div class="stat-value">${v}</div><div class="stat-label">${labels[i]}</div></div>`).join('');
 
         // Students table
-        currentStudents = d.students;
-        renderStudentsTable(applySort(currentStudents));
+        document.getElementById('student-count').textContent = d.students.length + ' students';
+        const tbody = document.getElementById('students-tbody');
+        if (d.students.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:32px;color:#6b7a99;">No students yet.</td></tr>';
+        } else {
+          tbody.innerHTML = d.students.map(s => `
+            <tr>
+              <td><strong>${escapeHtml(s.first_name)} ${escapeHtml(s.last_name)}</strong></td>
+              <td style="color:#6b7a99;">${escapeHtml(s.email)}</td>
+              <td><span class="badge badge-navy">${escapeHtml(s.classification)}</span></td>
+              <td>${escapeHtml(s.major)}</td>
+              <td>${s.first_generation ? 'Yes' : 'No'}</td>
+              <td style="color:#6b7a99;">${escapeHtml(s.joined)}</td>
+              <td>${s.sessions}</td>
+              <td><span class="badge badge-orange">${s.questions}</span></td>
+              <td>${s.uploads}</td>
+              <td>
+                ${s.is_active
+                  ? `<button class="tab-btn student-toggle-btn" style="padding:4px 10px;font-size:11px;" data-id="${s.id}" data-active="true">Suspend</button>`
+                  : `<span class="badge" style="background:#fef2f2;color:#b91c1c;">Suspended</span>
+                     <button class="tab-btn student-toggle-btn" style="padding:4px 10px;font-size:11px;margin-left:6px;" data-id="${s.id}" data-active="false">Reactivate</button>`}
+              </td>
+            </tr>`).join('');
+          // Names are attached via dataset + addEventListener rather than baked into an
+          // inline onclick string — untrusted text inside an inline event-handler
+          // attribute is unsafe even when HTML-escaped, since the browser HTML-decodes
+          // the attribute before handing it to the JS engine, undoing the escaping.
+          tbody.querySelectorAll('.student-toggle-btn').forEach((btn, idx) => {
+            const student = d.students[idx];
+            btn.addEventListener('click', () => {
+              toggleStudentActive(
+                parseInt(btn.dataset.id, 10),
+                `${student.first_name} ${student.last_name}`,
+                btn.dataset.active === 'true'
+              );
+            });
+          });
+        }
 
         // Activity feed
         const feed = document.getElementById('event-feed');
@@ -2945,8 +3002,8 @@
         renderBars('class-chart', d.by_class, 8, false);
         renderBars('major-chart', d.by_major, 12, true);
 
+        // ── Insights tab ──
         renderMiniStats(d);
-        renderDemoStats(d);
         renderUniversityTable(d);
         renderCourseChart(d.by_course);
         renderHeatmap(d.usage_heatmap);
@@ -2972,33 +3029,6 @@
         [fmt(d.retention_pct) + (d.retention_pct !== undefined ? '%' : ''), 'Retention (2+ weeks)'],
         [d.avg_minutes_to_first_question === null ? 'n/a' : fmt(d.avg_minutes_to_first_question) + ' min', 'Time to First Question'],
         [fmt(d.general_doc_availability_pct) + '%', 'Questions w/ General Docs'],
-      ];
-      box.innerHTML = items.map(([val, label]) => `
-        <div class="mini-stat"><div class="mini-stat-value">${val}</div><div class="mini-stat-label">${label}</div></div>
-      `).join('');
-    }
-
-    // Duration comes from the backend in whole seconds (see
-    // services/analytics.py's get_demo_usage_stats) — format for display.
-    function formatDemoDuration(seconds) {
-      const s = Math.round(Number(seconds) || 0);
-      if (s <= 0) return '—';
-      const mins = Math.floor(s / 60);
-      if (mins < 1) return `${s}s`;
-      const hrs = Math.floor(mins / 60);
-      return hrs > 0 ? `${hrs}h ${mins % 60}m` : `${mins}m`;
-    }
-
-    function renderDemoStats(d) {
-      const box = document.getElementById('demo-mini-stats');
-      if (!box) return;
-      const dm = d.demo_usage || {};
-      const items = [
-        [dm.total_sessions || 0, 'Total Demos Started'],
-        [dm.active_now || 0, 'Active Right Now'],
-        [formatDemoDuration(dm.avg_duration_seconds), 'Avg Duration'],
-        [formatDemoDuration(dm.max_duration_seconds), 'Longest Session'],
-        [dm.total_questions_asked || 0, 'Total Questions Asked'],
       ];
       box.innerHTML = items.map(([val, label]) => `
         <div class="mini-stat"><div class="mini-stat-value">${val}</div><div class="mini-stat-label">${label}</div></div>
@@ -3049,7 +3079,7 @@
       const colorFor = n => {
         if (n === 0) return '#eef0f6';
         const t = n / max;
-        const r = Math.round(255 - t * (255-255));
+        const r = Math.round(255 - t * (255-255)); // keep orange hue, vary lightness via alpha
         return `rgba(255,130,0,${(0.15 + t * 0.85).toFixed(2)})`;
       };
       let html = '<table class="heatmap-table"><thead><tr><th></th>';
@@ -3330,7 +3360,7 @@
     }
 
     // Default to UTEP since that's WINK's original/primary school — admins
-
+    // can switch the dropdown to manage any other university's knowledge base.
     (function initGdUniversity() {
       const sel = document.getElementById('gd-university-select');
       if (sel) {
