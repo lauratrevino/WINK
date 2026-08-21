@@ -76,12 +76,12 @@ class TestRegistrationAndLogin:
         assert "Invalid email or password" in resp.get_data(as_text=True)
         assert client.get("/dashboard").status_code == 302  
 
-    def test_admin_login_redirects_to_analytics(self, client):
+    def test_admin_login_redirects_to_admin_page(self, client):
         register(client, email="admin@utep.edu")
         client.post("/logout")
         resp = login(client, email="admin@utep.edu")
         assert resp.status_code == 302
-        assert "/analytics-page" in resp.headers["Location"]
+        assert "/admin-page" in resp.headers["Location"]
 
 
 class TestDocumentUpload:
