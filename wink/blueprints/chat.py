@@ -220,6 +220,14 @@ def chat():
         known_filenames = {d["orig_name"] for d in docs if d.get("orig_name")}
         known_filenames |= set(get_global_doc_names(student_university or None))
 
+        # All DB reads needed for this request are now complete — return the
+        # connection to the pool immediately so it's available to other
+        # concurrent requests while the remaining pure-Python setup and the
+        # full AI streaming run.  generate() re-acquires a fresh connection
+        # via get_db() when it needs one (saving the transcript, after
+        # streaming ends).
+        release_db()
+
         temp_doc = data.get("temp_doc")
         if isinstance(temp_doc, dict) and temp_doc.get("content"):
             t_name = str(temp_doc.get("name") or "attached file")[:200]
@@ -402,15 +410,6 @@ def chat():
                 unverified_citations=_find_unverified_citations(reply, known_filenames),
             )
             log_token_usage(student_id, "chat", config.CHAT_MODEL, usage)
-
-        # Every DB read needed to prepare this request (conversation row,
-        # documents, deadlines, etc.) is already done above. Release the
-        # connection back to the pool now rather than letting it sit idle
-        # for the whole streaming duration below — see release_db()'s
-        # docstring in extensions.py for why this matters under load.
-        # generate() re-acquires a fresh connection via get_db() when it
-        # needs one again (saving the transcript, after streaming ends).
-        release_db()
 
         resp = current_app.response_class(stream_with_context(generate()), mimetype="text/plain")
         resp.headers["X-Accel-Buffering"] = "no"
