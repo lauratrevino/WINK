@@ -87,6 +87,7 @@
               <th class="sortable" data-sort="university" data-type="str">University</th>
               <th class="sortable" data-sort="classification" data-type="str">Classification</th>
               <th class="sortable" data-sort="major" data-type="str">Major</th>
+              <th class="sortable" data-sort="first_generation" data-type="str">First Gen</th>
               <th class="sortable" data-sort="joined" data-type="date">Joined</th>
               <th class="sortable" data-sort="sessions" data-type="num">Sessions</th>
               <th class="sortable" data-sort="questions" data-type="num">Questions</th>
@@ -2754,7 +2755,7 @@
       document.getElementById('student-count').textContent = students.length + ' students';
       const tbody = document.getElementById('students-tbody');
       if (students.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:32px;color:#6b7a99;">No students yet.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="14" style="text-align:center;padding:32px;color:#6b7a99;">No students yet.</td></tr>';
         return;
       }
       tbody.innerHTML = students.map(s => `
@@ -2764,6 +2765,7 @@
           <td>${escapeHtml(s.university)}</td>
           <td><span class="badge badge-navy">${escapeHtml(s.classification)}</span></td>
           <td>${escapeHtml(s.major)}</td>
+          <td>${s.first_generation ? '<span class="badge badge-orange">Yes</span>' : '<span style="color:#6b7a99;">No</span>'}</td>
           <td style="color:#6b7a99;">${escapeHtml(s.joined)}</td>
           <td>${s.sessions}</td>
           <td><span class="badge badge-orange">${s.questions}</span></td>

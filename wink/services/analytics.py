@@ -222,6 +222,7 @@ def get_student_summaries(cur):
         )
         SELECT s.id, s.first_name, s.last_name, s.email, s.classification, s.major,
                COALESCE(NULLIF(s.university,''), 'Not set') as university,
+               COALESCE(s.first_generation, FALSE) as first_generation,
                to_char(s.created_at, 'Mon DD YYYY') as joined,
                s.is_active, s.account_deleted_at, s.anonymized_at,
                COALESCE(ec.sessions, 0) as sessions,
