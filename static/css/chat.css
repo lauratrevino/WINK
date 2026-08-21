@@ -40,15 +40,12 @@
     .sidebar-section h3 { font-size: 12px; font-weight: 700; color: #FF8200; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 12px; }
     .wink-profile { text-align: center; padding: 24px 18px 18px; border-bottom: 1px solid rgba(255,255,255,0.10); }
     .wink-avatar-badge {
-      width: 110px; height: 110px; border-radius: 50%;
-      border: 4px solid #FF8200;
+      width: 130px;
       margin: 0 auto 10px;
-      background: linear-gradient(150deg, #0b477e 0%, #002855 100%);
       display: flex; align-items: center; justify-content: center;
-      box-shadow: 0 8px 20px rgba(0,0,0,0.35);
     }
     .wink-avatar-icon { font-size: 46px; line-height: 1; }
-    .wink-avatar-img { width: 100px; height: 100px; object-fit: contain; display: block; }
+    .wink-avatar-img { width: 130px; height: auto; object-fit: contain; display: block; }
     .wink-name { font-size: 16px; font-weight: 800; color: #fff; }
     .wink-role { font-size: 12px; color: rgba(255,255,255,0.65); margin-top: 2px; }
     .online-badge {
@@ -134,22 +131,32 @@
     .welcome-sub { font-size: 15px; color: #444455; margin-top: 8px; margin-bottom: 26px; }
 
     .welcome-cards {
-      display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
-      margin-bottom: 22px;
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+      margin-bottom: 18px;
     }
     .welcome-card {
-      background: #fff; border: 1px solid #e5e9f2; border-radius: 14px;
-      padding: 22px 14px; text-align: center;
+      background: #fff; border: 1px solid #e5e9f2; border-radius: 12px;
+      padding: 14px 10px; text-align: center;
       transition: border-color 0.15s, box-shadow 0.15s;
     }
-    .welcome-card:hover { border-color: #FF8200; box-shadow: 0 4px 14px rgba(0,0,0,0.06); }
+    .welcome-card:hover { box-shadow: 0 4px 14px rgba(0,0,0,0.06); }
     .welcome-card-icon {
-      width: 42px; height: 42px; margin: 0 auto 12px;
-      color: #FF8200;
+      width: 34px; height: 34px; margin: 0 auto 8px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
     }
-    .welcome-card-icon svg { width: 100%; height: 100%; }
-    .welcome-card-title { font-size: 14px; font-weight: 700; color: #002855; margin-bottom: 6px; }
-    .welcome-card-desc { font-size: 12.5px; color: #6b7a99; line-height: 1.45; }
+    .welcome-card-icon svg { width: 18px; height: 18px; }
+    .welcome-card-title { font-size: 12.5px; font-weight: 700; color: #002855; margin-bottom: 4px; }
+    .welcome-card-desc { font-size: 11px; color: #6b7a99; line-height: 1.35; }
+
+    .welcome-cards .welcome-card:nth-child(1) .welcome-card-icon { background: rgba(0,40,85,0.12); color: #002855; }
+    .welcome-cards .welcome-card:nth-child(1) { border-top: 3px solid #002855; }
+    .welcome-cards .welcome-card:nth-child(2) .welcome-card-icon { background: rgba(46,125,116,0.14); color: #2E7D74; }
+    .welcome-cards .welcome-card:nth-child(2) { border-top: 3px solid #2E7D74; }
+    .welcome-cards .welcome-card:nth-child(3) .welcome-card-icon { background: rgba(255,130,0,0.14); color: #FF8200; }
+    .welcome-cards .welcome-card:nth-child(3) { border-top: 3px solid #FF8200; }
+    .welcome-cards .welcome-card:nth-child(4) .welcome-card-icon { background: rgba(142,59,70,0.14); color: #8E3B46; }
+    .welcome-cards .welcome-card:nth-child(4) { border-top: 3px solid #8E3B46; }
 
     .welcome-prompt-box {
       display: flex; align-items: center; gap: 12px;
