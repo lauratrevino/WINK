@@ -29,6 +29,12 @@
 
     .legend { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
     .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #444; }
+    .legend-item:hover { color: #002855; }
+    .legend-item-selected {
+      background: #f0f4fb; border-radius: 999px; padding: 3px 10px 3px 6px;
+      box-shadow: 0 0 0 1.5px #002855 inset;
+    }
+    .cal-legend-hint { margin: -8px 0 16px; font-size: 12px; color: #6b7a99; font-style: italic; }
     .legend-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
 
     .cal-grid {
@@ -153,7 +159,7 @@
       .cal-day-num.has-items::after { content: '•'; color: #FF8200; margin-left: 3px; }
     }
 
-    .cal-add-row { display: flex; justify-content: center; margin-bottom: 14px; }
+    .cal-add-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
     .cal-add-btn {
       display: inline-flex; align-items: center; gap: 8px;
       padding: 7px 18px; border-radius: 10px; font-size: 14px; font-weight: 800;
@@ -199,3 +205,14 @@
     }
     .ai-submit-btn { width: 100%; padding: 11px; }
     .ai-submit-btn:disabled { opacity: 0.6; cursor: default; }
+
+    .semester-view-card { max-width: 620px; }
+    .semester-view-month { margin-bottom: 18px; }
+    .semester-view-month:last-child { margin-bottom: 0; }
+    .semester-view-month-label {
+      font-size: 13px; font-weight: 800; color: #FF8200; text-transform: uppercase;
+      letter-spacing: .04em; margin: 0 0 6px; padding-bottom: 6px;
+      border-bottom: 1px solid #eef0f6;
+    }
+    .semester-view-item { cursor: pointer; border-radius: 8px; padding-left: 6px; padding-right: 6px; }
+    .semester-view-item:hover { background: #f8f9ff; }

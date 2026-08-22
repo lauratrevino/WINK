@@ -31,10 +31,14 @@
     </div>
 
     <div class="legend" id="legend"></div>
+    <p class="cal-legend-hint" id="legend-hint" style="display:none;">Click on class name to see the assignments for that class only.</p>
 
     <div class="cal-add-row">
       <button class="cal-add-btn" onclick="openAddItemModal()">
         <span class="cal-add-icon">＋</span> Add Item
+      </button>
+      <button class="cal-add-btn" id="semester-view-btn" onclick="openSemesterView()">
+        <span class="cal-add-icon">📖</span> Semester View
       </button>
     </div>
 
@@ -59,6 +63,16 @@
         <button class="day-panel-close" onclick="closeDayPanel()" aria-label="Close">✕</button>
       </div>
       <div id="day-panel-body"></div>
+    </div>
+  </div>
+
+  <div class="wink-modal-overlay" id="semester-view-modal" onclick="if(event.target===this) closeSemesterView()">
+    <div class="wink-modal-card semester-view-card" role="dialog" aria-modal="true" aria-labelledby="semester-view-title">
+      <div class="day-panel-header">
+        <h2 id="semester-view-title">Semester View</h2>
+        <button class="day-panel-close" onclick="closeSemesterView()" aria-label="Close">✕</button>
+      </div>
+      <div id="semester-view-body"></div>
     </div>
   </div>
 
@@ -131,6 +145,7 @@
     let allDeadlines = [];
     let deadlinesByDate = {};
     let courseColors = {};
+    let selectedCourse = null; // null = show every class; otherwise filters the grid, day panel, and Semester View to just this course
     let viewYear, viewMonth;
 
     function colorForCourse(course) {
@@ -211,12 +226,53 @@
 
     function renderLegend() {
       const legend = document.getElementById('legend');
+      const hint = document.getElementById('legend-hint');
       const courses = Object.keys(courseColors);
-      if (courses.length === 0) { legend.innerHTML = ''; return; }
-      legend.innerHTML = courses.map(c =>
-        `<div class="legend-item"><span class="legend-dot" data-bg="${courseColors[c]}"></span><span data-fg="${courseColors[c]}" style="font-weight:700;">${escapeHtml(c)}</span></div>`
-      ).join('');
+      if (courses.length === 0) {
+        legend.innerHTML = '';
+        hint.style.display = 'none';
+        return;
+      }
+      hint.style.display = '';
+      legend.innerHTML = courses.map(c => {
+        const selected = c === selectedCourse;
+        return `<div class="legend-item${selected ? ' legend-item-selected' : ''}" data-course="${escapeHtml(c)}" role="button" tabindex="0" aria-pressed="${selected ? 'true' : 'false'}" style="cursor:pointer;">
+          <span class="legend-dot" data-bg="${courseColors[c]}"></span>
+          <span data-fg="${courseColors[c]}" style="font-weight:700;">${escapeHtml(c)}</span>
+        </div>`;
+      }).join('');
       applyPendingBackgrounds(legend);
+    }
+
+    // Toggling the same course off returns to showing every class; picking a
+    // different course switches the filter straight to that one. Re-renders
+    // everything that depends on the current course selection so the legend
+    // highlight, month grid, and (if open) Semester View all stay in sync.
+    function selectCourse(course) {
+      selectedCourse = (selectedCourse === course) ? null : course;
+      renderLegend();
+      renderCalendar();
+      if (currentPanelDate) openDayPanel(currentPanelDate);
+      if (document.getElementById('semester-view-modal').classList.contains('open')) renderSemesterView();
+    }
+
+    document.getElementById('legend').addEventListener('click', function(e) {
+      const item = e.target.closest('.legend-item');
+      if (item) selectCourse(item.dataset.course);
+    });
+    document.getElementById('legend').addEventListener('keydown', function(e) {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const item = e.target.closest('.legend-item');
+      if (item) { e.preventDefault(); selectCourse(item.dataset.course); }
+    });
+
+    // Shared by the month grid, the day panel, and Semester View so "show
+    // just this class" always means the same thing everywhere on the page.
+    // Personal (non-course) items aren't "that class's assignments," so
+    // they're hidden whenever a specific course is selected.
+    function itemsForCourseFilter(items) {
+      if (!selectedCourse) return items;
+      return items.filter(it => !it.is_personal && it.course === selectedCourse);
     }
 
     function renderCalendar() {
@@ -247,7 +303,7 @@
 
       const wrap = document.getElementById('cal-days');
       wrap.innerHTML = cells.map(cell => {
-        const items = cell.dateStr ? (deadlinesByDate[cell.dateStr] || []) : [];
+        const items = cell.dateStr ? itemsForCourseFilter(deadlinesByDate[cell.dateStr] || []) : [];
         const isToday = cell.dateStr === todayStr;
         const chips = items.slice(0, 3).map(it => {
           const bg = itemColor(it);
@@ -279,19 +335,105 @@
       return String(text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
     }
 
+    // Semester View: every deadline at once (respecting the current course
+    // filter), grouped by month and sorted by date within each month — a
+    // read-only overview rather than a re-implementation of the day panel's
+    // confirm/correct/edit controls. Clicking an item closes this and jumps
+    // to that day on the month grid, where the full set of actions lives.
+    function renderSemesterView() {
+      const title = document.getElementById('semester-view-title');
+      title.textContent = selectedCourse ? `Semester View — ${selectedCourse}` : 'Semester View';
+
+      const body = document.getElementById('semester-view-body');
+      const items = itemsForCourseFilter(allDeadlines.filter(it => it.due_date));
+
+      if (items.length === 0) {
+        body.innerHTML = selectedCourse
+          ? `<div class="day-empty">No assignments found for ${escapeHtml(selectedCourse)} this semester.</div>`
+          : '<div class="day-empty">Nothing on the calendar yet.</div>';
+        return;
+      }
+
+      const sorted = [...items].sort((a, b) => a.due_date < b.due_date ? -1 : a.due_date > b.due_date ? 1 : 0);
+      const byMonth = {};
+      sorted.forEach(it => {
+        const monthKey = it.due_date.slice(0, 7); // "YYYY-MM"
+        (byMonth[monthKey] = byMonth[monthKey] || []).push(it);
+      });
+
+      body.innerHTML = Object.keys(byMonth).sort().map(monthKey => {
+        const monthLabel = new Date(monthKey + '-01T00:00:00')
+          .toLocaleDateString('default', { month: 'long', year: 'numeric' });
+        const rows = byMonth[monthKey].map(it => {
+          const dateObj = new Date(it.due_date + 'T00:00:00');
+          const dateLabel = dateObj.toLocaleDateString('default', { weekday: 'short', month: 'short', day: 'numeric' });
+          return `
+          <div class="day-item semester-view-item${it.completed ? ' completed' : ''}" data-date="${it.due_date}" role="button" tabindex="0">
+            <span class="day-item-dot" data-bg="${itemColor(it)}"></span>
+            <div style="flex:1; min-width:0;">
+              <div class="day-item-title">${escapeHtml(it.title)}</div>
+              <div class="day-item-course" data-fg="${itemColor(it)}" style="font-weight:700;">${escapeHtml(it.course)} · ${dateLabel}</div>
+            </div>
+          </div>`;
+        }).join('');
+        return `<div class="semester-view-month">
+          <h3 class="semester-view-month-label">${escapeHtml(monthLabel)}</h3>
+          ${rows}
+        </div>`;
+      }).join('');
+
+      applyPendingBackgrounds(body);
+      body.querySelectorAll('.semester-view-item').forEach(el => {
+        el.addEventListener('click', () => jumpToDayFromSemesterView(el.dataset.date));
+        el.addEventListener('keydown', e => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); jumpToDayFromSemesterView(el.dataset.date); }
+        });
+      });
+    }
+
+    function jumpToDayFromSemesterView(dateStr) {
+      closeSemesterView();
+      const [y, m] = dateStr.split('-').map(Number);
+      viewYear = y; viewMonth = m - 1;
+      renderCalendar();
+      openDayPanel(dateStr);
+    }
+
+    let semesterViewLastFocus = null;
+
+    function openSemesterView() {
+      semesterViewLastFocus = document.activeElement;
+      renderSemesterView();
+      document.getElementById('semester-view-modal').classList.add('open');
+      document.addEventListener('keydown', handleSemesterViewKeydown);
+      requestAnimationFrame(() => document.querySelector('#semester-view-modal .day-panel-close').focus());
+    }
+
+    function closeSemesterView() {
+      document.getElementById('semester-view-modal').classList.remove('open');
+      document.removeEventListener('keydown', handleSemesterViewKeydown);
+      if (semesterViewLastFocus) semesterViewLastFocus.focus();
+    }
+
+    function handleSemesterViewKeydown(e) {
+      if (e.key === 'Escape') closeSemesterView();
+    }
+
     let dayPanelLastFocus = null;
 
     let currentPanelDate = null;
 
     function openDayPanel(dateStr) {
       currentPanelDate = dateStr;
-      const items = deadlinesByDate[dateStr] || [];
+      const items = itemsForCourseFilter(deadlinesByDate[dateStr] || []);
       const dateObj = new Date(dateStr + 'T00:00:00');
       document.getElementById('day-panel-title').textContent =
         dateObj.toLocaleDateString('default', { weekday: 'long', month: 'long', day: 'numeric' });
       const body = document.getElementById('day-panel-body');
       if (items.length === 0) {
-        body.innerHTML = '<div class="day-empty">Nothing due this day.</div>';
+        body.innerHTML = selectedCourse
+          ? `<div class="day-empty">Nothing due for ${escapeHtml(selectedCourse)} this day.</div>`
+          : '<div class="day-empty">Nothing due this day.</div>';
       } else {
         body.innerHTML = items.map(it => {
           const status = it.status || 'detected';
