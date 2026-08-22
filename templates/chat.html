@@ -63,6 +63,7 @@
         <button class="toolbar-btn" id="share-btn" onclick="shareConversation()" disabled>🔗 Share</button>
         <span style="width:1px;height:20px;background:#dde3f0;margin:0 4px;"></span>
         <button class="toolbar-btn" id="read-aloud-btn" onclick="readLatestAnswerAloud()">🔊 Read latest answer</button>
+        <select class="toolbar-btn" id="voice-select" aria-label="Voice for read aloud" onchange="saveVoiceChoice()" style="display:none;"></select>
       </div>
       <div class="chat-ai-warning">⚠️ This program is a research project. All questions, answers, and information entered into WINK are visible to your instructor and stored in the program. See the <a href="/privacy" target="_blank" rel="noopener" style="color:#6b4a1a;font-weight:700;text-decoration:underline;">Privacy Policy</a> for more information.</div>
       <div class="messages-wrap" id="messages" role="log" aria-live="polite" aria-atomic="false" aria-relevant="additions">
@@ -185,10 +186,85 @@
       if (winkMessages.length === 0) return;
       const latest = winkMessages[winkMessages.length - 1];
       const utterance = new SpeechSynthesisUtterance(latest.textContent);
+      const voice = getSelectedVoice();
+      if (voice) utterance.voice = voice;
+      // A slightly higher pitch and a touch more pace read as more upbeat
+      // and enthusiastic than the flat 1.0/1.0 default, without tipping
+      // into sounding sped-up or unnatural. SpeechSynthesisUtterance allows
+      // pitch 0–2 and rate 0.1–10; these stay well inside the natural range.
+      utterance.pitch = 1.15;
+      utterance.rate = 1.05;
       utterance.onend = () => { btn.textContent = '🔊 Read latest answer'; };
       utterance.onerror = () => { btn.textContent = '🔊 Read latest answer'; };
       btn.textContent = '⏹ Stop reading';
       window.speechSynthesis.speak(utterance);
+    }
+
+    // The browser/OS supplies whatever voices it has installed — WINK
+    // itself has no built-in voice — and the default one many browsers
+    // pick first is often a low-quality robotic-sounding option even when
+    // much better ones (e.g. "Google US English", or Edge's "* Online
+    // (Natural)" voices) are available on the same device. This lets a
+    // student pick a better-sounding one once and have it remembered.
+    let availableVoices = [];
+
+    function scoreVoice(v) {
+      // Higher is better. Prefer English voices, and within those prefer
+      // ones whose name suggests a modern/neural engine over a generic
+      // legacy one — a rough heuristic since browsers don't expose an
+      // actual "quality" field, but names like "Natural", "Neural", or
+      // "Google" reliably correlate with the better-sounding options in
+      // practice across Chrome, Edge, and Safari. Also biased toward
+      // typically female-sounding voice names, since that's the requested
+      // default — there's no actual gender field on a SpeechSynthesisVoice,
+      // so this is name-matching against the common female voice names
+      // shipped by each platform's TTS engine.
+      let score = 0;
+      if (/^en/i.test(v.lang)) score += 10;
+      if (/en-US/i.test(v.lang)) score += 2;
+      if (/natural|neural/i.test(v.name)) score += 8;
+      if (/google/i.test(v.name)) score += 4;
+      if (v.localService) score += 1; // local voices avoid network latency/failures
+      if (/female|\b(samantha|zira|jenny|aria|ava|emma|salli|joanna|kendra|kimberly|susan|karen|moira|tessa|fiona|victoria|allison|serena|shelley|nicky)\b/i.test(v.name)) score += 6;
+      return score;
+    }
+
+    function populateVoiceOptions() {
+      availableVoices = window.speechSynthesis.getVoices();
+      const select = document.getElementById('voice-select');
+      if (!availableVoices.length) { select.style.display = 'none'; return; }
+
+      const sorted = [...availableVoices].sort((a, b) => scoreVoice(b) - scoreVoice(a));
+      const saved = localStorage.getItem('winkVoiceURI');
+      select.innerHTML = sorted.map(v =>
+        `<option value="${escapeHtml(v.voiceURI)}"${v.voiceURI === saved ? ' selected' : ''}>${escapeHtml(v.name)} (${escapeHtml(v.lang)})</option>`
+      ).join('');
+
+      // First time on this device: nothing saved yet, so default the
+      // dropdown itself to the best-scoring voice rather than leaving it
+      // on the browser's own (often lower-quality) first-in-list choice.
+      if (!saved && sorted.length) select.value = sorted[0].voiceURI;
+
+      select.style.display = '';
+    }
+
+    function getSelectedVoice() {
+      const select = document.getElementById('voice-select');
+      const chosenURI = select.value;
+      return availableVoices.find(v => v.voiceURI === chosenURI) || null;
+    }
+
+    function saveVoiceChoice() {
+      const select = document.getElementById('voice-select');
+      if (select.value) localStorage.setItem('winkVoiceURI', select.value);
+    }
+
+    populateVoiceOptions();
+    // Chrome (and some others) load the voice list asynchronously — it's
+    // frequently empty on the very first call above — so this re-populates
+    // once the real list is actually ready.
+    if ('onvoiceschanged' in window.speechSynthesis) {
+      window.speechSynthesis.onvoiceschanged = populateVoiceOptions;
     }
 
     function winkToast(msg, isError = false) {
