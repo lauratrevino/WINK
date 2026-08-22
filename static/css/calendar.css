@@ -206,13 +206,39 @@
     .ai-submit-btn { width: 100%; padding: 11px; }
     .ai-submit-btn:disabled { opacity: 0.6; cursor: default; }
 
-    .semester-view-card { max-width: 620px; }
-    .semester-view-month { margin-bottom: 18px; }
-    .semester-view-month:last-child { margin-bottom: 0; }
-    .semester-view-month-label {
-      font-size: 13px; font-weight: 800; color: #FF8200; text-transform: uppercase;
-      letter-spacing: .04em; margin: 0 0 6px; padding-bottom: 6px;
-      border-bottom: 1px solid #eef0f6;
+    .semester-view-card { max-width: 820px; }
+
+    .sv-months-wrap {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 22px;
     }
-    .semester-view-item { cursor: pointer; border-radius: 8px; padding-left: 6px; padding-right: 6px; }
-    .semester-view-item:hover { background: #f8f9ff; }
+    .sv-month-label {
+      font-size: 13px; font-weight: 800; color: #002855; text-align: center;
+      margin: 0 0 8px;
+    }
+    .sv-weekdays {
+      display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px;
+      margin-bottom: 3px;
+    }
+    .sv-weekday {
+      font-size: 9px; font-weight: 800; color: #9ca3af; text-align: center;
+      text-transform: uppercase; letter-spacing: .02em;
+    }
+    .sv-grid {
+      display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px;
+    }
+    .sv-day {
+      aspect-ratio: 1; border-radius: 6px; background: #f8f9ff;
+      display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+      padding: 3px 1px 2px; cursor: pointer; position: relative;
+    }
+    .sv-day:hover { background: #eef2fb; }
+    .sv-day:focus-visible { outline: 2px solid #FF8200; outline-offset: 1px; }
+    .sv-day-empty { visibility: hidden; cursor: default; }
+    .sv-day-num { font-size: 10px; font-weight: 700; color: #002855; line-height: 1; }
+    .sv-today { box-shadow: 0 0 0 1.5px #FF8200 inset; }
+    .sv-today .sv-day-num { color: #FF8200; }
+    .sv-dots { display: flex; gap: 1.5px; flex-wrap: wrap; justify-content: center; margin-top: 2px; }
+    .sv-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+    .sv-more { font-size: 7px; font-weight: 800; color: #6b7a99; line-height: 1; margin-top: 1px; }

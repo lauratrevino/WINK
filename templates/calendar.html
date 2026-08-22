@@ -335,11 +335,64 @@
       return String(text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
     }
 
-    // Semester View: every deadline at once (respecting the current course
-    // filter), grouped by month and sorted by date within each month — a
-    // read-only overview rather than a re-implementation of the day panel's
-    // confirm/correct/edit controls. Clicking an item closes this and jumps
-    // to that day on the month grid, where the full set of actions lives.
+    // Semester View: the whole semester at once, as a row of actual mini
+    // month calendars (weekday header + day grid, same shape as the full
+    // calendar above) rather than a flat list — so it reads as "the
+    // calendar, zoomed out" instead of a different kind of view. Each
+    // real day is clickable (same as the full calendar), jumping to that
+    // date on the month grid and opening its day panel, which is still
+    // where the actual confirm/correct/edit controls live.
+    function monthsInRange(startYear, startMonth, endYear, endMonth) {
+      const months = [];
+      let y = startYear, m = startMonth;
+      while (y < endYear || (y === endYear && m <= endMonth)) {
+        months.push({ year: y, month: m });
+        m++;
+        if (m > 11) { m = 0; y++; }
+      }
+      return months;
+    }
+
+    function buildMiniMonthGrid(year, month, itemsByDate) {
+      const firstOfMonth = new Date(year, month, 1);
+      const startDow = firstOfMonth.getDay();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const monthLabel = firstOfMonth.toLocaleDateString('default', { month: 'long', year: 'numeric' });
+      const todayStr = new Date().toISOString().slice(0, 10);
+
+      const cells = [];
+      for (let i = 0; i < startDow; i++) cells.push(null);
+      for (let d = 1; d <= daysInMonth; d++) cells.push({ day: d, dateStr: `${year}-${pad(month + 1)}-${pad(d)}` });
+      while (cells.length % 7 !== 0) cells.push(null);
+
+      const weekdayRow = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+        .map(d => `<div class="sv-weekday">${d}</div>`).join('');
+
+      const dayCells = cells.map(cell => {
+        if (!cell) return `<div class="sv-day sv-day-empty"></div>`;
+        const items = itemsByDate[cell.dateStr] || [];
+        const isToday = cell.dateStr === todayStr;
+        const dots = items.slice(0, 4).map(it =>
+          `<span class="sv-dot" data-bg="${itemColor(it)}" title="${escapeHtml(it.title)}"></span>`
+        ).join('');
+        const more = items.length > 4 ? `<span class="sv-more">+${items.length - 4}</span>` : '';
+        const classes = ['sv-day'];
+        if (isToday) classes.push('sv-today');
+        if (items.length) classes.push('sv-has-items');
+        const label = `${cell.day}${isToday ? ', today' : ''}${items.length ? `, ${items.length} item${items.length !== 1 ? 's' : ''} due` : ', nothing due'}`;
+        return `<div class="${classes.join(' ')}" data-date="${cell.dateStr}" role="button" tabindex="0" aria-label="${escapeHtml(label)}">
+          <div class="sv-day-num">${cell.day}</div>
+          <div class="sv-dots">${dots}${more}</div>
+        </div>`;
+      }).join('');
+
+      return `<div class="sv-month">
+        <h3 class="sv-month-label">${escapeHtml(monthLabel)}</h3>
+        <div class="sv-weekdays">${weekdayRow}</div>
+        <div class="sv-grid">${dayCells}</div>
+      </div>`;
+    }
+
     function renderSemesterView() {
       const title = document.getElementById('semester-view-title');
       title.textContent = selectedCourse ? `Semester View — ${selectedCourse}` : 'Semester View';
@@ -354,41 +407,25 @@
         return;
       }
 
-      const sorted = [...items].sort((a, b) => a.due_date < b.due_date ? -1 : a.due_date > b.due_date ? 1 : 0);
-      const byMonth = {};
-      sorted.forEach(it => {
-        const monthKey = it.due_date.slice(0, 7); // "YYYY-MM"
-        (byMonth[monthKey] = byMonth[monthKey] || []).push(it);
-      });
+      const itemsByDate = {};
+      items.forEach(it => { (itemsByDate[it.due_date] = itemsByDate[it.due_date] || []).push(it); });
 
-      body.innerHTML = Object.keys(byMonth).sort().map(monthKey => {
-        const monthLabel = new Date(monthKey + '-01T00:00:00')
-          .toLocaleDateString('default', { month: 'long', year: 'numeric' });
-        const rows = byMonth[monthKey].map(it => {
-          const dateObj = new Date(it.due_date + 'T00:00:00');
-          const dateLabel = dateObj.toLocaleDateString('default', { weekday: 'short', month: 'short', day: 'numeric' });
-          return `
-          <div class="day-item semester-view-item${it.completed ? ' completed' : ''}" data-date="${it.due_date}" role="button" tabindex="0">
-            <span class="day-item-dot" data-bg="${itemColor(it)}"></span>
-            <div style="flex:1; min-width:0;">
-              <div class="day-item-title">${escapeHtml(it.title)}</div>
-              <div class="day-item-course" data-fg="${itemColor(it)}" style="font-weight:700;">${escapeHtml(it.course)} · ${dateLabel}</div>
-            </div>
-          </div>`;
-        }).join('');
-        return `<div class="semester-view-month">
-          <h3 class="semester-view-month-label">${escapeHtml(monthLabel)}</h3>
-          ${rows}
-        </div>`;
-      }).join('');
+      const dates = items.map(it => it.due_date).sort();
+      const [startYear, startMonth1] = dates[0].split('-').map(Number);
+      const [endYear, endMonth1] = dates[dates.length - 1].split('-').map(Number);
+      const months = monthsInRange(startYear, startMonth1 - 1, endYear, endMonth1 - 1);
 
-      applyPendingBackgrounds(body);
-      body.querySelectorAll('.semester-view-item').forEach(el => {
+      body.innerHTML = `<div class="sv-months-wrap">${
+        months.map(({ year, month }) => buildMiniMonthGrid(year, month, itemsByDate)).join('')
+      }</div>`;
+
+      body.querySelectorAll('.sv-day[data-date]').forEach(el => {
         el.addEventListener('click', () => jumpToDayFromSemesterView(el.dataset.date));
         el.addEventListener('keydown', e => {
           if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); jumpToDayFromSemesterView(el.dataset.date); }
         });
       });
+      applyPendingBackgrounds(body);
     }
 
     function jumpToDayFromSemesterView(dateStr) {
