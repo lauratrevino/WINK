@@ -41,9 +41,15 @@
     .weights-table td{padding:8px 10px;border-bottom:1px solid var(--line)}
     .weights-table input{border:1.5px solid var(--line);border-radius:8px;padding:7px 9px;font-size:13px;color:var(--ink);width:100%}
     .weights-table input:focus{outline:2px solid var(--orange);outline-offset:1px;border-color:var(--orange)}
+    .weight-input-wrap{position:relative}
+    .weight-input-wrap input{padding-right:22px}
+    .weight-input-wrap .input-suffix{
+      position:absolute; right:9px; top:50%; transform:translateY(-50%);
+      font-size:13px; color:var(--muted); pointer-events:none;
+    }
     .btn-danger{background:#fdecec;color:#c0392b;border:1px solid #f3c9c9;border-radius:8px;cursor:pointer;padding:5px 9px}
     .weight-total-row td{padding-top:10px;font-size:12.5px;color:var(--muted);border-bottom:0}
-    .over100{color:#c0392b;font-weight:800}
+    .weight-off{color:#c0392b;font-weight:800}
     .add-row-btn{margin-top:6px}
     .extract-note{margin-top:14px;font-size:12px;color:var(--muted);line-height:1.5}
     .extract-msg{font-size:12.5px;color:var(--navy2);margin-top:8px}
@@ -81,6 +87,7 @@
       .weights-table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -14px; padding: 0 14px; }
       .weights-table { min-width: 480px; }
       .weights-table input { font-size: 16px; padding: 9px; }
+      .weight-input-wrap input { padding-right: 24px; }
       .weights-table th, .weights-table td { padding: 10px 8px; }
       .btn-danger { padding: 8px 11px; }
 
@@ -215,7 +222,7 @@
       tr.dataset.rowId = id;
       tr.innerHTML = `
         <td><input type="text" class="category-input" value="${escapeHtml(category || '')}" placeholder="e.g. Homework" aria-label="Category name"></td>
-        <td><input type="number" class="weight-input" value="${weight !== '' && weight != null ? weight : ''}" min="0" max="100" step="0.1" aria-label="Weight percent"></td>
+        <td><div class="weight-input-wrap"><input type="number" class="weight-input" value="${weight !== '' && weight != null ? weight : ''}" min="0" max="100" step="0.1" aria-label="Weight percent"><span class="input-suffix">%</span></div></td>
         <td><input type="number" class="score-input" value="${score !== '' && score != null ? score : ''}" min="0" max="100" step="0.1" aria-label="Your score percent"></td>
         <td><button type="button" class="btn-danger" title="Remove category" aria-label="Remove category">✕</button></td>`;
       tbody.appendChild(tr);
@@ -352,9 +359,15 @@
       document.getElementById('weights-empty').style.display = rows.length ? 'none' : 'block';
       const totalLabel = document.getElementById('weight-total-label');
       if (rows.length) {
-        const over = totalWeight > 100.5;
-        totalLabel.innerHTML = `Total weight: <span class="${over ? 'over100' : ''}">${totalWeight.toFixed(1)}%</span>` +
-          (over ? ' — that\'s over 100%, double-check your categories.' : '');
+        const diff = totalWeight - 100;
+        const off = Math.abs(diff) > 0.5;
+        let note = '';
+        if (off) {
+          note = diff > 0
+            ? ` — that's over 100%, double-check your categories.`
+            : ` — that's under 100%, double-check your categories.`;
+        }
+        totalLabel.innerHTML = `Total weight: <span class="${off ? 'weight-off' : ''}">${totalWeight.toFixed(1)}%</span>${note}`;
       } else {
         totalLabel.textContent = '';
       }
