@@ -28,6 +28,7 @@
     .btn-secondary{background:#fff;color:var(--navy);border:1.5px solid var(--navy)}
     .btn-secondary:hover{border-color:var(--orange);color:#c75e00}
     .your-score-note{background:#fff7ec;border-left:4px solid var(--orange);border-radius:8px;padding:10px 12px;font-size:13px;line-height:1.5;color:var(--ink);margin:0 0 14px}
+    .target-explainer{background:#f3f7fb;border-left:4px solid var(--navy2);border-radius:8px;padding:10px 12px;font-size:13px;line-height:1.6;color:var(--ink);margin:0 0 14px}
     .mode-toggle{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
     .mode-btn{border:1.5px solid var(--line);background:#fff;color:var(--muted);border-radius:999px;padding:8px 14px;font-size:12.5px;font-weight:800;cursor:pointer}
     .mode-btn.active{border-color:var(--navy);color:var(--navy);background:var(--cream)}
@@ -171,6 +172,16 @@
 
     <div class="card" id="target-card" style="display:none;">
       <h2>4. What do I need on the rest?</h2>
+      <p class="target-explainer">
+        Your final grade is a <strong>weighted average</strong> — each category counts toward
+        it based on its weight, not equally. So a 60% on a category worth 5% barely moves your
+        grade, while a 60% on a category worth 40% moves it a lot. Here's the idea: every
+        category you've already entered a score for has already "banked" some points toward
+        your final grade. Whatever's left of your final grade is riding entirely on the
+        categories you haven't scored yet — so to hit your goal, you need to know what average
+        you'd need across just those remaining categories. That's what this section figures
+        out for you.
+      </p>
       <div class="target-row">
         <label for="target-input" style="font-size:13px;color:#6b7a99;">I want an overall grade of</label>
         <input type="number" id="target-input" placeholder="90" min="0" max="100" step="0.1">
@@ -419,23 +430,42 @@
       const scored = rows.filter(r => r.score !== null && !isNaN(r.score));
       const remaining = rows.filter(r => r.score === null || isNaN(r.score));
       const knownWeighted = scored.reduce((s, r) => s + r.weight * r.score, 0);
+      const scoredWeight = scored.reduce((s, r) => s + r.weight, 0);
       const remainingWeight = remaining.reduce((s, r) => s + r.weight, 0);
+      // Points already locked in, as a share of the FULL 100%-weight grade —
+      // e.g. a 90 on a 20%-weight category has banked 18 of your final 100
+      // possible points, regardless of what anything else scores.
+      const bankedPoints = knownWeighted / 100;
 
       if (remainingWeight === 0) {
         const finalGrade = totalWeight > 0 ? knownWeighted / totalWeight : 0;
         resultEl.className = finalGrade >= target ? 'target-result' : 'target-result bad';
-        resultEl.innerHTML = `Every category already has a score — your final grade is <strong>${finalGrade.toFixed(2)}%</strong>, nothing left to solve for.`;
+        resultEl.innerHTML = `Every category already has a score, so there's nothing left to solve for — your final grade is <strong>${finalGrade.toFixed(2)}%</strong>.`;
         return;
       }
 
       const needed = (target * totalWeight - knownWeighted) / remainingWeight;
-      resultEl.className = needed > 100 ? 'target-result bad' : (needed < 0 ? 'target-result' : 'target-result');
+      const remainingLabel = `${remaining.length} categor${remaining.length === 1 ? 'y' : 'ies'}`;
+      resultEl.className = needed > 100 ? 'target-result bad' : 'target-result';
       if (needed > 100) {
-        resultEl.innerHTML = `You'd need <strong>${needed.toFixed(2)} points</strong> (out of 100) on the remaining ${remaining.length} categor${remaining.length === 1 ? 'y' : 'ies'} — that's over 100, so a ${target}% overall isn't reachable from here.`;
+        resultEl.innerHTML =
+          `<strong>Not reachable from here.</strong> You've banked ${bankedPoints.toFixed(1)} out of your final 100 points ` +
+          `from the ${scored.length} categor${scored.length === 1 ? 'y' : 'ies'} you've scored so far (${scoredWeight.toFixed(1)}% of your grade). ` +
+          `That leaves ${remainingWeight.toFixed(1)}% of your grade riding on the ${remainingLabel} you haven't scored yet — ` +
+          `and to reach ${target}% overall, you'd need to average <strong>${needed.toFixed(2)} points</strong> (out of 100) across ` +
+          `those, which is over 100. A ${target}% overall isn't possible anymore given your current scores — figure out the highest overall grade actually within reach instead.`;
       } else if (needed < 0) {
-        resultEl.innerHTML = `You've already clinched a ${target}% overall — even a 0 on what's left keeps you above it.`;
+        resultEl.innerHTML =
+          `<strong>Already locked in.</strong> You've banked ${bankedPoints.toFixed(1)} out of your final 100 points ` +
+          `from the ${scored.length} categor${scored.length === 1 ? 'y' : 'ies'} you've scored so far — that alone guarantees at least ${target}% overall, ` +
+          `so even a 0 on everything else in the ${remainingLabel} left (${remainingWeight.toFixed(1)}% of your grade) won't drop you below it.`;
       } else {
-        resultEl.innerHTML = `You need an average of <strong>${needed.toFixed(2)} points</strong> (out of 100) across the remaining ${remaining.length} categor${remaining.length === 1 ? 'y' : 'ies'} (${remainingWeight.toFixed(1)}% of the total weight) to reach ${target}% overall.`;
+        resultEl.innerHTML =
+          `You've banked ${bankedPoints.toFixed(1)} out of your final 100 points so far, from the ${scored.length} ` +
+          `categor${scored.length === 1 ? 'y' : 'ies'} you've already scored (${scoredWeight.toFixed(1)}% of your grade). ` +
+          `That leaves ${remainingWeight.toFixed(1)}% of your grade riding on the ${remainingLabel} you haven't scored yet. ` +
+          `To land at ${target}% overall, you need to average <strong>${needed.toFixed(2)} points</strong> (out of 100) across ` +
+          `just those remaining categories — not across everything, just what's left.`;
       }
     }
 

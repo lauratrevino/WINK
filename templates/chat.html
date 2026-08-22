@@ -43,6 +43,7 @@
 
       <div class="sidebar-section">
         <h3 style="text-align:center;">Try Asking</h3>
+        <p style="text-align:center;font-size:11px;color:rgba(255,255,255,0.55);margin:-8px 0 10px;">(Click on Question)</p>
         <button class="prompt-btn" onclick="setPrompt('I feel overwhelmed! Where do I start?')">😮‍💨 I feel overwhelmed! Where do I start?</button>
         <button class="prompt-btn" onclick="setPrompt('How can I keep up with all of these assignments??')">📚 How can I keep up with all these assignments??</button>
         <button class="prompt-btn" onclick="setPrompt('My financial aid has been delayed and I\'m broke.')">💸 My financial aid has been delayed and I'm broke.</button>
@@ -68,7 +69,7 @@
         <button class="toolbar-btn" id="read-aloud-btn" onclick="readLatestAnswerAloud()">🔊 Read latest answer</button>
         <select class="toolbar-btn" id="voice-select" aria-label="Voice for read aloud" onchange="saveVoiceChoice()" style="display:none;"></select>
       </div>
-      <div class="chat-ai-warning">⚠️ This program is a research project. All questions, answers, and information entered into WINK are visible to your instructor and stored in the program. See the <a href="/privacy" target="_blank" rel="noopener" style="color:#6b4a1a;font-weight:700;text-decoration:underline;">Privacy Policy</a> for more information.</div>
+      <div class="chat-ai-warning">⚠️ This program is a research project. All questions, answers, and information entered into WINK are visible to your instructor and stored in the program. Your grades are NOT influenced by whether or not you use the program. See the <a href="/privacy" target="_blank" rel="noopener" style="color:#6b4a1a;font-weight:700;text-decoration:underline;">Privacy Policy</a> for more information.</div>
       <div class="messages-wrap" id="messages" role="log" aria-live="polite" aria-atomic="false" aria-relevant="additions">
 
         <div class="welcome-msg" id="welcome">
@@ -704,7 +705,7 @@
           if (m.role !== 'user' && bubble) {
             resolvePhotoMarkers(bubble);
             resolveDiagramMarkers(bubble);
-            addFeedbackButtons(bubble.parentElement, currentConversationId, i);
+            addFeedbackButtons(bubble, currentConversationId, i);
           }
         });
         setToolbarEnabled(true);
@@ -882,7 +883,7 @@
         messages.push({ role: 'assistant', content: fullText });
         resolvePhotoMarkers(bubble);
         resolveDiagramMarkers(bubble);
-        addFeedbackButtons(div, currentConversationId, messages.length - 1);
+        addFeedbackButtons(bubble, currentConversationId, messages.length - 1);
         setToolbarEnabled(true);
         if (isNewConversation) loadConversationList();
 

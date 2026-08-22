@@ -40,6 +40,33 @@ def test_hash_algorithm_matches_published_csp_example():
     assert _hash("doSomething();") == "RFWPLDbv2BY+rCkDzsE+0fr8ylGr2R2faWMhq4lfEQc="
 
 
+def test_hash_of_escaped_apostrophe_matches_the_literal_attribute_text():
+    # Regression test: an onclick like setPrompt('I\'m homesick....') was
+    # silently broken by CSP for a while because _hash() used to strip the
+    # backslash before hashing, computing the hash of a DIFFERENT string
+    # than the one the browser actually hashes for a hash-matched inline
+    # event handler. The browser only ever HTML-entity-decodes an
+    # attribute's value before that check — it never does JS-string
+    # backslash-unescaping at that stage — so _hash() must match that
+    # exactly: hash the literal text, backslash included.
+    from wink.csp_hashes import _hash
+    raw = r"setPrompt('I\'m homesick....')"
+    assert _hash(raw) == base64.b64encode(hashlib.sha256(raw.encode()).digest()).decode()
+
+
+def test_escaped_apostrophe_onclick_is_actually_included_in_computed_hashes():
+    from wink.csp_hashes import compute_hashes
+    template_dir = Path(__file__).resolve().parent.parent / "templates"
+    script_hashes, _ = compute_hashes(template_dir)
+    raw = r"setPrompt('I\'m homesick....')"
+    expected = base64.b64encode(hashlib.sha256(raw.encode()).digest()).decode()
+    assert expected in script_hashes, (
+        "an onclick handler containing an escaped apostrophe must be hashed "
+        "using its literal (backslash-included) text, or the browser will "
+        "silently reject it under CSP"
+    )
+
+
 def test_served_csp_header_contains_computed_hashes(client):
     resp = client.get("/health")
     csp = resp.headers.get("Content-Security-Policy", "")

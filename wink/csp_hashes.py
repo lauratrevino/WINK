@@ -14,7 +14,19 @@ _STYLE_PATTERN = re.compile(r'style=\\?"((?:[^"\\]|\\.)*)\\?"')
 
 
 def _hash(text):
-    decoded = html.unescape(text).replace('\\"', '"').replace("\\'", "'")
+    # Only HTML-entity decoding here (&quot;, &#39;, etc.) — that's the one
+    # transformation the browser itself applies to an attribute's value
+    # before computing its own CSP hash for a hash-matched inline event
+    # handler. Backslash-unescaping (\' -> ', \" -> ") used to happen here
+    # too, but that's a JS-string-literal concept the browser doesn't apply
+    # until it actually parses the code as JavaScript — which happens
+    # AFTER the CSP hash check, not before. Stripping those backslashes
+    # meant this function computed the hash of a different string than
+    # the one the browser hashes for real, so any onclick containing an
+    # escaped quote (e.g. setPrompt('...I\'m broke.')) got silently
+    # blocked by CSP — the hash here never matched what the browser
+    # expected, so the button did nothing when clicked.
+    decoded = html.unescape(text)
     return base64.b64encode(hashlib.sha256(decoded.encode()).digest()).decode()
 
 
