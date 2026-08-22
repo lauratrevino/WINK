@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/calendar.css') }}">
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <style nonce="{{ csp_nonce() }}">
-    .cal-instructions { margin: 4px 0 0; color: #6b7a99; font-size: 14px; }
+    .cal-instructions { margin: 4px 0 0; color: #6b7a99; font-size: 14px; font-weight: bold; text-align: center; }
     .day-item-actions button[data-action="restore-original"] { color: #002855; }
     .day-item-actions button[data-action="delete-detected"] { color: #b91c1c; }
   </style>
@@ -21,7 +21,7 @@
   <div class="page-shell">
     <div class="cal-header">
       <h1>📅 Master Calendar</h1>
-      <p class="cal-instructions">Click on an item for more detail.</p>
+      <p class="cal-instructions">Click on an item for more detail.<br>Check item when completed.</p>
       <div class="cal-nav">
         <button class="cal-nav-btn" onclick="changeMonth(-1)" aria-label="Previous month">‹</button>
         <div class="cal-month-label" id="month-label"></div>

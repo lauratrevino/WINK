@@ -67,6 +67,18 @@ def ensure_course_colors(student_id, course_names):
 
 
 def release_color_if_course_gone(student_id, course_name):
+    """Back-compat wrapper — use purge_course_data_if_gone() for new callers."""
+    purge_course_data_if_gone(student_id, course_name)
+
+
+def purge_course_data_if_gone(student_id, course_name):
+    """When the last document for a course is deleted, this clears out every
+    other piece of data still tagged with that course name for this student
+    (color assignment, deadlines, practice questions) so nothing orphaned is
+    left behind to show up on pages like Progress that don't cross-check the
+    documents table. Only acts when NO document still references the course —
+    if another document for the same course exists, this is a no-op, since
+    the course itself hasn't actually gone away."""
     if not config.DB_URL:
         return
     normalized = _normalize(course_name)
@@ -84,5 +96,13 @@ def release_color_if_course_gone(student_id, course_name):
                 "DELETE FROM course_colors WHERE student_id=%s AND course_normalized=%s",
                 (student_id, normalized),
             )
+            cur.execute(
+                "DELETE FROM deadlines WHERE student_id=%s AND lower(trim(course))=%s AND is_personal IS NOT TRUE",
+                (student_id, normalized),
+            )
+            cur.execute(
+                "DELETE FROM practice_questions WHERE student_id=%s AND lower(trim(course))=%s",
+                (student_id, normalized),
+            )
     except Exception as e:
-        log_error("services.course_colors.release_color_if_course_gone", e)
+        log_error("services.course_colors.purge_course_data_if_gone", e)
