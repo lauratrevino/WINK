@@ -252,7 +252,15 @@
       selectedCourse = (selectedCourse === course) ? null : course;
       renderLegend();
       renderCalendar();
-      if (currentPanelDate) openDayPanel(currentPanelDate);
+      // currentPanelDate stays set to whatever day was last opened even
+      // after the panel is closed (closeDayPanel() never clears it), so
+      // this must check whether the panel is ACTUALLY open right now —
+      // otherwise picking a class from the legend would reopen a leftover
+      // day popup the student had already closed, which looked exactly
+      // like clicking a class name popping open an unrelated date/assignment.
+      if (currentPanelDate && document.getElementById('day-panel').classList.contains('open')) {
+        openDayPanel(currentPanelDate);
+      }
       if (document.getElementById('semester-view-modal').classList.contains('open')) renderSemesterView();
     }
 
@@ -751,6 +759,14 @@
       document.getElementById('day-panel').classList.remove('open');
       document.removeEventListener('keydown', handleDayPanelKeydown);
       if (dayPanelLastFocus) { dayPanelLastFocus.focus(); dayPanelLastFocus = null; }
+      // Without this, currentPanelDate kept pointing at whatever day was
+      // last viewed even after the panel was closed, so anything that
+      // checked "if (currentPanelDate)" to mean "the panel is open" — e.g.
+      // selecting a class from the legend, or checking off an item's
+      // checkbox directly from the month grid — would unexpectedly pop
+      // the day panel back open for a day the student had already closed
+      // and moved on from.
+      currentPanelDate = null;
     }
 
     function handleDayPanelKeydown(e) {
