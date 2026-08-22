@@ -2819,8 +2819,11 @@
       if (!form || !overlay || !termsCheck || !researchCheck || !agreeBtn) return;
 
       let approved = false;
+      let submitting = false;
+      const agreeBtnDefaultText = agreeBtn.textContent;
 
       function updateAgreeButton() {
+        if (submitting) return; // don't re-enable mid-submit
         agreeBtn.disabled = !(termsCheck.checked && researchCheck.checked);
       }
 
@@ -2836,10 +2839,49 @@
       });
 
       agreeBtn.addEventListener('click', function() {
+        if (submitting) return; // guard against double-clicks firing two submissions
         if (!(termsCheck.checked && researchCheck.checked)) return;
+
+        submitting = true;
         approved = true;
+        agreeBtn.disabled = true;
+        agreeBtn.textContent = 'Creating your account…';
         overlay.classList.remove('open');
-        form.requestSubmit();
+
+        // Some older browsers (notably Safari before version 16) don't
+        // support HTMLFormElement.requestSubmit(), and calling it there
+        // throws immediately — silently, since nothing here was catching
+        // it. That left the modal closed, the typed values still sitting
+        // in the (never-submitted) form, and no way to tell whether
+        // anything had happened. Wrapping it, with a real fallback, means
+        // every path either submits the form or visibly tells the user
+        // it didn't.
+        try {
+          if (typeof form.requestSubmit === 'function') {
+            form.requestSubmit();
+          } else {
+            form.submit();
+          }
+        } catch (err) {
+          submitting = false;
+          approved = false;
+          agreeBtn.disabled = false;
+          agreeBtn.textContent = agreeBtnDefaultText;
+          alert('Something went wrong submitting your information. Please try again, or use a different browser if this keeps happening.');
+        }
+
+        // Safety net: if the page hasn't navigated away within a few
+        // seconds (e.g. a network stall), restore the button instead of
+        // leaving the student staring at a permanently disabled,
+        // "Creating your account…" button with no way to retry.
+        setTimeout(function() {
+          if (submitting) {
+            submitting = false;
+            approved = false;
+            agreeBtn.disabled = !(termsCheck.checked && researchCheck.checked);
+            agreeBtn.textContent = agreeBtnDefaultText;
+          }
+        }, 8000);
       });
 
       cancelBtn.addEventListener('click', function() {

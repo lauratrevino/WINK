@@ -5,6 +5,8 @@ import time
 from collections import defaultdict, deque
 from functools import wraps
 
+import psycopg2
+from psycopg2 import pool as _pg_pool
 from flask import g, jsonify, redirect, session, url_for
 
 logger = logging.getLogger(__name__)
@@ -13,11 +15,27 @@ from . import config
 from .extensions import get_db
 
 
+class AuthCheckUnavailable(Exception):
+    """Raised by current_student() when login status genuinely couldn't be
+    determined because of a transient infrastructure problem (the DB
+    connection pool momentarily exhausted, a dropped connection, etc) —
+    NOT because the session is actually invalid. Callers must not treat
+    this the same as "not logged in": doing so previously meant a
+    legitimately authenticated request got a 401 purely because of brief
+    pool contention under load, telling a real, logged-in student they
+    weren't logged in when the truth is just "we couldn't check yet."
+    """
+    pass
+
+
 def current_student():
     if "sid" not in session or not config.DB_URL:
         return None
     try:
         conn = get_db(); cur = conn.cursor()
+    except (_pg_pool.PoolError, psycopg2.OperationalError) as e:
+        raise AuthCheckUnavailable("database temporarily unavailable") from e
+    try:
         cur.execute("SELECT * FROM students WHERE id=%s", (session["sid"],))
         s = cur.fetchone(); cur.close()
         if s and s.get("is_active") is False:
@@ -54,10 +72,22 @@ def current_student():
         return None
 
 
+def _auth_unavailable_json():
+    return jsonify({"error": "We're experiencing heavy load right now — please try again in a moment."}), 503
+
+
+def _auth_unavailable_page():
+    return ("<h2>Please try again</h2><p>We're experiencing heavy load right now — "
+            "please wait a moment and reload the page.</p>", 503)
+
+
 def login_required(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
-        s = current_student()
+        try:
+            s = current_student()
+        except AuthCheckUnavailable:
+            return _auth_unavailable_json()
         if not s:
             return jsonify({"error": "Not logged in"}), 401
         g.student = s
@@ -68,7 +98,10 @@ def login_required(f):
 def page_login_required(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
-        s = current_student()
+        try:
+            s = current_student()
+        except AuthCheckUnavailable:
+            return _auth_unavailable_page()
         if not s:
             return redirect(url_for("auth.login"))
         g.student = s
@@ -79,7 +112,10 @@ def page_login_required(f):
 def admin_required(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
-        s = current_student()
+        try:
+            s = current_student()
+        except AuthCheckUnavailable:
+            return _auth_unavailable_json()
         if not s:
             return jsonify({"error": "Not logged in"}), 401
         if s["email"].lower() != config.ADMIN_EMAIL:
@@ -94,7 +130,10 @@ def admin_required(f):
 def admin_page_required(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
-        s = current_student()
+        try:
+            s = current_student()
+        except AuthCheckUnavailable:
+            return _auth_unavailable_page()
         if not s:
             return redirect(url_for("auth.login"))
         if s["email"].lower() != config.ADMIN_EMAIL:

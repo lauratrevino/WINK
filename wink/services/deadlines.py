@@ -25,19 +25,38 @@ def extract_deadlines(content, today=None, student_id=None):
     try:
         resp = anthropic_client.messages.create(
             model=config.CHAT_MODEL,
-            max_tokens=4096,
+            max_tokens=8192,
             system=(
-                "Extract assignment, exam, and other academic deadlines from the "
-                "document text the user provides. Respond with ONLY a JSON array "
-                "(no prose, no markdown fences) of objects shaped like "
-                '{"title": "...", "due_date": "YYYY-MM-DD", "source_snippet": "..."}. '
-                "source_snippet must be the actual sentence (or short span, under 200 "
-                "characters) from the document that the title/due_date were read from — "
-                "never paraphrase or invent it; copy it from the text given to you. "
+                "Extract EVERY dated schedule entry from the document text the user "
+                "provides — read the whole document, including every week/session row "
+                "of any course schedule or calendar table, not just a single 'due dates' "
+                "or 'assignments' column. This includes, but is not limited to:\n"
+                "- Assignments, exams, quizzes, projects, and other graded deliverables\n"
+                "- Recurring per-session/per-week schedule entries such as topics, "
+                "themes, focus areas, discussion questions, readings, labs, or "
+                "'question of the day' style entries tied to a specific class date — "
+                "even when nothing is formally 'due' on that date, the topic/theme/focus "
+                "itself is a schedule entry to capture, using that session's date as its "
+                "due_date\n"
+                "- Any other named, dated item in a course schedule, however it's labeled\n"
+                "A single syllabus commonly has many such entries (dozens for a "
+                "full-semester weekly schedule) — extract all of them, do not stop early "
+                "or sample only a subset. If the same date has multiple distinct entries "
+                "(e.g., a topic AND a deliverable on the same day), include each as its "
+                "own separate object rather than merging them.\n"
+                "Respond with ONLY a JSON array (no prose, no markdown fences) of objects "
+                'shaped like {"title": "...", "due_date": "YYYY-MM-DD", "source_snippet": '
+                "\"...\"}. title should include the schedule column's label when it isn't "
+                "a plain assignment (e.g. \"Studio Focus: Cubism\", \"Question of the Day: "
+                "...\", \"Historical Problem: ...\") so the student can tell what kind of "
+                "entry it is. source_snippet must be the actual sentence (or short span, "
+                "under 200 characters) from the document that the title/due_date were "
+                "read from — never paraphrase or invent it; copy it from the text given "
+                "to you. "
                 f"Today's date is {today} — resolve relative or partial dates "
                 "(e.g. \"March 3\" with no year, or \"next Friday\") against it. "
-                "Skip anything without a specific date you can resolve. "
-                "If there are no clear deadlines, respond with []."
+                "Skip only entries with no specific date you can resolve. "
+                "If there are no clear dated entries, respond with []."
             ),
             messages=[{"role": "user", "content": content[:config.DEADLINE_EXTRACTION_MAX_CHARS]}],
         )
@@ -60,7 +79,14 @@ def extract_deadlines(content, today=None, student_id=None):
                     "due_date": due,
                     "source_snippet": str(it.get("source_snippet", "")).strip()[:200],
                 })
-        return out[:30]
+        # A full-semester weekly schedule (topics/themes/focus entries plus
+        # actual deliverables) commonly runs well past 30 items — the old cap
+        # here was silently dropping later-semester entries once a syllabus
+        # had more than 30 total dated items, which independently explained
+        # some of the scattered "missing" deliverables alongside the
+        # narrower-scope prompt issue above. 200 comfortably covers a
+        # semester's worth of entries while still bounding worst-case size.
+        return out[:200]
     except Exception as e:
         log_error("services.deadlines.extract_deadlines", e)
         return []

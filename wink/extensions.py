@@ -1,4 +1,5 @@
 import logging
+import time
 
 import httpx
 import anthropic as ac
@@ -84,7 +85,29 @@ def get_db():
     if getattr(g, "_db_conn", None) is not None:
         return g._db_conn
     if _db_pool:
-        conn = _db_pool.getconn()
+        # Under bursty concurrent load (many students chatting at once, each
+        # holding a connection for their pre-stream DB work), the pool can be
+        # momentarily fully checked out even though it's sized reasonably —
+        # other requests finish and call release_db() within milliseconds.
+        # getconn() raises PoolError immediately with no wait, so without
+        # this retry, a request arriving during that brief window fails
+        # outright instead of getting a connection a few dozen milliseconds
+        # later. This does NOT mask genuine, sustained exhaustion (a pool
+        # sized far too small, a stuck/leaked connection) — after ~0.5s of
+        # retrying, it still raises, same as before, just no longer on every
+        # momentary blip.
+        conn = None
+        last_err = None
+        for attempt in range(5):
+            try:
+                conn = _db_pool.getconn()
+                break
+            except _pg_pool.PoolError as e:
+                last_err = e
+                if attempt < 4:
+                    time.sleep(0.05 * (attempt + 1))
+        if conn is None:
+            raise last_err
     else:
         conn = psycopg2.connect(config.DB_URL, cursor_factory=RealDictCursor)
     g._db_conn = conn
