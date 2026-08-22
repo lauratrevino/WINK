@@ -45,16 +45,24 @@ class TestEmailVerificationGate:
         assert resp.status_code == 200
 
     def test_verified_student_can_chat_and_upload(self, client, app, monkeypatch):
+        import re
         import wink.blueprints.chat as chat_bp
-        from wink.extensions import get_db
+        import wink.blueprints.auth as auth_bp
+
+        # verification_token is stored hashed (same reasoning as
+        # password_resets.token — see auth.py) so, unlike before, it can't
+        # be read back out of the database directly; the real token only
+        # ever exists in the outgoing email, so capture it there instead of
+        # querying the DB for it.
+        sent_links = []
+        monkeypatch.setattr(auth_bp, "send_email",
+                             lambda to, subject, body: sent_links.append(body) or True)
 
         register_unverified(client, email="realverify@utep.edu")
-        with app.app_context():
-            conn = get_db(); cur = conn.cursor()
-            cur.execute("SELECT verification_token FROM students WHERE email=%s", ("realverify@utep.edu",))
-            token = cur.fetchone()["verification_token"]
-            cur.close()
-        assert token, "a real verification token should have been generated at registration"
+        assert sent_links, "a verification email should have been sent at registration"
+        match = re.search(r"/verify-email/([\w\-]+)", sent_links[0])
+        assert match, "verification email should contain a verify-email link"
+        token = match.group(1)
 
         verify_resp = client.get(f"/verify-email/{token}")
         assert verify_resp.status_code in (200, 302)

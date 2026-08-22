@@ -67,6 +67,14 @@ def current_student():
                 session.clear()
                 return None
         return dict(s) if s else None
+    except (psycopg2.OperationalError, psycopg2.InterfaceError, _pg_pool.PoolError) as e:
+        # Same reasoning as the connection-acquisition failure above: a DB
+        # error here means login status genuinely couldn't be determined,
+        # not that the student is actually logged out. Without this, a
+        # transient DB blip mid-query (dropped connection, statement
+        # timeout, etc.) would silently log out a real, authenticated
+        # student instead of surfacing as "try again."
+        raise AuthCheckUnavailable("database temporarily unavailable") from e
     except Exception:
         logger.error("current_student error", exc_info=True)
         return None

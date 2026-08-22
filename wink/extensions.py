@@ -236,6 +236,20 @@ def init_db():
         cur.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS research_consent_at TIMESTAMP")
         cur.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS research_consent_version TEXT")
         cur.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS account_deleted_at TIMESTAMP")
+        # first_generation was originally added only via Alembic migration
+        # c3f7a1d92b4e (see migrations/versions/) — mirrored here too so a
+        # fresh database relying on init_db() alone (a new test DB, a fresh
+        # local dev setup) doesn't break on registration with
+        # "column first_generation does not exist." Both paths are
+        # idempotent, so running both is safe.
+        cur.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS first_generation BOOLEAN NOT NULL DEFAULT FALSE")
+        # Same drift as first_generation above — timezone was only ever
+        # added via Alembic migration e2a9f31c7d05. Nullable, no default,
+        # matching that migration exactly: NULL means "we don't know this
+        # student's real timezone yet," resolved to config.APP_TIMEZONE by
+        # resolve_student_timezone() in wink/timeutil.py rather than baked
+        # into the schema.
+        cur.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS timezone TEXT")
         cur.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS anonymized_at TIMESTAMP")
         # Lets current_student() detect and invalidate sessions issued
         # before the most recent password change — without this, resetting

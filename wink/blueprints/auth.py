@@ -82,7 +82,8 @@ def register():
                              config.TERMS_VERSION, research_agree, config.TERMS_VERSION, first_generation, student_timezone))
                 new_id = cur.fetchone()["id"]
                 verify_token = secrets.token_urlsafe(32)
-                cur.execute("UPDATE students SET verification_token=%s WHERE id=%s", (verify_token, new_id))
+                verify_token_hash = hashlib.sha256(verify_token.encode()).hexdigest()
+                cur.execute("UPDATE students SET verification_token=%s WHERE id=%s", (verify_token_hash, new_id))
 
             # From here on, the account is fully created and functional — nothing
             # below this point should be able to turn a successful registration
@@ -231,8 +232,9 @@ def verify_email(token):
     if not config.DB_URL:
         return current_app.response_class("Database not configured.", mimetype="text/plain"), 500
     try:
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
         with db_cursor(commit=True) as cur:
-            cur.execute("SELECT id FROM students WHERE verification_token=%s", (token,))
+            cur.execute("SELECT id FROM students WHERE verification_token=%s", (token_hash,))
             row = cur.fetchone()
             if not row:
                 return current_app.response_class(
@@ -263,8 +265,9 @@ def resend_verification():
         return jsonify({"error": "Please wait a few minutes before requesting another email."}), 429
     try:
         token = secrets.token_urlsafe(32)
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
         with db_cursor(commit=True) as cur:
-            cur.execute("UPDATE students SET verification_token=%s WHERE id=%s", (token, s["id"]))
+            cur.execute("UPDATE students SET verification_token=%s WHERE id=%s", (token_hash, s["id"]))
         verify_link = url_for("auth.verify_email", token=token, _external=True)
         sent = send_email(s["email"], "Verify your WINK email address",
                    f"Hi {s['first_name']},\n\nPlease confirm your email address by visiting:\n{verify_link}\n\n— WINK")

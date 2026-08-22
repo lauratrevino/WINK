@@ -116,7 +116,7 @@ def upload_file():
             finally:
                 if os.path.exists(tmp_path):
                     try: os.remove(tmp_path)
-                    except Exception: pass
+                    except Exception as e: log_error("documents.upload.tmp_cleanup", e)
             content = content[:config.MAX_TEMP_DOC_CHARS]
             log_event(s["id"], "temp_file_used", {"name": file.filename, "chars": len(content)})
             return jsonify({
@@ -202,7 +202,7 @@ def upload_file():
                         old_fp = os.path.join(config.UPLOAD_FOLDER, str(s["id"]), existing["filename"])
                         if os.path.exists(old_fp):
                             try: os.remove(old_fp)
-                            except Exception: pass
+                            except Exception as e: log_error("documents.upload.replace_cleanup", e)
                         cur.execute("DELETE FROM documents WHERE id=%s", (existing["id"],))
                         replaced = True
                 store_document_chunks(new_doc_id, s["id"], s.get("university"), course, orig, content)
@@ -216,7 +216,7 @@ def upload_file():
             # here (the new insert already committed by that point).
             if os.path.exists(path) and new_doc_id is None:
                 try: os.remove(path)
-                except Exception: pass
+                except Exception as e: log_error("documents.upload.orphan_cleanup", e)
             raise
 
         deadlines_found = 0
@@ -379,7 +379,7 @@ def upload_global_document():
             # there's nothing to undo at that point.
             if os.path.exists(path) and new_doc_id is None:
                 try: os.remove(path)
-                except Exception: pass
+                except Exception as e: log_error("documents.upload_global.orphan_cleanup", e)
             raise
 
         # Only delete the OLD file from disk after the transaction above
@@ -390,7 +390,7 @@ def upload_global_document():
         # anything above failed, the old file was never touched at all.
         if old_fp and os.path.exists(old_fp):
             try: os.remove(old_fp)
-            except Exception: pass
+            except Exception as e: log_error("documents.upload_global.replace_cleanup", e)
 
         if new_doc_id and content and config.DB_URL:
             app_obj = current_app._get_current_object()
