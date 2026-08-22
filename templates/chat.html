@@ -504,7 +504,15 @@
         return;
       }
       if (!mermaidInitDone) {
-        mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'strict' });
+        // suppressErrorRendering: without this, a syntax error in the
+        // AI-generated diagram doesn't throw at all — mermaid.render()
+        // resolves normally with ITS OWN big "Syntax error in text /
+        // mermaid version ..." SVG (bomb icon included) as the returned
+        // svg string, so the catch block below never fires and that error
+        // graphic gets inserted straight into the chat. This flag makes a
+        // bad diagram actually reject/throw instead, so the existing
+        // catch below can show the small, graceful fallback message.
+        mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'strict', suppressErrorRendering: true });
         mermaidInitDone = true;
       }
       for (const el of pending) {
