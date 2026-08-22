@@ -62,6 +62,7 @@
 
 {% include "_nav.html" %}
 <script src="{{ url_for('static', filename='js/csrf-fetch.js') }}"></script>
+<script src="{{ url_for('static', filename='js/wink-ui.js') }}"></script>
 
 <div class="page-shell">
   <div class="wrapped-header">
@@ -111,11 +112,6 @@
 
 <script src="{{ url_for('static', filename='js/scroll-reset.js') }}"></script>
 <script nonce="{{ csp_nonce() }}">
-  function escapeHtml(str) {
-    const div = document.createElement('div');
-    div.textContent = str == null ? '' : String(str);
-    return div.innerHTML;
-  }
 
   async function loadWrapped() {
     const loading = document.getElementById('wrapped-loading');

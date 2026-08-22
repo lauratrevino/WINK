@@ -242,6 +242,7 @@
 </head>
 <body>
 <script src="{{ url_for('static', filename='js/scroll-reset.js') }}"></script>
+<script src="{{ url_for('static', filename='js/wink-ui.js') }}"></script>
   <div class="register-bg"></div>
   <div class="register-bg-overlay"></div>
   <a href="#register-form" class="skip-link">Skip to registration form</a>
@@ -2784,14 +2785,6 @@
   </div>
 
   <script nonce="{{ csp_nonce() }}">
-    function filterUniversityOptions(term, selectId) {
-      const select = document.getElementById(selectId);
-      const q = term.trim().toLowerCase();
-      Array.from(select.options).forEach(opt => {
-        if (!opt.value) return;
-        opt.hidden = !opt.text.toLowerCase().includes(q);
-      });
-    }
 
     (function setupPasswordToggle() {
       const btn = document.getElementById('toggle-password-btn');

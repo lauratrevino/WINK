@@ -175,10 +175,8 @@
   </div>
 
   <script src="{{ url_for('static', filename='js/csrf-fetch.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/wink-ui.js') }}"></script>
 <script nonce="{{ csp_nonce() }}">
-    function escapeHtml(text) {
-      return String(text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-    }
 
     // Scores are scratch-pad "what-if" numbers, not the real grading
 

@@ -66,11 +66,6 @@ def ensure_course_colors(student_id, course_names):
         return {}
 
 
-def release_color_if_course_gone(student_id, course_name):
-    """Back-compat wrapper — use purge_course_data_if_gone() for new callers."""
-    purge_course_data_if_gone(student_id, course_name)
-
-
 def purge_course_data_if_gone(student_id, course_name):
     """When the last document for a course is deleted, this clears out every
     other piece of data still tagged with that course name for this student

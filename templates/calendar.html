@@ -136,6 +136,7 @@
 
   <script src="{{ url_for('static', filename='js/csrf-fetch.js') }}"></script>
   <script src="{{ url_for('static', filename='js/course-colors.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/wink-ui.js') }}"></script>
 <script nonce="{{ csp_nonce() }}">
 
     const WINK_COURSE_COLORS = {{ course_colors | tojson }};
@@ -339,9 +340,6 @@
       applyPendingBackgrounds(wrap);
     }
 
-    function escapeHtml(text) {
-      return String(text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-    }
 
     // Semester View: the whole semester at once, as a row of actual mini
     // month calendars (weekday header + day grid, same shape as the full

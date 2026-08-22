@@ -176,12 +176,8 @@
   <div id="print-area"></div>
 
   <script src="{{ url_for('static', filename='js/csrf-fetch.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/wink-ui.js') }}"></script>
 <script nonce="{{ csp_nonce() }}">
-    function escapeHtml(str) {
-      const div = document.createElement('div');
-      div.textContent = str == null ? '' : String(str);
-      return div.innerHTML;
-    }
 
     const QTYPE_NOTES = {
       flashcard: 'Short front/back cards for quick recall — self-graded.',

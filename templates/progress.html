@@ -203,6 +203,7 @@
 {% include "_nav.html" %}
   <script src="{{ url_for('static', filename='js/scroll-reset.js') }}"></script>
   <script src="{{ url_for('static', filename='js/csrf-fetch.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/wink-ui.js') }}"></script>
 <main class="page-shell">
   <div class="progress-header">
     <div class="progress-eyebrow">Your Activity</div>
@@ -305,9 +306,6 @@
 </main>
 
 <script nonce="{{ csp_nonce() }}">
-function escapeHtml(s) {
-  return (s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
 
 // Ring circumference for r=52: 2 * PI * 52 ≈ 326.7 (matches the
 // stroke-dasharray already set in the markup above).
