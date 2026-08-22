@@ -64,6 +64,7 @@
         <span style="width:1px;height:20px;background:#dde3f0;margin:0 4px;"></span>
         <button class="toolbar-btn" id="read-aloud-btn" onclick="readLatestAnswerAloud()">🔊 Read latest answer</button>
       </div>
+      <div class="chat-ai-warning">⚠️ This program is a research project. All questions, answers, and information entered into WINK are visible to your instructor and stored in the program. See the <a href="/privacy" target="_blank" rel="noopener" style="color:#6b4a1a;font-weight:700;text-decoration:underline;">Privacy Policy</a> for more information.</div>
       <div class="messages-wrap" id="messages" role="log" aria-live="polite" aria-atomic="false" aria-relevant="additions">
 
         <div class="welcome-msg" id="welcome">
@@ -173,7 +174,14 @@
         btn.textContent = '🔊 Read latest answer';
         return;
       }
-      const winkMessages = document.querySelectorAll('.msg.wink .msg-bubble');
+      // Excludes #typing-indicator: it's a permanent ".msg wink" element
+      // that every real message is inserted BEFORE (see addMessage()'s
+      // insertBefore), so it's always last in the DOM. Without this
+      // exclusion, this always grabbed the typing indicator's bubble —
+      // which only ever contains three empty ".typing-dot" divs, no text —
+      // instead of the actual latest answer, which is why this silently
+      // "read" nothing no matter what WINK had actually said.
+      const winkMessages = document.querySelectorAll('.msg.wink:not(#typing-indicator) .msg-bubble');
       if (winkMessages.length === 0) return;
       const latest = winkMessages[winkMessages.length - 1];
       const utterance = new SpeechSynthesisUtterance(latest.textContent);

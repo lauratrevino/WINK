@@ -92,6 +92,18 @@
       display: flex; align-items: center; justify-content: flex-end; gap: 8px;
       padding: 10px 24px 0; flex-shrink: 0;
     }
+    /* Sits between .chat-toolbar and .messages-wrap — outside the only
+       scrolling region on this page (.messages-wrap has the sole
+       overflow-y:auto) — so this stays visible the entire chat session
+       without needing position:sticky/fixed of its own. */
+    .chat-ai-warning {
+      flex-shrink: 0;
+      margin: 8px 24px 0;
+      padding: 8px 14px;
+      background: #fff7ec; border: 1.5px solid #ffb15d; border-left: 4px solid #FF8200;
+      border-radius: 8px;
+      font-size: 12px; color: #6b4a1a; line-height: 1.5;
+    }
     .toolbar-btn {
       display: inline-flex; align-items: center; gap: 5px;
       font-size: 12px; font-weight: 600; color: #002855;
