@@ -12,7 +12,7 @@ from ..errors import log_error
 from ..extensions import generate_csrf_token, db_cursor
 from ..security import login_required, page_login_required, admin_required, file_signature_valid, rate_limited, verified_required
 from ..services.analytics import log_event
-from ..services.course_colors import ensure_course_colors, release_color_if_course_gone
+from ..services.course_colors import ensure_course_colors, purge_course_data_if_gone
 from ..services.deadlines import extract_deadlines, insert_deadlines
 from ..services.documents import (
     extract_text, get_docs, get_global_docs, group_docs_by_course,
@@ -255,7 +255,7 @@ def delete_file():
                     cur.execute("DELETE FROM documents WHERE id=%s", (doc_id,))
             if doc:
                 log_event(s["id"], "file_deleted", {"doc_id": doc_id})
-                release_color_if_course_gone(s["id"], doc["course"])
+                purge_course_data_if_gone(s["id"], doc["course"])
         invalidate_student_docs_cache(s["id"])
         return jsonify({"success": True, "docs": get_docs(s["id"])})
     except Exception as e:
