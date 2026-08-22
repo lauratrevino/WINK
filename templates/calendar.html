@@ -324,6 +324,15 @@
           </div>`;
         }).join('');
         const more = items.length > 3 ? `<div class="cal-more">+${items.length - 3} more</div>` : '';
+        // Mobile shows this dot row instead of the full chips (see the
+        // 720px media query in calendar.css) — a day cell that size can't
+        // fit readable chip text, but a colored dot per item (using each
+        // item's real course color, same as the desktop chips) is still
+        // enough to see at a glance that something's due and how much.
+        const dotItems = items.slice(0, 8);
+        const dots = dotItems.map(it => `<span class="cal-item-dot" data-bg="${itemColor(it)}" title="${escapeHtml(it.title)}"></span>`).join('');
+        const dotsOverflow = items.length > 8 ? `<span class="cal-item-dot-more">+${items.length - 8}</span>` : '';
+        const dotsRow = items.length ? `<div class="cal-item-dots">${dots}${dotsOverflow}</div>` : '';
         const classes = ['cal-day'];
         if (cell.otherMonth) classes.push('other-month');
         if (isToday) classes.push('today');
@@ -333,7 +342,8 @@
           interactiveAttrs = `data-date="${cell.dateStr}" tabindex="0" role="button" aria-label="${escapeHtml(label)}"`;
         }
         return `<div class="${classes.join(' ')}" ${interactiveAttrs}>
-          <div class="cal-day-num${items.length ? ' has-items' : ''}">${cell.day}</div>
+          <div class="cal-day-num">${cell.day}</div>
+          ${dotsRow}
           ${chips}${more}
         </div>`;
       }).join('');
@@ -785,6 +795,36 @@
       if (viewMonth > 11) { viewMonth = 0; viewYear++; }
       renderCalendar();
     }
+
+    // Swipe left/right on the calendar grid to move between months —
+    // mainly for mobile, where the prev/next arrow buttons are small and
+    // swiping is the more natural gesture. Only reacts to a mostly-
+    // horizontal drag (checked against the vertical distance) so it
+    // doesn't hijack an ordinary vertical page scroll that happens to
+    // start on the grid, and requires a minimum distance so a tap or a
+    // small wobble doesn't get misread as a swipe.
+    (function setupCalendarSwipe() {
+      const grid = document.querySelector('.cal-grid');
+      if (!grid) return;
+      const MIN_SWIPE_PX = 50;
+      let startX = 0, startY = 0, tracking = false;
+
+      grid.addEventListener('touchstart', e => {
+        if (e.touches.length !== 1) return;
+        startX = e.touches[0].clientX;
+        startY = e.touches[0].clientY;
+        tracking = true;
+      }, { passive: true });
+
+      grid.addEventListener('touchend', e => {
+        if (!tracking) return;
+        tracking = false;
+        const dx = e.changedTouches[0].clientX - startX;
+        const dy = e.changedTouches[0].clientY - startY;
+        if (Math.abs(dx) < MIN_SWIPE_PX || Math.abs(dx) < Math.abs(dy)) return;
+        changeMonth(dx < 0 ? 1 : -1);
+      }, { passive: true });
+    })();
 
     function toggleRecurrenceFields(show) {
       document.getElementById('ai-recurrence-fields').style.display = show ? 'block' : 'none';

@@ -81,6 +81,7 @@
     }
     .cal-chip-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .cal-more { font-size: 10px; color: #6b7a99; font-weight: 600; padding-left: 2px; }
+    .cal-item-dots { display: none; }
 
     .day-panel {
       display: none; position: fixed; inset: 0; background: rgba(0,20,50,0.45);
@@ -156,7 +157,16 @@
     @media (max-width: 720px) {
       .cal-day { min-height: 68px; }
       .cal-chip { display: none; }
-      .cal-day-num.has-items::after { content: '•'; color: #FF8200; margin-left: 3px; }
+      .cal-item-dots {
+        display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px;
+      }
+      .cal-item-dot {
+        width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+        box-shadow: 0 0 0 1px rgba(0,0,0,0.08);
+      }
+      .cal-item-dot-more {
+        font-size: 10px; font-weight: 800; color: #6b7a99; line-height: 10px;
+      }
     }
 
     .cal-add-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }

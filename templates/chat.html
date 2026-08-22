@@ -43,11 +43,11 @@
 
       <div class="sidebar-section">
         <h3 style="text-align:center;">Try Asking</h3>
-        <button class="prompt-btn" onclick="setPrompt('I feel really overwhelmed and behind already. Where do I even start?')">😮‍💨 I feel overwhelmed — where do I start?</button>
-        <button class="prompt-btn" onclick="setPrompt('I\'m scared I\'m not smart enough to be here. Is that normal?')">😟 Am I smart enough to be here?</button>
-        <button class="prompt-btn" onclick="setPrompt('I don\'t really know anyone here yet and I feel pretty lonely. What can I do?')">🙁 I feel lonely — what can I do?</button>
-        <button class="prompt-btn" onclick="setPrompt('I\'m anxious about failing a class. What should I do if I\'m struggling?')">😰 I'm scared of failing — help</button>
-        <button class="prompt-btn" onclick="setPrompt('How do I deal with homesickness and missing my family?')">🏠 I'm homesick — any advice?</button>
+        <button class="prompt-btn" onclick="setPrompt('I feel overwhelmed! Where do I start?')">😮‍💨 I feel overwhelmed! Where do I start?</button>
+        <button class="prompt-btn" onclick="setPrompt('How can I keep up with all of these assignments??')">📚 How can I keep up with all these assignments??</button>
+        <button class="prompt-btn" onclick="setPrompt('My financial aid has been delayed and I\'m broke.')">💸 My financial aid has been delayed and I'm broke.</button>
+        <button class="prompt-btn" onclick="setPrompt('How can using WINK improve my grades?')">📈 How can using WINK improve my grades?</button>
+        <button class="prompt-btn" onclick="setPrompt('I\'m homesick....')">🏠 I'm homesick....</button>
       </div>
 
       <div class="sidebar-section" style="margin-top: auto; border-bottom: none;">
@@ -61,6 +61,9 @@
         <button class="toolbar-btn" id="mobile-sidebar-btn" onclick="toggleMobileSidebar()" style="display:none;">☰ Conversations</button>
         <button class="toolbar-btn" id="export-btn" onclick="exportConversation()" disabled>⬇ Download</button>
         <button class="toolbar-btn" id="share-btn" onclick="shareConversation()" disabled>🔗 Share</button>
+        <span style="width:1px;height:20px;background:#dde3f0;margin:0 4px;"></span>
+        <button class="toolbar-btn" id="text-size-down-btn" onclick="adjustTextSize(-1)" aria-label="Decrease text size" title="Decrease text size">A−</button>
+        <button class="toolbar-btn" id="text-size-up-btn" onclick="adjustTextSize(1)" aria-label="Increase text size" title="Increase text size">A+</button>
         <span style="width:1px;height:20px;background:#dde3f0;margin:0 4px;"></span>
         <button class="toolbar-btn" id="read-aloud-btn" onclick="readLatestAnswerAloud()">🔊 Read latest answer</button>
         <select class="toolbar-btn" id="voice-select" aria-label="Voice for read aloud" onchange="saveVoiceChoice()" style="display:none;"></select>
