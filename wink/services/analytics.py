@@ -6,7 +6,7 @@ from werkzeug.security import generate_password_hash
 
 from .. import config
 from ..errors import log_error
-from ..extensions import get_db
+from ..extensions import db_cursor
 from .pricing import estimate_cost_usd
 
 
@@ -14,12 +14,11 @@ def log_event(sid, etype, payload=None):
     if not config.DB_URL:
         return
     try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute(
-            "INSERT INTO events(student_id, event_type, payload) VALUES(%s, %s, %s)",
-            (sid, etype, json.dumps(payload or {}))
-        )
-        conn.commit(); cur.close()
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "INSERT INTO events(student_id, event_type, payload) VALUES(%s, %s, %s)",
+                (sid, etype, json.dumps(payload or {}))
+            )
     except Exception as e:
         log_error("services.analytics.log_event", e)
 
@@ -28,19 +27,18 @@ def log_token_usage(student_id, call_type, model, usage):
     if not config.DB_URL or not usage:
         return
     try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute(
-            """INSERT INTO token_usage
-               (student_id, call_type, model, input_tokens, output_tokens,
-                cache_creation_input_tokens, cache_read_input_tokens)
-               VALUES (%s, %s, %s, %s, %s, %s, %s)""",
-            (student_id, call_type, model,
-             getattr(usage, "input_tokens", 0) or 0,
-             getattr(usage, "output_tokens", 0) or 0,
-             getattr(usage, "cache_creation_input_tokens", 0) or 0,
-             getattr(usage, "cache_read_input_tokens", 0) or 0),
-        )
-        conn.commit(); cur.close()
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                """INSERT INTO token_usage
+                   (student_id, call_type, model, input_tokens, output_tokens,
+                    cache_creation_input_tokens, cache_read_input_tokens)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                (student_id, call_type, model,
+                 getattr(usage, "input_tokens", 0) or 0,
+                 getattr(usage, "output_tokens", 0) or 0,
+                 getattr(usage, "cache_creation_input_tokens", 0) or 0,
+                 getattr(usage, "cache_read_input_tokens", 0) or 0),
+            )
     except Exception as e:
         log_error("services.analytics.log_token_usage", e)
 
@@ -88,12 +86,11 @@ def get_questions_this_month(sid):
     if not config.DB_URL:
         return 0
     try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("""SELECT COUNT(*) as n FROM events
-                       WHERE student_id=%s AND event_type='question_asked'
-                       AND created_at >= date_trunc('month', NOW())""", (sid,))
-        n = cur.fetchone()["n"]; cur.close()
-        return n
+        with db_cursor() as cur:
+            cur.execute("""SELECT COUNT(*) as n FROM events
+                           WHERE student_id=%s AND event_type='question_asked'
+                           AND created_at >= date_trunc('month', NOW())""", (sid,))
+            return cur.fetchone()["n"]
     except Exception as e:
         log_error("services.analytics.get_questions_this_month", e); return 0
 
@@ -102,40 +99,38 @@ def get_wrapped_stats(sid):
     if not config.DB_URL:
         return None
     try:
-        conn = get_db(); cur = conn.cursor()
+        with db_cursor() as cur:
+            cur.execute("SELECT COUNT(*) as n FROM events WHERE student_id=%s AND event_type='question_asked'", (sid,))
+            total_questions = cur.fetchone()["n"]
 
-        cur.execute("SELECT COUNT(*) as n FROM events WHERE student_id=%s AND event_type='question_asked'", (sid,))
-        total_questions = cur.fetchone()["n"]
+            cur.execute("""SELECT course, COUNT(*) as n FROM documents WHERE student_id=%s
+                           GROUP BY course ORDER BY n DESC""", (sid,))
+            courses = [dict(r) for r in cur.fetchall()]
 
-        cur.execute("""SELECT course, COUNT(*) as n FROM documents WHERE student_id=%s
-                       GROUP BY course ORDER BY n DESC""", (sid,))
-        courses = [dict(r) for r in cur.fetchall()]
+            cur.execute("""SELECT date_trunc('week', created_at) as wk, COUNT(*) as n
+                           FROM events WHERE student_id=%s AND event_type='question_asked'
+                           GROUP BY wk ORDER BY n DESC LIMIT 1""", (sid,))
+            busiest = cur.fetchone()
+            busiest_week = {"week_start": busiest["wk"].date().isoformat(), "count": busiest["n"]} if busiest else None
 
-        cur.execute("""SELECT date_trunc('week', created_at) as wk, COUNT(*) as n
-                       FROM events WHERE student_id=%s AND event_type='question_asked'
-                       GROUP BY wk ORDER BY n DESC LIMIT 1""", (sid,))
-        busiest = cur.fetchone()
-        busiest_week = {"week_start": busiest["wk"].date().isoformat(), "count": busiest["n"]} if busiest else None
+            cur.execute("""SELECT to_char(created_at, 'Day') as dow, COUNT(*) as n
+                           FROM events WHERE student_id=%s AND event_type='question_asked'
+                           GROUP BY dow ORDER BY n DESC LIMIT 1""", (sid,))
+            top_day = cur.fetchone()
+            busiest_day_of_week = top_day["dow"].strip() if top_day else None
 
-        cur.execute("""SELECT to_char(created_at, 'Day') as dow, COUNT(*) as n
-                       FROM events WHERE student_id=%s AND event_type='question_asked'
-                       GROUP BY dow ORDER BY n DESC LIMIT 1""", (sid,))
-        top_day = cur.fetchone()
-        busiest_day_of_week = top_day["dow"].strip() if top_day else None
+            cur.execute("SELECT COUNT(*) as n FROM practice_questions WHERE student_id=%s AND correct_streak > 0", (sid,))
+            questions_mastered = cur.fetchone()["n"]
 
-        cur.execute("SELECT COUNT(*) as n FROM practice_questions WHERE student_id=%s AND correct_streak > 0", (sid,))
-        questions_mastered = cur.fetchone()["n"]
+            cur.execute("""SELECT DISTINCT created_at::date as d FROM events
+                           WHERE student_id=%s AND event_type='question_asked' ORDER BY d""", (sid,))
+            days = [r["d"] for r in cur.fetchall()]
+            longest_streak, current_streak, prev = 0, 0, None
+            for d in days:
+                current_streak = current_streak + 1 if prev is not None and (d - prev).days == 1 else 1
+                longest_streak = max(longest_streak, current_streak)
+                prev = d
 
-        cur.execute("""SELECT DISTINCT created_at::date as d FROM events
-                       WHERE student_id=%s AND event_type='question_asked' ORDER BY d""", (sid,))
-        days = [r["d"] for r in cur.fetchall()]
-        longest_streak, current_streak, prev = 0, 0, None
-        for d in days:
-            current_streak = current_streak + 1 if prev is not None and (d - prev).days == 1 else 1
-            longest_streak = max(longest_streak, current_streak)
-            prev = d
-
-        cur.close()
         return {
             "total_questions": total_questions,
             "courses": courses,
@@ -466,10 +461,5 @@ def anonymize_student_record(student_id):
     """
     if not config.DB_URL:
         return None
-    conn = get_db(); cur = conn.cursor()
-    label = _anonymize_student_sql(cur, student_id)
-    if label is None:
-        cur.close()
-        return None
-    conn.commit(); cur.close()
-    return label
+    with db_cursor(commit=True) as cur:
+        return _anonymize_student_sql(cur, student_id)

@@ -112,6 +112,10 @@
     }
     .toolbar-btn:hover { border-color: #FF8200; color: #FF8200; }
     .toolbar-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    select.toolbar-btn {
+      max-width: 180px; cursor: pointer;
+      background-image: none; /* avoid double-arrow with native select styling on some browsers */
+    }
 
     .prompt-btn {
       display: block; width: 100%;

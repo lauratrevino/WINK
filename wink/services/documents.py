@@ -6,7 +6,7 @@ from psycopg2.extras import execute_values
 
 from .. import config
 from ..errors import log_error
-from ..extensions import get_db
+from ..extensions import db_cursor
 from .retrieval import chunk_text, embed_texts, rank_chunks
 
 logger = logging.getLogger(__name__)
@@ -263,10 +263,9 @@ def get_docs(sid):
     if not config.DB_URL:
         return []
     try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("SELECT * FROM documents WHERE student_id=%s ORDER BY uploaded_at DESC", (sid,))
-        docs = [dict(r) for r in cur.fetchall()]; cur.close()
-        return docs
+        with db_cursor() as cur:
+            cur.execute("SELECT * FROM documents WHERE student_id=%s ORDER BY uploaded_at DESC", (sid,))
+            return [dict(r) for r in cur.fetchall()]
     except Exception as e:
         log_error("services.documents.get_docs", e); return []
 
@@ -300,26 +299,25 @@ def store_document_chunks(document_id, student_id, university, course, orig_name
         return
     embeddings = embed_texts(chunks, input_type="document")
     try:
-        conn = get_db(); cur = conn.cursor()
-        # One batched INSERT instead of one round-trip per chunk — a single
-        # large document can chunk into 50+ pieces, and every one of those
-        # was a separate network round-trip to the database before this.
-        rows = [
-            (document_id, student_id, university or "", i, chunk,
-             json.dumps(embeddings[i]) if embeddings and embeddings[i] is not None else None)
-            for i, chunk in enumerate(chunks)
-        ]
-        execute_values(
-            cur,
-            """INSERT INTO document_chunks
-               (document_id, student_id, university, chunk_index, content, embedding)
-               VALUES %s""",
-            rows,
-        )
-        # Clear any previous failure flag — e.g. a reupload/reprocess that
-        # succeeds this time around should self-heal the document's status.
-        cur.execute("UPDATE documents SET chunking_failed=FALSE WHERE id=%s", (document_id,))
-        conn.commit(); cur.close()
+        with db_cursor(commit=True) as cur:
+            # One batched INSERT instead of one round-trip per chunk — a single
+            # large document can chunk into 50+ pieces, and every one of those
+            # was a separate network round-trip to the database before this.
+            rows = [
+                (document_id, student_id, university or "", i, chunk,
+                 json.dumps(embeddings[i]) if embeddings and embeddings[i] is not None else None)
+                for i, chunk in enumerate(chunks)
+            ]
+            execute_values(
+                cur,
+                """INSERT INTO document_chunks
+                   (document_id, student_id, university, chunk_index, content, embedding)
+                   VALUES %s""",
+                rows,
+            )
+            # Clear any previous failure flag — e.g. a reupload/reprocess that
+            # succeeds this time around should self-heal the document's status.
+            cur.execute("UPDATE documents SET chunking_failed=FALSE WHERE id=%s", (document_id,))
     except Exception as e:
         log_error("services.documents.store_document_chunks", e, document_id=document_id)
         _mark_chunking_failed(document_id, str(e))
@@ -333,9 +331,8 @@ def _mark_chunking_failed(document_id, reason):
     if not config.DB_URL or not document_id:
         return
     try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("UPDATE documents SET chunking_failed=TRUE WHERE id=%s", (document_id,))
-        conn.commit(); cur.close()
+        with db_cursor(commit=True) as cur:
+            cur.execute("UPDATE documents SET chunking_failed=TRUE WHERE id=%s", (document_id,))
     except Exception as e:
         log_error("services.documents._mark_chunking_failed", e, document_id=document_id, reason=reason)
 
@@ -358,24 +355,24 @@ def get_student_chunks(sid, question=None):
     if not config.DB_URL:
         return []
     try:
-        conn = get_db(); cur = conn.cursor()
-        if question and question.strip():
-            cur.execute(
-                """SELECT content, embedding FROM document_chunks
-                   WHERE student_id=%s
-                   ORDER BY ts_rank(to_tsvector('english', content), plainto_tsquery('english', %s)) DESC,
-                            document_id, chunk_index
-                   LIMIT %s""",
-                (sid, question, config.RETRIEVAL_MAX_CANDIDATE_CHUNKS),
-            )
-        else:
-            cur.execute(
-                """SELECT content, embedding FROM document_chunks
-                   WHERE student_id=%s ORDER BY document_id, chunk_index
-                   LIMIT %s""",
-                (sid, config.RETRIEVAL_MAX_CANDIDATE_CHUNKS),
-            )
-        rows = cur.fetchall(); cur.close()
+        with db_cursor() as cur:
+            if question and question.strip():
+                cur.execute(
+                    """SELECT content, embedding FROM document_chunks
+                       WHERE student_id=%s
+                       ORDER BY ts_rank(to_tsvector('english', content), plainto_tsquery('english', %s)) DESC,
+                                document_id, chunk_index
+                       LIMIT %s""",
+                    (sid, question, config.RETRIEVAL_MAX_CANDIDATE_CHUNKS),
+                )
+            else:
+                cur.execute(
+                    """SELECT content, embedding FROM document_chunks
+                       WHERE student_id=%s ORDER BY document_id, chunk_index
+                       LIMIT %s""",
+                    (sid, config.RETRIEVAL_MAX_CANDIDATE_CHUNKS),
+                )
+            rows = cur.fetchall()
         return [{"content": r["content"], "embedding": json.loads(r["embedding"]) if r["embedding"] else None}
                 for r in rows]
     except Exception as e:
@@ -389,25 +386,25 @@ def get_global_chunks(university, question=None):
     if not config.DB_URL:
         return []
     try:
-        conn = get_db(); cur = conn.cursor()
-        if question and question.strip():
-            cur.execute(
-                """SELECT content, embedding FROM document_chunks
-                   WHERE student_id IS NULL AND (lower(university)=lower(%s) OR lower(university)='all')
-                   ORDER BY ts_rank(to_tsvector('english', content), plainto_tsquery('english', %s)) DESC,
-                            document_id, chunk_index
-                   LIMIT %s""",
-                (university or "", question, config.RETRIEVAL_MAX_CANDIDATE_CHUNKS),
-            )
-        else:
-            cur.execute(
-                """SELECT content, embedding FROM document_chunks
-                   WHERE student_id IS NULL AND (lower(university)=lower(%s) OR lower(university)='all')
-                   ORDER BY document_id, chunk_index
-                   LIMIT %s""",
-                (university or "", config.RETRIEVAL_MAX_CANDIDATE_CHUNKS),
-            )
-        rows = cur.fetchall(); cur.close()
+        with db_cursor() as cur:
+            if question and question.strip():
+                cur.execute(
+                    """SELECT content, embedding FROM document_chunks
+                       WHERE student_id IS NULL AND (lower(university)=lower(%s) OR lower(university)='all')
+                       ORDER BY ts_rank(to_tsvector('english', content), plainto_tsquery('english', %s)) DESC,
+                                document_id, chunk_index
+                       LIMIT %s""",
+                    (university or "", question, config.RETRIEVAL_MAX_CANDIDATE_CHUNKS),
+                )
+            else:
+                cur.execute(
+                    """SELECT content, embedding FROM document_chunks
+                       WHERE student_id IS NULL AND (lower(university)=lower(%s) OR lower(university)='all')
+                       ORDER BY document_id, chunk_index
+                       LIMIT %s""",
+                    (university or "", config.RETRIEVAL_MAX_CANDIDATE_CHUNKS),
+                )
+            rows = cur.fetchall()
         return [{"content": r["content"], "embedding": json.loads(r["embedding"]) if r["embedding"] else None}
                 for r in rows]
     except Exception as e:
@@ -520,16 +517,15 @@ def get_global_docs(university=None):
     if not config.DB_URL:
         return []
     try:
-        conn = get_db(); cur = conn.cursor()
-        if university:
-            cur.execute("""SELECT * FROM documents WHERE student_id IS NULL
-                           AND (lower(university)=lower(%s) OR lower(university)='all')
-                           ORDER BY uploaded_at DESC""",
-                        (university,))
-        else:
-            cur.execute("SELECT * FROM documents WHERE student_id IS NULL ORDER BY uploaded_at DESC")
-        docs = [dict(r) for r in cur.fetchall()]; cur.close()
-        return docs
+        with db_cursor() as cur:
+            if university:
+                cur.execute("""SELECT * FROM documents WHERE student_id IS NULL
+                               AND (lower(university)=lower(%s) OR lower(university)='all')
+                               ORDER BY uploaded_at DESC""",
+                            (university,))
+            else:
+                cur.execute("SELECT * FROM documents WHERE student_id IS NULL ORDER BY uploaded_at DESC")
+            return [dict(r) for r in cur.fetchall()]
     except Exception as e:
         log_error("services.documents.get_global_docs", e); return []
 
@@ -544,16 +540,16 @@ def get_global_docs_total_chars(university=None):
     if not config.DB_URL:
         return 0, 0
     try:
-        conn = get_db(); cur = conn.cursor()
-        if university:
-            cur.execute("""SELECT COALESCE(SUM(LENGTH(content)),0) as total_chars, COUNT(*) as n
-                           FROM documents WHERE student_id IS NULL
-                           AND (lower(university)=lower(%s) OR lower(university)='all')""",
-                        (university,))
-        else:
-            cur.execute("""SELECT COALESCE(SUM(LENGTH(content)),0) as total_chars, COUNT(*) as n
-                           FROM documents WHERE student_id IS NULL""")
-        row = cur.fetchone(); cur.close()
+        with db_cursor() as cur:
+            if university:
+                cur.execute("""SELECT COALESCE(SUM(LENGTH(content)),0) as total_chars, COUNT(*) as n
+                               FROM documents WHERE student_id IS NULL
+                               AND (lower(university)=lower(%s) OR lower(university)='all')""",
+                            (university,))
+            else:
+                cur.execute("""SELECT COALESCE(SUM(LENGTH(content)),0) as total_chars, COUNT(*) as n
+                               FROM documents WHERE student_id IS NULL""")
+            row = cur.fetchone()
         return (row["total_chars"], row["n"]) if row else (0, 0)
     except Exception as e:
         log_error("services.documents.get_global_docs_total_chars", e); return 0, 0
@@ -570,18 +566,17 @@ def get_global_doc_names(university=None):
     if not config.DB_URL:
         return []
     try:
-        conn = get_db(); cur = conn.cursor()
         limit = config.RETRIEVAL_MAX_CANDIDATE_CHUNKS * 4
-        if university:
-            cur.execute("""SELECT orig_name FROM documents WHERE student_id IS NULL
-                           AND (lower(university)=lower(%s) OR lower(university)='all')
-                           ORDER BY uploaded_at DESC LIMIT %s""",
-                        (university, limit))
-        else:
-            cur.execute("SELECT orig_name FROM documents WHERE student_id IS NULL ORDER BY uploaded_at DESC LIMIT %s",
-                        (limit,))
-        names = [r["orig_name"] for r in cur.fetchall()]; cur.close()
-        return names
+        with db_cursor() as cur:
+            if university:
+                cur.execute("""SELECT orig_name FROM documents WHERE student_id IS NULL
+                               AND (lower(university)=lower(%s) OR lower(university)='all')
+                               ORDER BY uploaded_at DESC LIMIT %s""",
+                            (university, limit))
+            else:
+                cur.execute("SELECT orig_name FROM documents WHERE student_id IS NULL ORDER BY uploaded_at DESC LIMIT %s",
+                            (limit,))
+            return [r["orig_name"] for r in cur.fetchall()]
     except Exception as e:
         log_error("services.documents.get_global_doc_names", e); return []
 

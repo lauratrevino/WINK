@@ -26,7 +26,7 @@ from cryptography.hazmat.primitives.asymmetric import padding
 
 from .. import config
 from ..errors import log_error
-from ..extensions import get_db
+from ..extensions import db_cursor
 
 logger = logging.getLogger(__name__)
 
@@ -104,12 +104,11 @@ def log_email_event(email, event_type, detail, message_id=None):
     if not config.DB_URL:
         return
     try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute(
-            "INSERT INTO email_events(email, event_type, detail, raw_message_id) VALUES(%s,%s,%s,%s)",
-            (email, event_type, detail, message_id),
-        )
-        conn.commit(); cur.close()
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "INSERT INTO email_events(email, event_type, detail, raw_message_id) VALUES(%s,%s,%s,%s)",
+                (email, event_type, detail, message_id),
+            )
     except Exception as e:
         log_error("services.ses_notifications.log_email_event", e)
 
@@ -118,12 +117,11 @@ def suppress_email(email, reason):
     if not config.DB_URL:
         return
     try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute(
-            "INSERT INTO email_suppressions(email, reason) VALUES(%s,%s) ON CONFLICT (email) DO NOTHING",
-            (email, reason),
-        )
-        conn.commit(); cur.close()
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "INSERT INTO email_suppressions(email, reason) VALUES(%s,%s) ON CONFLICT (email) DO NOTHING",
+                (email, reason),
+            )
         logger.info("Suppressed future email to %s (reason: %s)", email, reason)
     except Exception as e:
         log_error("services.ses_notifications.suppress_email", e)
@@ -133,10 +131,9 @@ def is_suppressed(email):
     if not config.DB_URL or not email:
         return False
     try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("SELECT 1 FROM email_suppressions WHERE email=%s", (email.strip().lower(),))
-        row = cur.fetchone(); cur.close()
-        return row is not None
+        with db_cursor() as cur:
+            cur.execute("SELECT 1 FROM email_suppressions WHERE email=%s", (email.strip().lower(),))
+            return cur.fetchone() is not None
     except Exception as e:
         log_error("services.ses_notifications.is_suppressed", e)
         return False

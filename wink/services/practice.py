@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo
 
 from .. import config
 from ..errors import log_error
-from ..extensions import anthropic_client, get_db
+from ..extensions import anthropic_client, db_cursor
 from .analytics import log_token_usage
 from .json_utils import parse_json_array, strip_json_fence
 
@@ -199,58 +199,69 @@ def generate_study_plan(course, material_text, quiz_results, student_id=None):
 _MAX_INTERVAL_DAYS = 60
 
 
-def schedule_next_review(current_interval_days, correct):
+def schedule_next_review(current_interval_days, correct, tz=None):
     if correct:
         new_interval = min(current_interval_days * 3, _MAX_INTERVAL_DAYS)
     else:
         new_interval = 1
-    local_today = datetime.now(ZoneInfo(config.APP_TIMEZONE)).date()
+    local_today = datetime.now(ZoneInfo(tz or config.APP_TIMEZONE)).date()
     next_review = local_today + timedelta(days=new_interval)
     return new_interval, next_review
 
 
-def store_practice_questions(student_id, course, questions, qtype="review"):
+def store_practice_questions(student_id, course, questions, qtype="review", tz=None):
     if not config.DB_URL or not questions:
         return questions
     try:
-        conn = get_db(); cur = conn.cursor()
-        stored = []
-        for q in questions:
-            options_json = json.dumps(q["options"]) if "options" in q else None
-            cur.execute("""INSERT INTO practice_questions
-                           (student_id, course, question, answer, explanation, qtype, options, correct_index)
-                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
-                        (student_id, course, q["question"], q.get("answer", ""), q.get("explanation", ""),
-                         qtype, options_json, q.get("correct_index")))
-            new_id = cur.fetchone()["id"]
-            stored.append({**q, "id": new_id, "qtype": qtype})
-        conn.commit(); cur.close()
-        return stored
+        # The next_review_date column defaults to Postgres's CURRENT_DATE,
+        # which is the server's own (UTC) clock — not the student's own
+        # timezone. get_due_questions() below correctly filters against
+        # that student's own local "today", so relying on that UTC
+        # default here meant a freshly created question's next_review_date
+        # could land a calendar day ahead of the student's actual current
+        # date for a large part of every day, making it silently NOT show
+        # up as due for review until the day after it was created — the
+        # same class of bug already fixed in extract_deadlines() and the
+        # progress-page activity charts. `tz` should be the student's own
+        # resolved timezone (see resolve_student_timezone() in
+        # wink/timeutil.py) — this falls back to config.APP_TIMEZONE only
+        # for callers that haven't been updated to pass one yet.
+        local_today = datetime.now(ZoneInfo(tz or config.APP_TIMEZONE)).date()
+        with db_cursor(commit=True) as cur:
+            stored = []
+            for q in questions:
+                options_json = json.dumps(q["options"]) if "options" in q else None
+                cur.execute("""INSERT INTO practice_questions
+                               (student_id, course, question, answer, explanation, qtype, options, correct_index, next_review_date)
+                               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
+                            (student_id, course, q["question"], q.get("answer", ""), q.get("explanation", ""),
+                             qtype, options_json, q.get("correct_index"), local_today))
+                new_id = cur.fetchone()["id"]
+                stored.append({**q, "id": new_id, "qtype": qtype})
+            return stored
     except Exception as e:
         log_error("services.practice.store_practice_questions", e)
         return questions
 
 
-def record_attempt(student_id, question_id, correct):
+def record_attempt(student_id, question_id, correct, tz=None):
     if not config.DB_URL:
         return None
     try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("SELECT interval_days FROM practice_questions WHERE id=%s AND student_id=%s",
-                    (question_id, student_id))
-        row = cur.fetchone()
-        if not row:
-            cur.close()
-            return None
-        new_interval, next_review = schedule_next_review(row["interval_days"], correct)
-        cur.execute("""UPDATE practice_questions
-                       SET interval_days=%s, next_review_date=%s, last_attempted_at=NOW(),
-                           correct_streak = CASE WHEN %s THEN correct_streak + 1 ELSE 0 END
-                       WHERE id=%s AND student_id=%s
-                       RETURNING id, interval_days, next_review_date, correct_streak""",
-                    (new_interval, next_review, correct, question_id, student_id))
-        updated = cur.fetchone()
-        conn.commit(); cur.close()
+        with db_cursor(commit=True) as cur:
+            cur.execute("SELECT interval_days FROM practice_questions WHERE id=%s AND student_id=%s",
+                        (question_id, student_id))
+            row = cur.fetchone()
+            if not row:
+                return None
+            new_interval, next_review = schedule_next_review(row["interval_days"], correct, tz=tz)
+            cur.execute("""UPDATE practice_questions
+                           SET interval_days=%s, next_review_date=%s, last_attempted_at=NOW(),
+                               correct_streak = CASE WHEN %s THEN correct_streak + 1 ELSE 0 END
+                           WHERE id=%s AND student_id=%s
+                           RETURNING id, interval_days, next_review_date, correct_streak""",
+                        (new_interval, next_review, correct, question_id, student_id))
+            updated = cur.fetchone()
         if updated:
             updated = dict(updated)
             updated["next_review_date"] = updated["next_review_date"].isoformat()
@@ -260,24 +271,24 @@ def record_attempt(student_id, question_id, correct):
         return None
 
 
-def get_due_questions(student_id, course=None, limit=20):
+def get_due_questions(student_id, course=None, limit=20, tz=None):
     if not config.DB_URL:
         return []
     try:
-        conn = get_db(); cur = conn.cursor()
         cols = "id, course, question, answer, explanation, correct_streak, next_review_date, qtype, options, correct_index"
-        if course:
-            cur.execute(f"""SELECT {cols}
-                           FROM practice_questions
-                           WHERE student_id=%s AND lower(course)=lower(%s) AND next_review_date <= (NOW() AT TIME ZONE %s)::date
-                           ORDER BY next_review_date ASC LIMIT %s""", (student_id, course, config.APP_TIMEZONE, limit))
-        else:
-            cur.execute(f"""SELECT {cols}
-                           FROM practice_questions
-                           WHERE student_id=%s AND next_review_date <= (NOW() AT TIME ZONE %s)::date
-                           ORDER BY next_review_date ASC LIMIT %s""", (student_id, config.APP_TIMEZONE, limit))
-        rows = [dict(r) for r in cur.fetchall()]
-        cur.close()
+        effective_tz = tz or config.APP_TIMEZONE
+        with db_cursor() as cur:
+            if course:
+                cur.execute(f"""SELECT {cols}
+                               FROM practice_questions
+                               WHERE student_id=%s AND lower(course)=lower(%s) AND next_review_date <= (NOW() AT TIME ZONE %s)::date
+                               ORDER BY next_review_date ASC LIMIT %s""", (student_id, course, effective_tz, limit))
+            else:
+                cur.execute(f"""SELECT {cols}
+                               FROM practice_questions
+                               WHERE student_id=%s AND next_review_date <= (NOW() AT TIME ZONE %s)::date
+                               ORDER BY next_review_date ASC LIMIT %s""", (student_id, effective_tz, limit))
+            rows = [dict(r) for r in cur.fetchall()]
         for r in rows:
             r["next_review_date"] = r["next_review_date"].isoformat()
             r["options"] = json.loads(r["options"]) if r.get("options") else None
@@ -287,28 +298,26 @@ def get_due_questions(student_id, course=None, limit=20):
         return []
 
 
-def grade_quiz_answer(student_id, question_id, selected_index):
+def grade_quiz_answer(student_id, question_id, selected_index, tz=None):
     if not config.DB_URL:
         return None
     try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("""SELECT interval_days, options, correct_index, explanation
-                       FROM practice_questions WHERE id=%s AND student_id=%s""",
-                    (question_id, student_id))
-        row = cur.fetchone()
-        if not row or row["correct_index"] is None or not row["options"]:
-            cur.close()
-            return None
-        correct_index = row["correct_index"]
-        options = json.loads(row["options"])
-        correct = (selected_index == correct_index)
-        new_interval, next_review = schedule_next_review(row["interval_days"], correct)
-        cur.execute("""UPDATE practice_questions
-                       SET interval_days=%s, next_review_date=%s, last_attempted_at=NOW(),
-                           correct_streak = CASE WHEN %s THEN correct_streak + 1 ELSE 0 END
-                       WHERE id=%s AND student_id=%s""",
-                    (new_interval, next_review, correct, question_id, student_id))
-        conn.commit(); cur.close()
+        with db_cursor(commit=True) as cur:
+            cur.execute("""SELECT interval_days, options, correct_index, explanation
+                           FROM practice_questions WHERE id=%s AND student_id=%s""",
+                        (question_id, student_id))
+            row = cur.fetchone()
+            if not row or row["correct_index"] is None or not row["options"]:
+                return None
+            correct_index = row["correct_index"]
+            options = json.loads(row["options"])
+            correct = (selected_index == correct_index)
+            new_interval, next_review = schedule_next_review(row["interval_days"], correct, tz=tz)
+            cur.execute("""UPDATE practice_questions
+                           SET interval_days=%s, next_review_date=%s, last_attempted_at=NOW(),
+                               correct_streak = CASE WHEN %s THEN correct_streak + 1 ELSE 0 END
+                           WHERE id=%s AND student_id=%s""",
+                        (new_interval, next_review, correct, question_id, student_id))
         return {
             "correct": correct,
             "selected_index": selected_index,

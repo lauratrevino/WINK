@@ -12,7 +12,7 @@ from flask import g, jsonify, redirect, session, url_for
 logger = logging.getLogger(__name__)
 
 from . import config
-from .extensions import get_db
+from .extensions import get_db, db_cursor
 
 
 class AuthCheckUnavailable(Exception):
@@ -175,33 +175,31 @@ def _rate_limited_memory(key, max_calls, window_seconds):
 
 
 def _rate_limited_db(key, max_calls, window_seconds):
-    conn = get_db(); cur = conn.cursor()
-    # Without this, two concurrent requests for the same key can both run
-    # the COUNT(*) below before either has inserted+committed, both see
-    # "under the limit," and both proceed — silently letting a burst exceed
-    # max_calls. pg_advisory_xact_lock serializes callers sharing this key
-    # (hashed to a lock id) for the rest of this transaction; it's released
-    # automatically on commit/rollback, so it never needs manual cleanup and
-    # never blocks callers using a *different* key.
-    cur.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (key,))
-    cur.execute(
-        "DELETE FROM rate_limits WHERE key=%s AND ts < NOW() - (%s * INTERVAL '1 second')",
-        (key, window_seconds)
-    )
-    cur.execute(
-        "SELECT COUNT(*) AS n, EXTRACT(EPOCH FROM (NOW() - MIN(ts))) AS elapsed_seconds FROM rate_limits WHERE key=%s",
-        (key,)
-    )
-    row = cur.fetchone()
-    if row["n"] >= max_calls:
-        conn.commit(); cur.close()
-        elapsed = row["elapsed_seconds"] or 0
-        return round(max(window_seconds - elapsed, 0), 1)
-    cur.execute("INSERT INTO rate_limits(key, ts) VALUES (%s, NOW())", (key,))
-    if random.random() < 0.01:
-        cur.execute("DELETE FROM rate_limits WHERE ts < NOW() - INTERVAL '1 day'")
-    conn.commit(); cur.close()
-    return 0
+    with db_cursor(commit=True) as cur:
+        # Without this, two concurrent requests for the same key can both run
+        # the COUNT(*) below before either has inserted+committed, both see
+        # "under the limit," and both proceed — silently letting a burst exceed
+        # max_calls. pg_advisory_xact_lock serializes callers sharing this key
+        # (hashed to a lock id) for the rest of this transaction; it's released
+        # automatically on commit/rollback, so it never needs manual cleanup and
+        # never blocks callers using a *different* key.
+        cur.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (key,))
+        cur.execute(
+            "DELETE FROM rate_limits WHERE key=%s AND ts < NOW() - (%s * INTERVAL '1 second')",
+            (key, window_seconds)
+        )
+        cur.execute(
+            "SELECT COUNT(*) AS n, EXTRACT(EPOCH FROM (NOW() - MIN(ts))) AS elapsed_seconds FROM rate_limits WHERE key=%s",
+            (key,)
+        )
+        row = cur.fetchone()
+        if row["n"] >= max_calls:
+            elapsed = row["elapsed_seconds"] or 0
+            return round(max(window_seconds - elapsed, 0), 1)
+        cur.execute("INSERT INTO rate_limits(key, ts) VALUES (%s, NOW())", (key,))
+        if random.random() < 0.01:
+            cur.execute("DELETE FROM rate_limits WHERE ts < NOW() - INTERVAL '1 day'")
+        return 0
 
 
 def rate_limited(key, max_calls, window_seconds):

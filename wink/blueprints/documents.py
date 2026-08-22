@@ -9,7 +9,7 @@ from werkzeug.utils import secure_filename
 
 from .. import config
 from ..errors import log_error
-from ..extensions import generate_csrf_token, get_db
+from ..extensions import generate_csrf_token, db_cursor
 from ..security import login_required, page_login_required, admin_required, file_signature_valid, rate_limited, verified_required
 from ..services.analytics import log_event
 from ..services.course_colors import ensure_course_colors, release_color_if_course_gone
@@ -62,10 +62,9 @@ def download_file(doc_id):
         s = g.student
         if not config.DB_URL:
             abort(404)
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("SELECT filename, orig_name FROM documents WHERE id=%s AND student_id=%s", (doc_id, s["id"]))
-        doc = cur.fetchone()
-        cur.close()
+        with db_cursor() as cur:
+            cur.execute("SELECT filename, orig_name FROM documents WHERE id=%s AND student_id=%s", (doc_id, s["id"]))
+            doc = cur.fetchone()
         if not doc:
             abort(404)
         fp = os.path.join(config.UPLOAD_FOLDER, str(s["id"]), doc["filename"])
@@ -151,29 +150,27 @@ def upload_file():
 
         existing = None
         if config.DB_URL:
-            conn = get_db(); cur = conn.cursor()
-            # Serializes concurrent uploads from the same student for the
-            # rest of this transaction — without this, two uploads landing
-            # at the same instant (e.g. two browser tabs) could both see
-            # "19 of 20 documents" and both proceed, silently exceeding the
-            # cap. Same pattern already used for rate limiting in
-            # security.py; released automatically on commit/rollback.
-            cur.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (f"upload-count:{s['id']}",))
-            cur.execute("""SELECT id, filename FROM documents
-                           WHERE student_id=%s AND lower(course)=lower(%s)
-                           AND crn=%s AND lower(orig_name)=lower(%s)""",
-                        (s["id"], course, crn, file.filename))
-            existing = cur.fetchone()
-            if not existing:
-                cur.execute("SELECT COUNT(*) as n FROM documents WHERE student_id=%s", (s["id"],))
-                count = cur.fetchone()["n"]
-                if count >= config.MAX_DOCS_PER_STUDENT:
-                    cur.close()
-                    return jsonify({
-                        "error": f"You've reached the {config.MAX_DOCS_PER_STUDENT}-document limit. "
-                                 f"Delete a document before uploading a new one."
-                    }), 400
-            cur.close()
+            with db_cursor() as cur:
+                # Serializes concurrent uploads from the same student for the
+                # rest of this transaction — without this, two uploads landing
+                # at the same instant (e.g. two browser tabs) could both see
+                # "19 of 20 documents" and both proceed, silently exceeding the
+                # cap. Same pattern already used for rate limiting in
+                # security.py; released automatically on commit/rollback.
+                cur.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (f"upload-count:{s['id']}",))
+                cur.execute("""SELECT id, filename FROM documents
+                               WHERE student_id=%s AND lower(course)=lower(%s)
+                               AND crn=%s AND lower(orig_name)=lower(%s)""",
+                            (s["id"], course, crn, file.filename))
+                existing = cur.fetchone()
+                if not existing:
+                    cur.execute("SELECT COUNT(*) as n FROM documents WHERE student_id=%s", (s["id"],))
+                    count = cur.fetchone()["n"]
+                    if count >= config.MAX_DOCS_PER_STUDENT:
+                        return jsonify({
+                            "error": f"You've reached the {config.MAX_DOCS_PER_STUDENT}-document limit. "
+                                     f"Delete a document before uploading a new one."
+                        }), 400
 
         # Save and extract the NEW file first, under its own fresh filename —
         # only once that's fully succeeded (and inserted into the database
@@ -193,22 +190,21 @@ def upload_file():
             content = extract_text(path, orig)
             logger.info("UPLOAD: %s → %d chars extracted", orig, len(content))
             if config.DB_URL:
-                conn = get_db(); cur = conn.cursor()
-                cur.execute("""INSERT INTO documents
-                               (student_id,filename,orig_name,course,crn,size_bytes,content,doc_type)
-                               VALUES(%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
-                            (s["id"], saved, orig, course, crn, size, content, doc_type))
-                new_doc_id = cur.fetchone()["id"]
-                if existing:
-                    # The new document is safely inserted — now it's safe to remove
-                    # the old one it's replacing.
-                    old_fp = os.path.join(config.UPLOAD_FOLDER, str(s["id"]), existing["filename"])
-                    if os.path.exists(old_fp):
-                        try: os.remove(old_fp)
-                        except Exception: pass
-                    cur.execute("DELETE FROM documents WHERE id=%s", (existing["id"],))
-                    replaced = True
-                conn.commit(); cur.close()
+                with db_cursor(commit=True) as cur:
+                    cur.execute("""INSERT INTO documents
+                                   (student_id,filename,orig_name,course,crn,size_bytes,content,doc_type)
+                                   VALUES(%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                                (s["id"], saved, orig, course, crn, size, content, doc_type))
+                    new_doc_id = cur.fetchone()["id"]
+                    if existing:
+                        # The new document is safely inserted — now it's safe to remove
+                        # the old one it's replacing.
+                        old_fp = os.path.join(config.UPLOAD_FOLDER, str(s["id"]), existing["filename"])
+                        if os.path.exists(old_fp):
+                            try: os.remove(old_fp)
+                            except Exception: pass
+                        cur.execute("DELETE FROM documents WHERE id=%s", (existing["id"],))
+                        replaced = True
                 store_document_chunks(new_doc_id, s["id"], s.get("university"), course, orig, content)
         except Exception:
             # The file was saved to disk but something after that failed
@@ -250,17 +246,16 @@ def delete_file():
         s = g.student
         doc_id = (request.get_json() or {}).get("doc_id")
         if config.DB_URL and doc_id:
-            conn = get_db(); cur = conn.cursor()
-            cur.execute("SELECT filename, course FROM documents WHERE id=%s AND student_id=%s", (doc_id, s["id"]))
-            doc = cur.fetchone()
+            with db_cursor(commit=True) as cur:
+                cur.execute("SELECT filename, course FROM documents WHERE id=%s AND student_id=%s", (doc_id, s["id"]))
+                doc = cur.fetchone()
+                if doc:
+                    fp = os.path.join(config.UPLOAD_FOLDER, str(s["id"]), doc["filename"])
+                    if os.path.exists(fp): os.remove(fp)
+                    cur.execute("DELETE FROM documents WHERE id=%s", (doc_id,))
             if doc:
-                fp = os.path.join(config.UPLOAD_FOLDER, str(s["id"]), doc["filename"])
-                if os.path.exists(fp): os.remove(fp)
-                cur.execute("DELETE FROM documents WHERE id=%s", (doc_id,))
-                conn.commit()
                 log_event(s["id"], "file_deleted", {"doc_id": doc_id})
                 release_color_if_course_gone(s["id"], doc["course"])
-            cur.close()
         invalidate_student_docs_cache(s["id"])
         return jsonify({"success": True, "docs": get_docs(s["id"])})
     except Exception as e:
@@ -292,17 +287,16 @@ def _assign_global_deadlines_in_background(app, new_doc_id, content, university,
             deadlines = extract_deadlines(content, student_id=triggered_by_id)
             if not deadlines:
                 return
-            conn = get_db(); cur = conn.cursor()
-            # Only assign to students who can actually receive/see them — a
-            # suspended or self-deleted account shouldn't accumulate new
-            # deadlines from material uploaded after they left.
-            if university == "ALL":
-                cur.execute("SELECT id FROM students WHERE is_active IS TRUE AND account_deleted_at IS NULL")
-            else:
-                cur.execute("""SELECT id FROM students WHERE lower(university)=lower(%s)
-                               AND is_active IS TRUE AND account_deleted_at IS NULL""", (university,))
-            student_ids = [r["id"] for r in cur.fetchall()]
-            cur.close()
+            with db_cursor() as cur:
+                # Only assign to students who can actually receive/see them — a
+                # suspended or self-deleted account shouldn't accumulate new
+                # deadlines from material uploaded after they left.
+                if university == "ALL":
+                    cur.execute("SELECT id FROM students WHERE is_active IS TRUE AND account_deleted_at IS NULL")
+                else:
+                    cur.execute("""SELECT id FROM students WHERE lower(university)=lower(%s)
+                                   AND is_active IS TRUE AND account_deleted_at IS NULL""", (university,))
+                student_ids = [r["id"] for r in cur.fetchall()]
             for student_id in student_ids:
                 insert_deadlines(student_id, new_doc_id, label, deadlines)
             logger.info(
@@ -342,13 +336,12 @@ def upload_global_document():
 
         existing = None
         if config.DB_URL:
-            conn = get_db(); cur = conn.cursor()
-            cur.execute("""SELECT id, filename FROM documents
-                           WHERE student_id IS NULL AND lower(university)=lower(%s)
-                           AND lower(orig_name)=lower(%s)""",
-                        (university, file.filename))
-            existing = cur.fetchone()
-            cur.close()
+            with db_cursor() as cur:
+                cur.execute("""SELECT id, filename FROM documents
+                               WHERE student_id IS NULL AND lower(university)=lower(%s)
+                               AND lower(orig_name)=lower(%s)""",
+                            (university, file.filename))
+                existing = cur.fetchone()
 
         # Save and extract the NEW file first — only once it's successfully
         # saved, extracted, and inserted do we touch the old document/
@@ -366,17 +359,16 @@ def upload_global_document():
             content = extract_text(path, orig)
             logger.info("GLOBAL UPLOAD: %s (%s) → %d chars extracted", orig, university, len(content))
             if config.DB_URL:
-                conn = get_db(); cur = conn.cursor()
-                cur.execute("""INSERT INTO documents
-                               (student_id,filename,orig_name,course,crn,size_bytes,content,university)
-                               VALUES(NULL,%s,%s,%s,'',%s,%s,%s) RETURNING id""",
-                            (saved, orig, label, size, content, university))
-                new_doc_id = cur.fetchone()["id"]
-                if existing:
-                    cur.execute("DELETE FROM deadlines WHERE document_id=%s", (existing["id"],))
-                    cur.execute("DELETE FROM documents WHERE id=%s", (existing["id"],))
-                    old_fp = os.path.join(folder, existing["filename"])
-                conn.commit(); cur.close()
+                with db_cursor(commit=True) as cur:
+                    cur.execute("""INSERT INTO documents
+                                   (student_id,filename,orig_name,course,crn,size_bytes,content,university)
+                                   VALUES(NULL,%s,%s,%s,'',%s,%s,%s) RETURNING id""",
+                                (saved, orig, label, size, content, university))
+                    new_doc_id = cur.fetchone()["id"]
+                    if existing:
+                        cur.execute("DELETE FROM deadlines WHERE document_id=%s", (existing["id"],))
+                        cur.execute("DELETE FROM documents WHERE id=%s", (existing["id"],))
+                        old_fp = os.path.join(folder, existing["filename"])
                 store_document_chunks(new_doc_id, None, university, label, orig, content)
         except Exception:
             # The new file was saved to disk but something after that
@@ -428,17 +420,17 @@ def delete_global_document():
         doc_id = data.get("doc_id")
         university = (data.get("university") or "").strip()
         if config.DB_URL and doc_id:
-            conn = get_db(); cur = conn.cursor()
-            cur.execute("SELECT filename, university FROM documents WHERE id=%s AND student_id IS NULL", (doc_id,))
-            doc = cur.fetchone()
+            doc = None
+            with db_cursor(commit=True) as cur:
+                cur.execute("SELECT filename, university FROM documents WHERE id=%s AND student_id IS NULL", (doc_id,))
+                doc = cur.fetchone()
+                if doc:
+                    fp = os.path.join(config.UPLOAD_FOLDER, "global", doc["filename"])
+                    if os.path.exists(fp): os.remove(fp)
+                    cur.execute("DELETE FROM documents WHERE id=%s", (doc_id,))
             if doc:
-                fp = os.path.join(config.UPLOAD_FOLDER, "global", doc["filename"])
-                if os.path.exists(fp): os.remove(fp)
-                cur.execute("DELETE FROM documents WHERE id=%s", (doc_id,))
-                conn.commit()
                 invalidate_global_docs_cache(None if doc["university"] == "ALL" else doc["university"])
                 log_event(s["id"], "global_file_deleted", {"doc_id": doc_id})
-            cur.close()
         return jsonify({"success": True, "docs": get_global_docs(university or None)})
     except Exception as e:
         log_error("documents.delete_global", e)

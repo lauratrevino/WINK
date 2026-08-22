@@ -7,7 +7,7 @@ from flask import Blueprint, g, jsonify, render_template, request
 
 from .. import config
 from ..errors import log_error
-from ..extensions import csrf, get_db
+from ..extensions import csrf, db_cursor
 from ..security import login_required, page_login_required, rate_limited
 from ..services.analytics import log_event
 from ..services.course_colors import ensure_course_colors
@@ -225,18 +225,16 @@ def reprocess_deadlines():
         total_found = 0
         docs_processed = 0
         docs_skipped_empty = 0
-        conn = get_db(); cur = conn.cursor()
         for d in docs_with_content:
             found = results.get(d["id"], [])
             if not found:
                 docs_skipped_empty += 1
                 continue
-            cur.execute("DELETE FROM deadlines WHERE document_id=%s", (d["id"],))
-            conn.commit()
+            with db_cursor(commit=True) as cur:
+                cur.execute("DELETE FROM deadlines WHERE document_id=%s", (d["id"],))
             insert_deadlines(s["id"], d["id"], d["course"], found)
             docs_processed += 1
             total_found += len(found)
-        cur.close()
         log_event(s["id"], "deadlines_reprocessed", {"docs": docs_processed, "found": total_found, "skipped_empty": docs_skipped_empty})
         return jsonify({"success": True, "documents_processed": docs_processed, "deadlines_found": total_found})
     except Exception as e:
@@ -257,23 +255,21 @@ def send_deadline_reminders():
     if not config.DB_URL:
         return jsonify({"error": "No database"}), 500
 
-    conn = get_db(); cur = conn.cursor()
-    cur.execute("INSERT INTO cron_runs(job_name) VALUES('send_deadline_reminders') RETURNING id")
-    run_id = cur.fetchone()["id"]
-    conn.commit(); cur.close()
+    with db_cursor(commit=True) as cur:
+        cur.execute("INSERT INTO cron_runs(job_name) VALUES('send_deadline_reminders') RETURNING id")
+        run_id = cur.fetchone()["id"]
 
     try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("""SELECT d.id, d.title, d.due_date, d.course, s.id as sid, s.email, s.first_name
-                       FROM deadlines d JOIN students s ON s.id = d.student_id
-                       WHERE d.reminded = FALSE
-                       AND d.due_date BETWEEN (NOW() AT TIME ZONE %s)::date
-                                       AND (NOW() AT TIME ZONE %s)::date + 3
-                       AND s.is_active IS TRUE
-                       AND s.account_deleted_at IS NULL
-                       ORDER BY s.id, d.due_date""", (config.APP_TIMEZONE, config.APP_TIMEZONE))
-        rows = [dict(r) for r in cur.fetchall()]
-        cur.close()
+        with db_cursor() as cur:
+            cur.execute("""SELECT d.id, d.title, d.due_date, d.course, s.id as sid, s.email, s.first_name
+                           FROM deadlines d JOIN students s ON s.id = d.student_id
+                           WHERE d.reminded = FALSE
+                           AND d.due_date BETWEEN (NOW() AT TIME ZONE %s)::date
+                                           AND (NOW() AT TIME ZONE %s)::date + 3
+                           AND s.is_active IS TRUE
+                           AND s.account_deleted_at IS NULL
+                           ORDER BY s.id, d.due_date""", (config.APP_TIMEZONE, config.APP_TIMEZONE))
+            rows = [dict(r) for r in cur.fetchall()]
 
         by_student = {}
         for r in rows:
@@ -295,24 +291,21 @@ def send_deadline_reminders():
                 failed_count += 1
 
         if reminded_ids:
-            conn = get_db(); cur = conn.cursor()
-            cur.execute("UPDATE deadlines SET reminded=TRUE WHERE id = ANY(%s)", (reminded_ids,))
-            conn.commit(); cur.close()
+            with db_cursor(commit=True) as cur:
+                cur.execute("UPDATE deadlines SET reminded=TRUE WHERE id = ANY(%s)", (reminded_ids,))
 
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("""UPDATE cron_runs SET completed_at=NOW(), number_processed=%s,
-                       number_sent=%s, number_failed=%s WHERE id=%s""",
-                    (len(by_student), sent_count, failed_count, run_id))
-        conn.commit(); cur.close()
+        with db_cursor(commit=True) as cur:
+            cur.execute("""UPDATE cron_runs SET completed_at=NOW(), number_processed=%s,
+                           number_sent=%s, number_failed=%s WHERE id=%s""",
+                        (len(by_student), sent_count, failed_count, run_id))
 
         return jsonify({"students_notified": sent_count, "deadlines_covered": len(rows)})
     except Exception as e:
         log_error("calendar.send_deadline_reminders", e)
         try:
-            conn = get_db(); cur = conn.cursor()
-            cur.execute("UPDATE cron_runs SET completed_at=NOW(), last_error=%s WHERE id=%s",
-                        (str(e)[:500], run_id))
-            conn.commit(); cur.close()
+            with db_cursor(commit=True) as cur:
+                cur.execute("UPDATE cron_runs SET completed_at=NOW(), last_error=%s WHERE id=%s",
+                            (str(e)[:500], run_id))
         except Exception:
             pass
         return jsonify({"error": "Something went wrong on our end."}), 500
@@ -339,19 +332,17 @@ def send_weekly_digest():
     if not config.DB_URL:
         return jsonify({"error": "No database"}), 500
 
-    conn = get_db(); cur = conn.cursor()
-    cur.execute("""SELECT COUNT(*) as n FROM cron_runs
-                   WHERE job_name='send_weekly_digest' AND completed_at IS NOT NULL
-                   AND last_error IS NULL AND completed_at > NOW() - INTERVAL '6 days'""")
-    already_ran = cur.fetchone()["n"] > 0
-    cur.close()
+    with db_cursor() as cur:
+        cur.execute("""SELECT COUNT(*) as n FROM cron_runs
+                       WHERE job_name='send_weekly_digest' AND completed_at IS NOT NULL
+                       AND last_error IS NULL AND completed_at > NOW() - INTERVAL '6 days'""")
+        already_ran = cur.fetchone()["n"] > 0
     if already_ran:
         return jsonify({"skipped": True, "reason": "Weekly digest already sent within the last 6 days."})
 
-    conn = get_db(); cur = conn.cursor()
-    cur.execute("INSERT INTO cron_runs(job_name) VALUES('send_weekly_digest') RETURNING id")
-    run_id = cur.fetchone()["id"]
-    conn.commit(); cur.close()
+    with db_cursor(commit=True) as cur:
+        cur.execute("INSERT INTO cron_runs(job_name) VALUES('send_weekly_digest') RETURNING id")
+        run_id = cur.fetchone()["id"]
 
     try:
         # Monday-to-Sunday window for "this week," in the app's configured
@@ -361,15 +352,14 @@ def send_weekly_digest():
         week_start = local_today - timedelta(days=local_today.weekday())  # Monday
         week_end = week_start + timedelta(days=6)  # Sunday
 
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("""SELECT d.id, d.title, d.due_date, d.course, s.id as sid, s.email, s.first_name
-                       FROM deadlines d JOIN students s ON s.id = d.student_id
-                       WHERE d.due_date BETWEEN %s AND %s
-                       AND s.is_active IS TRUE
-                       AND s.account_deleted_at IS NULL
-                       ORDER BY s.id, d.due_date""", (week_start, week_end))
-        rows = [dict(r) for r in cur.fetchall()]
-        cur.close()
+        with db_cursor() as cur:
+            cur.execute("""SELECT d.id, d.title, d.due_date, d.course, s.id as sid, s.email, s.first_name
+                           FROM deadlines d JOIN students s ON s.id = d.student_id
+                           WHERE d.due_date BETWEEN %s AND %s
+                           AND s.is_active IS TRUE
+                           AND s.account_deleted_at IS NULL
+                           ORDER BY s.id, d.due_date""", (week_start, week_end))
+            rows = [dict(r) for r in cur.fetchall()]
 
         by_student = {}
         for r in rows:
@@ -390,20 +380,18 @@ def send_weekly_digest():
             else:
                 failed_count += 1
 
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("""UPDATE cron_runs SET completed_at=NOW(), number_processed=%s,
-                       number_sent=%s, number_failed=%s WHERE id=%s""",
-                    (len(by_student), sent_count, failed_count, run_id))
-        conn.commit(); cur.close()
+        with db_cursor(commit=True) as cur:
+            cur.execute("""UPDATE cron_runs SET completed_at=NOW(), number_processed=%s,
+                           number_sent=%s, number_failed=%s WHERE id=%s""",
+                        (len(by_student), sent_count, failed_count, run_id))
 
         return jsonify({"students_notified": sent_count, "deadlines_covered": len(rows)})
     except Exception as e:
         log_error("calendar.send_weekly_digest", e)
         try:
-            conn = get_db(); cur = conn.cursor()
-            cur.execute("UPDATE cron_runs SET completed_at=NOW(), last_error=%s WHERE id=%s",
-                        (str(e)[:500], run_id))
-            conn.commit(); cur.close()
+            with db_cursor(commit=True) as cur:
+                cur.execute("UPDATE cron_runs SET completed_at=NOW(), last_error=%s WHERE id=%s",
+                            (str(e)[:500], run_id))
         except Exception:
             pass
         return jsonify({"error": "Something went wrong on our end."}), 500

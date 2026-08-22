@@ -321,6 +321,7 @@
           {% endif %}
           <form method="POST" action="/login" class="signin-inline-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="timezone" id="login-timezone-field">
             <div class="field-with-icon">
               <input type="email" name="email" id="signin-email" placeholder="yourname@school.edu" required autocomplete="username" aria-label="Email address">
               <button type="button" class="field-icon-btn" id="mic-btn" aria-label="Enter email by voice" tabindex="-1">🎤</button>
@@ -489,6 +490,23 @@
   </footer>
 
   <script nonce="{{ csp_nonce() }}">
+    (function captureLoginTimezone() {
+      // Same rationale as register.html's captureTimezone(): read the
+      // browser's own IANA zone and let the /login handler silently
+      // refresh it on the student's row. This is what actually backfills
+      // every account created before this feature existed, and keeps it
+      // current for a student who travels or switches devices — the
+      // registration-time capture alone would only ever cover new
+      // signups, not existing accounts logging back in.
+      const field = document.getElementById('login-timezone-field');
+      if (!field) return;
+      try {
+        field.value = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+      } catch (e) {
+        field.value = '';
+      }
+    })();
+
     {% if error and not forgot %}
 
     document.getElementById('signin-panel').scrollIntoView({ block: 'center' });

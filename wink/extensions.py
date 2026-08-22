@@ -1,5 +1,6 @@
 import logging
 import time
+from contextlib import contextmanager
 
 import httpx
 import anthropic as ac
@@ -149,6 +150,35 @@ def release_db():
             conn.close()
         except Exception:
             pass
+
+
+@contextmanager
+def db_cursor(commit=False):
+    """Yields a cursor on the current request's shared connection (the
+    same one get_db() returns — reused across the whole request via
+    Flask's `g`), always closing the cursor on the way out, including on
+    an exception. Replaces the `conn = get_db(); cur = conn.cursor()` /
+    `cur.close()` pair that used to be retyped at every call site, and
+    removes the chance of a call site forgetting the close.
+
+    Pass commit=True for anything that writes; the connection commits
+    once the block finishes without raising. On an exception, the block
+    exits without committing — the caller's own error handling (if any)
+    still runs after that, on an uncommitted transaction. Read-only call
+    sites should leave commit=False (the default) so a query never
+    triggers a needless commit.
+
+        with db_cursor(commit=True) as cur:
+            cur.execute("UPDATE ... WHERE id=%s", (item_id,))
+    """
+    conn = get_db()
+    cur = conn.cursor()
+    try:
+        yield cur
+        if commit:
+            conn.commit()
+    finally:
+        cur.close()
 
 
 def init_app(app):

@@ -1,6 +1,6 @@
 from .. import config
 from ..errors import log_error
-from ..extensions import anthropic_client, get_db
+from ..extensions import anthropic_client, db_cursor
 from .analytics import log_token_usage
 from .json_utils import parse_json_array, strip_json_fence
 
@@ -80,12 +80,11 @@ def get_grading_weights(student_id, course):
     if not config.DB_URL:
         return []
     try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("""SELECT category, weight FROM grading_weights
-                       WHERE student_id=%s AND lower(course)=lower(%s)
-                       ORDER BY sort_order ASC, id ASC""", (student_id, course))
-        rows = [dict(r) for r in cur.fetchall()]
-        cur.close()
+        with db_cursor() as cur:
+            cur.execute("""SELECT category, weight FROM grading_weights
+                           WHERE student_id=%s AND lower(course)=lower(%s)
+                           ORDER BY sort_order ASC, id ASC""", (student_id, course))
+            rows = [dict(r) for r in cur.fetchall()]
         for r in rows:
             r["weight"] = float(r["weight"])
         return rows
@@ -97,20 +96,19 @@ def store_grading_weights(student_id, course, weights):
     if not config.DB_URL:
         return
     try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("DELETE FROM grading_weights WHERE student_id=%s AND lower(course)=lower(%s)",
-                    (student_id, course))
-        i = 0
-        for w in (weights or []):
-            category = str(w.get("category", "")).strip()[:100]
-            try:
-                weight = float(w.get("weight"))
-            except (TypeError, ValueError):
-                continue
-            if category and weight > 0:
-                cur.execute("""INSERT INTO grading_weights (student_id, course, category, weight, sort_order)
-                               VALUES (%s, %s, %s, %s, %s)""", (student_id, course, category, weight, i))
-                i += 1
-        conn.commit(); cur.close()
+        with db_cursor(commit=True) as cur:
+            cur.execute("DELETE FROM grading_weights WHERE student_id=%s AND lower(course)=lower(%s)",
+                        (student_id, course))
+            i = 0
+            for w in (weights or []):
+                category = str(w.get("category", "")).strip()[:100]
+                try:
+                    weight = float(w.get("weight"))
+                except (TypeError, ValueError):
+                    continue
+                if category and weight > 0:
+                    cur.execute("""INSERT INTO grading_weights (student_id, course, category, weight, sort_order)
+                                   VALUES (%s, %s, %s, %s, %s)""", (student_id, course, category, weight, i))
+                    i += 1
     except Exception as e:
         log_error("services.grades.store_grading_weights", e)

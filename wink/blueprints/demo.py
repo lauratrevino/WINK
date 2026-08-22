@@ -9,7 +9,7 @@ from werkzeug.security import generate_password_hash
 
 from .. import config
 from ..errors import log_error
-from ..extensions import csrf, get_db
+from ..extensions import csrf, db_cursor
 from ..security import rate_limited
 
 bp = Blueprint("demo", __name__)
@@ -48,11 +48,10 @@ def delete_demo_student(student_id, reason="logout"):
     if not student_id or not config.DB_URL:
         return
     shutil.rmtree(os.path.join(config.UPLOAD_FOLDER, str(student_id)), ignore_errors=True)
-    conn = get_db(); cur = conn.cursor()
-    _log_demo_session_ended(cur, student_id, reason)
-    cur.execute("DELETE FROM events WHERE student_id=%s", (student_id,))
-    cur.execute("DELETE FROM students WHERE id=%s AND is_demo=TRUE", (student_id,))
-    conn.commit(); cur.close()
+    with db_cursor(commit=True) as cur:
+        _log_demo_session_ended(cur, student_id, reason)
+        cur.execute("DELETE FROM events WHERE student_id=%s", (student_id,))
+        cur.execute("DELETE FROM students WHERE id=%s AND is_demo=TRUE", (student_id,))
 
 
 def _seed_demo(cur, sid):
@@ -185,16 +184,15 @@ def start_demo():
     old_sid=session.get("sid") if session.get("is_demo") else None
     if old_sid:
         delete_demo_student(old_sid, reason="replaced")
-    conn=get_db(); cur=conn.cursor()
-    _purge_expired(cur)
-    token=secrets.token_hex(8)
-    email=f"demo-{token}@wink-demo.invalid"
-    cur.execute("""INSERT INTO students(email,password_hash,first_name,last_name,classification,major,university,preferred_language,email_verified,is_active,is_demo,demo_expires_at)
-                   VALUES(%s,%s,'Winkling','Demo','Freshman','Business','University of Texas at El Paso','',TRUE,TRUE,TRUE,NOW() + %s * INTERVAL '1 hour') RETURNING id""",
-                (email,generate_password_hash(secrets.token_urlsafe(24)),DEMO_TTL_HOURS))
-    sid=cur.fetchone()["id"]
-    _seed_demo(cur,sid)
-    conn.commit(); cur.close()
+    with db_cursor(commit=True) as cur:
+        _purge_expired(cur)
+        token=secrets.token_hex(8)
+        email=f"demo-{token}@wink-demo.invalid"
+        cur.execute("""INSERT INTO students(email,password_hash,first_name,last_name,classification,major,university,preferred_language,email_verified,is_active,is_demo,demo_expires_at)
+                       VALUES(%s,%s,'Winkling','Demo','Freshman','Business','University of Texas at El Paso','',TRUE,TRUE,TRUE,NOW() + %s * INTERVAL '1 hour') RETURNING id""",
+                    (email,generate_password_hash(secrets.token_urlsafe(24)),DEMO_TTL_HOURS))
+        sid=cur.fetchone()["id"]
+        _seed_demo(cur,sid)
     session.clear(); session.permanent=False
     session["sid"]=sid; session["is_demo"]=True
     return redirect(url_for("dashboard.dashboard"))
@@ -224,31 +222,27 @@ def purge_expired_demos_cron():
     if not config.DB_URL:
         return jsonify({"error": "No database"}), 500
 
-    conn = get_db(); cur = conn.cursor()
-    cur.execute("INSERT INTO cron_runs(job_name) VALUES('purge_expired_demos') RETURNING id")
-    run_id = cur.fetchone()["id"]
-    conn.commit(); cur.close()
+    with db_cursor(commit=True) as cur:
+        cur.execute("INSERT INTO cron_runs(job_name) VALUES('purge_expired_demos') RETURNING id")
+        run_id = cur.fetchone()["id"]
 
     try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("SELECT id FROM students WHERE is_demo=TRUE AND demo_expires_at < NOW()")
-        expired_count = len(cur.fetchall())
-        _purge_expired(cur)
-        conn.commit(); cur.close()
+        with db_cursor(commit=True) as cur:
+            cur.execute("SELECT id FROM students WHERE is_demo=TRUE AND demo_expires_at < NOW()")
+            expired_count = len(cur.fetchall())
+            _purge_expired(cur)
 
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("UPDATE cron_runs SET completed_at=NOW(), number_processed=%s WHERE id=%s",
-                    (expired_count, run_id))
-        conn.commit(); cur.close()
+        with db_cursor(commit=True) as cur:
+            cur.execute("UPDATE cron_runs SET completed_at=NOW(), number_processed=%s WHERE id=%s",
+                        (expired_count, run_id))
 
         return jsonify({"purged": expired_count})
     except Exception as e:
         log_error("demo.purge_expired_demos_cron", e)
         try:
-            conn = get_db(); cur = conn.cursor()
-            cur.execute("UPDATE cron_runs SET completed_at=NOW(), last_error=%s WHERE id=%s",
-                        (str(e)[:500], run_id))
-            conn.commit(); cur.close()
+            with db_cursor(commit=True) as cur:
+                cur.execute("UPDATE cron_runs SET completed_at=NOW(), last_error=%s WHERE id=%s",
+                            (str(e)[:500], run_id))
         except Exception:
             pass
         return jsonify({"error": "Something went wrong on our end. Please try again."}), 500

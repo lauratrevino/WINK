@@ -2,7 +2,7 @@ from datetime import timedelta
 
 from .. import config
 from ..errors import log_error
-from ..extensions import get_db
+from ..extensions import db_cursor
 from .course_colors import ensure_course_colors
 
 
@@ -225,26 +225,25 @@ def get_progress_summary(student_id, days_back=30):
     if not config.DB_URL:
         return empty
     try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("SELECT (created_at AT TIME ZONE 'UTC') AT TIME ZONE %s AS created_local "
-                    "FROM students WHERE id = %s", (config.APP_TIMEZONE, student_id))
-        created_row = cur.fetchone()
-        # Used only to trim bars for weeks/months that started before the
-        # account existed (see _weekly_activity/_monthly_activity above) —
-        # not to change any of the other stats below.
-        account_created = created_row["created_local"].date().isoformat() if created_row and created_row["created_local"] else None
+        with db_cursor() as cur:
+            cur.execute("SELECT (created_at AT TIME ZONE 'UTC') AT TIME ZONE %s AS created_local "
+                        "FROM students WHERE id = %s", (config.APP_TIMEZONE, student_id))
+            created_row = cur.fetchone()
+            # Used only to trim bars for weeks/months that started before the
+            # account existed (see _weekly_activity/_monthly_activity above) —
+            # not to change any of the other stats below.
+            account_created = created_row["created_local"].date().isoformat() if created_row and created_row["created_local"] else None
 
-        active_days, questions_asked = _active_days_and_questions(cur, student_id, days_back)
-        completion = _completion_stats(cur, student_id)
-        organization = _organization_stats(cur, student_id, days_back)
-        practice = _practice_stats(cur, student_id)
-        daily = _daily_activity(cur, student_id, account_created=account_created)
-        weekly = _weekly_activity(cur, student_id, account_created=account_created)
-        monthly = _monthly_activity(cur, student_id, account_created=account_created)
-        this_week_q, last_week_q = _weekly_questions_this_vs_last(cur, student_id)
-        completed_this_week = _completed_this_week(cur, student_id)
-        by_course = _by_course_breakdown(cur, student_id)
-        cur.close()
+            active_days, questions_asked = _active_days_and_questions(cur, student_id, days_back)
+            completion = _completion_stats(cur, student_id)
+            organization = _organization_stats(cur, student_id, days_back)
+            practice = _practice_stats(cur, student_id)
+            daily = _daily_activity(cur, student_id, account_created=account_created)
+            weekly = _weekly_activity(cur, student_id, account_created=account_created)
+            monthly = _monthly_activity(cur, student_id, account_created=account_created)
+            this_week_q, last_week_q = _weekly_questions_this_vs_last(cur, student_id)
+            completed_this_week = _completed_this_week(cur, student_id)
+            by_course = _by_course_breakdown(cur, student_id)
 
         noticed = _generate_noticed_insights(this_week_q, last_week_q, completed_this_week)
 
@@ -284,16 +283,15 @@ def get_student_progress(student_id, days_back=30):
     trend = "steady"
     if config.DB_URL:
         try:
-            conn = get_db(); cur = conn.cursor()
-            cur.execute("""
-                SELECT
-                    COUNT(*) FILTER (WHERE is_personal AND created_at >= NOW() - (7 * INTERVAL '1 day')) as recent,
-                    COUNT(*) FILTER (WHERE is_personal AND created_at >= NOW() - (14 * INTERVAL '1 day')
-                                      AND created_at < NOW() - (7 * INTERVAL '1 day')) as previous
-                FROM deadlines WHERE student_id = %s
-            """, (student_id,))
-            row = cur.fetchone()
-            cur.close()
+            with db_cursor() as cur:
+                cur.execute("""
+                    SELECT
+                        COUNT(*) FILTER (WHERE is_personal AND created_at >= NOW() - (7 * INTERVAL '1 day')) as recent,
+                        COUNT(*) FILTER (WHERE is_personal AND created_at >= NOW() - (14 * INTERVAL '1 day')
+                                          AND created_at < NOW() - (7 * INTERVAL '1 day')) as previous
+                    FROM deadlines WHERE student_id = %s
+                """, (student_id,))
+                row = cur.fetchone()
             if row:
                 trend = _trend_label(row["recent"] or 0, row["previous"] or 0)
         except Exception as e:

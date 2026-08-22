@@ -22,7 +22,7 @@ from flask import current_app
 
 from .. import config
 from ..errors import log_error
-from ..extensions import get_db
+from ..extensions import db_cursor
 
 # Checks in this set can flip the overall status to "fail" (HTTP 503 on
 # the public /health endpoint). Everything else can still show a warning
@@ -40,12 +40,11 @@ def _check_cron_job(job_name, label):
     if not config.DB_URL:
         return ("warn", "Endpoint is configured, but no database is available to check its run history.")
     try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("""SELECT started_at, completed_at, number_processed, number_sent,
-                       number_failed, last_error FROM cron_runs
-                       WHERE job_name=%s ORDER BY started_at DESC LIMIT 1""", (job_name,))
-        row = cur.fetchone()
-        cur.close()
+        with db_cursor() as cur:
+            cur.execute("""SELECT started_at, completed_at, number_processed, number_sent,
+                           number_failed, last_error FROM cron_runs
+                           WHERE job_name=%s ORDER BY started_at DESC LIMIT 1""", (job_name,))
+            row = cur.fetchone()
         if not row:
             return ("warn", f"{label} is configured, but has never been called yet — confirm your external scheduler is set up.")
         if row["last_error"]:
@@ -72,10 +71,9 @@ def run_health_checks():
     if config.DB_URL:
         try:
             start = time.time()
-            conn = get_db(); cur = conn.cursor()
-            cur.execute("SELECT 1")
-            cur.fetchone()
-            cur.close()
+            with db_cursor() as cur:
+                cur.execute("SELECT 1")
+                cur.fetchone()
             ms = round((time.time() - start) * 1000)
             status = "ok" if ms < 500 else "warn"
             checks["database"] = (status, f"Connected ({ms}ms)")
@@ -158,14 +156,13 @@ def run_health_checks():
     # --- Bounce/complaint handling (suppression list + recent activity) ---
     try:
         if config.DB_URL:
-            conn = get_db(); cur = conn.cursor()
-            cur.execute("SELECT COUNT(*) as n FROM email_suppressions")
-            suppressed = cur.fetchone()["n"]
-            cur.execute("SELECT COUNT(*) as n FROM email_events WHERE created_at > NOW() - INTERVAL '7 days'")
-            recent = cur.fetchone()["n"]
-            cur.execute("SELECT MAX(created_at) as t FROM email_events")
-            last_event = cur.fetchone()["t"]
-            cur.close()
+            with db_cursor() as cur:
+                cur.execute("SELECT COUNT(*) as n FROM email_suppressions")
+                suppressed = cur.fetchone()["n"]
+                cur.execute("SELECT COUNT(*) as n FROM email_events WHERE created_at > NOW() - INTERVAL '7 days'")
+                recent = cur.fetchone()["n"]
+                cur.execute("SELECT MAX(created_at) as t FROM email_events")
+                last_event = cur.fetchone()["t"]
             if last_event is None:
                 checks["bounce_handling"] = ("warn", "No SES notifications ever received — confirm the SNS subscription is set up.")
             else:
@@ -208,10 +205,9 @@ def run_health_checks():
     # --- Document chunk processing failures ----------------------------
     try:
         if config.DB_URL:
-            conn = get_db(); cur = conn.cursor()
-            cur.execute("SELECT COUNT(*) as n FROM documents WHERE chunking_failed IS TRUE")
-            failed = cur.fetchone()["n"]
-            cur.close()
+            with db_cursor() as cur:
+                cur.execute("SELECT COUNT(*) as n FROM documents WHERE chunking_failed IS TRUE")
+                failed = cur.fetchone()["n"]
             if failed == 0:
                 checks["chunking"] = ("ok", "No documents currently flagged with a processing failure.")
             else:

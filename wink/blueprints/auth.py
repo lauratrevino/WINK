@@ -9,12 +9,12 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from .. import config
 from ..errors import log_error
-from ..extensions import get_db
+from ..extensions import db_cursor
 from ..security import login_required, rate_limited
 from ..services.analytics import _anonymize_student_sql, log_event
 from ..services.deadlines import extract_deadlines, insert_deadlines
 from ..services.email import send_email
-from ..timeutil import utcnow_naive
+from ..timeutil import utcnow_naive, is_valid_timezone
 from ..mfa_crypto import decrypt_mfa_secret, encrypt_mfa_secret
 from .demo import delete_demo_student
 
@@ -42,6 +42,16 @@ def register():
             major = request.form.get("major", "").strip()
             university = request.form.get("university", "").strip()[:200]
             preferred_language = request.form.get("preferred_language", "").strip()
+            # Captured client-side via Intl.DateTimeFormat() (see
+            # register.html) — the browser's own reading of the student's
+            # actual local timezone, not a guess derived from their chosen
+            # university. Left NULL (rather than stored as-is) if it's
+            # missing or isn't a real IANA zone name — resolve_student_timezone()
+            # in wink/timeutil.py treats NULL as "unknown" and falls back to
+            # config.APP_TIMEZONE, so there's no invalid value to guard
+            # against anywhere date/time math actually uses this.
+            timezone_raw = request.form.get("timezone", "").strip()
+            student_timezone = timezone_raw if is_valid_timezone(timezone_raw) else None
             terms_agree = request.form.get("terms_agree") == "on"
             research_agree = request.form.get("research_agree") == "on"
             first_generation = request.form.get("first_generation") == "on"
@@ -61,20 +71,18 @@ def register():
                 return err("Password must be at least 8 characters.")
             if not config.DB_URL:
                 return err("Database not configured.")
-            conn = get_db(); cur = conn.cursor()
-            cur.execute("SELECT id FROM students WHERE email=%s", (email,))
-            if cur.fetchone():
-                cur.close()
-                return err("Account already exists — please log in.")
-            cur.execute("""INSERT INTO students(email,password_hash,first_name,last_name,classification,major,university,preferred_language,
-                           terms_accepted_at,terms_version,research_consent,research_consent_at,research_consent_version,first_generation)
-                           VALUES(%s,%s,%s,%s,%s,%s,%s,%s,NOW(),%s,%s,NOW(),%s,%s) RETURNING id""",
-                        (email, generate_password_hash(pw), fn, ln, cl, major, university, preferred_language,
-                         config.TERMS_VERSION, research_agree, config.TERMS_VERSION, first_generation))
-            new_id = cur.fetchone()["id"]
-            verify_token = secrets.token_urlsafe(32)
-            cur.execute("UPDATE students SET verification_token=%s WHERE id=%s", (verify_token, new_id))
-            conn.commit(); cur.close()
+            with db_cursor(commit=True) as cur:
+                cur.execute("SELECT id FROM students WHERE email=%s", (email,))
+                if cur.fetchone():
+                    return err("Account already exists — please log in.")
+                cur.execute("""INSERT INTO students(email,password_hash,first_name,last_name,classification,major,university,preferred_language,
+                               terms_accepted_at,terms_version,research_consent,research_consent_at,research_consent_version,first_generation,timezone)
+                               VALUES(%s,%s,%s,%s,%s,%s,%s,%s,NOW(),%s,%s,NOW(),%s,%s,%s) RETURNING id""",
+                            (email, generate_password_hash(pw), fn, ln, cl, major, university, preferred_language,
+                             config.TERMS_VERSION, research_agree, config.TERMS_VERSION, first_generation, student_timezone))
+                new_id = cur.fetchone()["id"]
+                verify_token = secrets.token_urlsafe(32)
+                cur.execute("UPDATE students SET verification_token=%s WHERE id=%s", (verify_token, new_id))
 
             # From here on, the account is fully created and functional — nothing
             # below this point should be able to turn a successful registration
@@ -110,16 +118,15 @@ def register():
                     )
 
             try:
-                conn = get_db(); cur = conn.cursor()
-                cur.execute("""SELECT DISTINCT ON (dl.document_id, dl.title, dl.due_date)
-                               dl.document_id, dl.course, dl.title, dl.due_date, dl.source_snippet
-                               FROM deadlines dl
-                               JOIN documents d ON d.id = dl.document_id
-                               WHERE d.student_id IS NULL AND (lower(d.university)=lower(%s) OR lower(d.university)='all')
-                               ORDER BY dl.document_id, dl.title, dl.due_date""",
-                            (university,))
-                global_deadlines = [dict(r) for r in cur.fetchall()]
-                cur.close()
+                with db_cursor() as cur:
+                    cur.execute("""SELECT DISTINCT ON (dl.document_id, dl.title, dl.due_date)
+                                   dl.document_id, dl.course, dl.title, dl.due_date, dl.source_snippet
+                                   FROM deadlines dl
+                                   JOIN documents d ON d.id = dl.document_id
+                                   WHERE d.student_id IS NULL AND (lower(d.university)=lower(%s) OR lower(d.university)='all')
+                                   ORDER BY dl.document_id, dl.title, dl.due_date""",
+                                (university,))
+                    global_deadlines = [dict(r) for r in cur.fetchall()]
                 for r in global_deadlines:
                     due = r["due_date"]
                     due_str = due.isoformat() if hasattr(due, "isoformat") else due
@@ -128,13 +135,12 @@ def register():
                                        "source_snippet": r.get("source_snippet", "")}])
 
                 covered_doc_ids = {r["document_id"] for r in global_deadlines}
-                conn = get_db(); cur = conn.cursor()
-                cur.execute("""SELECT id, course, content FROM documents
-                               WHERE student_id IS NULL AND (lower(university)=lower(%s) OR lower(university)='all')
-                               AND content IS NOT NULL AND content != ''""",
-                            (university,))
-                orphan_docs = [dict(r) for r in cur.fetchall() if dict(r)["id"] not in covered_doc_ids]
-                cur.close()
+                with db_cursor() as cur:
+                    cur.execute("""SELECT id, course, content FROM documents
+                                   WHERE student_id IS NULL AND (lower(university)=lower(%s) OR lower(university)='all')
+                                   AND content IS NOT NULL AND content != ''""",
+                                (university,))
+                    orphan_docs = [dict(r) for r in cur.fetchall() if dict(r)["id"] not in covered_doc_ids]
                 for doc in orphan_docs:
                     deadlines = extract_deadlines(doc["content"])
                     if deadlines:
@@ -161,9 +167,9 @@ def login():
                 return render_template("landing.html", error="Too many attempts — please wait a minute and try again.")
             if not config.DB_URL:
                 return render_template("landing.html", error="Database not configured.")
-            conn = get_db(); cur = conn.cursor()
-            cur.execute("SELECT * FROM students WHERE email=%s", (email,))
-            s = cur.fetchone(); cur.close()
+            with db_cursor() as cur:
+                cur.execute("SELECT * FROM students WHERE email=%s", (email,))
+                s = cur.fetchone()
             if s:
                 password_ok = check_password_hash(s["password_hash"], pw)
             else:
@@ -179,6 +185,18 @@ def login():
                 pw_changed = s.get("password_changed_at")
                 session["pw_changed_at"] = pw_changed.isoformat() if pw_changed else None
                 log_event(s["id"], "login")
+                # Best-effort, silent refresh — never blocks or fails the
+                # login itself. This is what backfills accounts created
+                # before the timezone column existed, and keeps it current
+                # for a student who's since traveled or switched devices;
+                # registration alone only ever captures it once, at signup.
+                submitted_tz = request.form.get("timezone", "").strip()
+                if is_valid_timezone(submitted_tz) and submitted_tz != s.get("timezone"):
+                    try:
+                        with db_cursor(commit=True) as cur:
+                            cur.execute("UPDATE students SET timezone=%s WHERE id=%s", (submitted_tz, s["id"]))
+                    except Exception as e:
+                        log_error("auth.login.timezone_refresh", e, student_id=s["id"])
                 if s.get("mfa_enabled"):
                     # Password alone isn't enough for this account — the
                     # session is real (sid is set) but mfa_verified is
@@ -213,16 +231,14 @@ def verify_email(token):
     if not config.DB_URL:
         return current_app.response_class("Database not configured.", mimetype="text/plain"), 500
     try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("SELECT id FROM students WHERE verification_token=%s", (token,))
-        row = cur.fetchone()
-        if not row:
-            cur.close()
-            return current_app.response_class(
-                "This verification link is invalid or has already been used.",
-                mimetype="text/plain"), 400
-        cur.execute("UPDATE students SET email_verified=TRUE, verification_token=NULL WHERE id=%s", (row["id"],))
-        conn.commit(); cur.close()
+        with db_cursor(commit=True) as cur:
+            cur.execute("SELECT id FROM students WHERE verification_token=%s", (token,))
+            row = cur.fetchone()
+            if not row:
+                return current_app.response_class(
+                    "This verification link is invalid or has already been used.",
+                    mimetype="text/plain"), 400
+            cur.execute("UPDATE students SET email_verified=TRUE, verification_token=NULL WHERE id=%s", (row["id"],))
         log_event(row["id"], "email_verified", {})
         return current_app.response_class(
             "Your email is verified! You can close this tab and keep using WINK.",
@@ -247,9 +263,8 @@ def resend_verification():
         return jsonify({"error": "Please wait a few minutes before requesting another email."}), 429
     try:
         token = secrets.token_urlsafe(32)
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("UPDATE students SET verification_token=%s WHERE id=%s", (token, s["id"]))
-        conn.commit(); cur.close()
+        with db_cursor(commit=True) as cur:
+            cur.execute("UPDATE students SET verification_token=%s WHERE id=%s", (token, s["id"]))
         verify_link = url_for("auth.verify_email", token=token, _external=True)
         sent = send_email(s["email"], "Verify your WINK email address",
                    f"Hi {s['first_name']},\n\nPlease confirm your email address by visiting:\n{verify_link}\n\n— WINK")
@@ -279,21 +294,19 @@ def forgot_password():
             return render_template("landing.html", forgot=True, error="Too many requests — please wait a few minutes and try again.")
         if not config.DB_URL:
             return render_template("landing.html", forgot=True, error="Database not configured.")
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("SELECT id FROM students WHERE email=%s", (email,))
-        s = cur.fetchone()
-        if not s:
-            cur.close()
-            return render_template("landing.html", forgot=True, reset_sent=True)
+        with db_cursor(commit=True) as cur:
+            cur.execute("SELECT id FROM students WHERE email=%s", (email,))
+            s = cur.fetchone()
+            if not s:
+                return render_template("landing.html", forgot=True, reset_sent=True)
 
-        token = secrets.token_urlsafe(32)
-        token_hash = hashlib.sha256(token.encode()).hexdigest()
-        expires_at = utcnow_naive() + timedelta(hours=1)
-        cur.execute(
-            "INSERT INTO password_resets(student_id, token, expires_at) VALUES(%s,%s,%s)",
-            (s["id"], token_hash, expires_at)
-        )
-        conn.commit(); cur.close()
+            token = secrets.token_urlsafe(32)
+            token_hash = hashlib.sha256(token.encode()).hexdigest()
+            expires_at = utcnow_naive() + timedelta(hours=1)
+            cur.execute(
+                "INSERT INTO password_resets(student_id, token, expires_at) VALUES(%s,%s,%s)",
+                (s["id"], token_hash, expires_at)
+            )
         log_event(s["id"], "password_reset_requested")
 
         reset_link = url_for("auth.reset_password", token=token, _external=True)
@@ -319,52 +332,46 @@ def reset_password(token):
         if not config.DB_URL:
             return render_template("landing.html", show_reset_modal=True, reset_password_error="Database not configured.")
         token_hash = hashlib.sha256(token.encode()).hexdigest()
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("""
-            SELECT pr.id AS reset_id, pr.student_id, pr.expires_at, pr.used, s.email
-            FROM password_resets pr JOIN students s ON s.id = pr.student_id
-            WHERE pr.token=%s
-        """, (token_hash,))
-        row = cur.fetchone()
+        with db_cursor(commit=True) as cur:
+            cur.execute("""
+                SELECT pr.id AS reset_id, pr.student_id, pr.expires_at, pr.used, s.email
+                FROM password_resets pr JOIN students s ON s.id = pr.student_id
+                WHERE pr.token=%s
+            """, (token_hash,))
+            row = cur.fetchone()
 
-        if not row or row["used"] or row["expires_at"] < utcnow_naive():
-            cur.close()
-            return render_template("landing.html", show_reset_modal=True, reset_password_invalid=True)
-
-        if request.method == "POST":
-            pw = request.form.get("password", "").strip()
-            confirm = request.form.get("confirm_password", "").strip()
-            if len(pw) < 8:
-                cur.close()
-                return render_template("landing.html", show_reset_modal=True, reset_password_token=token,
-                                       reset_password_error="Password must be at least 8 characters.")
-            if pw != confirm:
-                cur.close()
-                return render_template("landing.html", show_reset_modal=True, reset_password_token=token,
-                                       reset_password_error="Passwords do not match.")
-            # Atomically claim the token — WHERE used=FALSE means this
-            # UPDATE only actually claims it for whichever request gets
-            # here first; a second, simultaneous request with the same
-            # token gets 0 rows back and is correctly rejected below,
-            # rather than the earlier pattern where two requests could
-            # both pass a separate "is it used?" check before either had
-            # committed marking it used. Also re-checks expiry at the
-            # same atomic instant, rather than relying on the earlier
-            # read further up which could be stale by now.
-            cur.execute("""UPDATE password_resets SET used=TRUE
-                           WHERE id=%s AND used=FALSE AND expires_at > NOW()
-                           RETURNING student_id""", (row["reset_id"],))
-            claimed = cur.fetchone()
-            if not claimed:
-                conn.commit(); cur.close()
+            if not row or row["used"] or row["expires_at"] < utcnow_naive():
                 return render_template("landing.html", show_reset_modal=True, reset_password_invalid=True)
-            cur.execute("UPDATE students SET password_hash=%s, password_changed_at=NOW() WHERE id=%s",
-                        (generate_password_hash(pw), claimed["student_id"]))
-            conn.commit(); cur.close()
-            log_event(claimed["student_id"], "password_reset_completed")
-            return render_template("landing.html", success="Your password has been updated — please sign in.")
 
-        cur.close()
+            if request.method == "POST":
+                pw = request.form.get("password", "").strip()
+                confirm = request.form.get("confirm_password", "").strip()
+                if len(pw) < 8:
+                    return render_template("landing.html", show_reset_modal=True, reset_password_token=token,
+                                           reset_password_error="Password must be at least 8 characters.")
+                if pw != confirm:
+                    return render_template("landing.html", show_reset_modal=True, reset_password_token=token,
+                                           reset_password_error="Passwords do not match.")
+                # Atomically claim the token — WHERE used=FALSE means this
+                # UPDATE only actually claims it for whichever request gets
+                # here first; a second, simultaneous request with the same
+                # token gets 0 rows back and is correctly rejected below,
+                # rather than the earlier pattern where two requests could
+                # both pass a separate "is it used?" check before either had
+                # committed marking it used. Also re-checks expiry at the
+                # same atomic instant, rather than relying on the earlier
+                # read further up which could be stale by now.
+                cur.execute("""UPDATE password_resets SET used=TRUE
+                               WHERE id=%s AND used=FALSE AND expires_at > NOW()
+                               RETURNING student_id""", (row["reset_id"],))
+                claimed = cur.fetchone()
+                if not claimed:
+                    return render_template("landing.html", show_reset_modal=True, reset_password_invalid=True)
+                cur.execute("UPDATE students SET password_hash=%s, password_changed_at=NOW() WHERE id=%s",
+                            (generate_password_hash(pw), claimed["student_id"]))
+                log_event(claimed["student_id"], "password_reset_completed")
+                return render_template("landing.html", success="Your password has been updated — please sign in.")
+
         return render_template("landing.html", show_reset_modal=True, reset_password_token=token)
     except Exception as e:
         log_error("auth.reset_password", e)
@@ -405,11 +412,10 @@ def delete_account():
     if not pw or not check_password_hash(s["password_hash"], pw):
         return jsonify({"error": "Incorrect password."}), 400
     try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("UPDATE students SET account_deleted_at=NOW() WHERE id=%s AND account_deleted_at IS NULL",
-                    (s["id"],))
-        _anonymize_student_sql(cur, s["id"])
-        conn.commit(); cur.close()
+        with db_cursor(commit=True) as cur:
+            cur.execute("UPDATE students SET account_deleted_at=NOW() WHERE id=%s AND account_deleted_at IS NULL",
+                        (s["id"],))
+            _anonymize_student_sql(cur, s["id"])
         log_event(s["id"], "account_deleted")
         session.clear()
         return jsonify({"ok": True})
@@ -473,10 +479,9 @@ def mfa_setup():
                                 secret=secret, provisioning_uri=provisioning_uri,
                                 error="That code didn't match — check your authenticator app and try again.")
     plain_codes, hashed_codes = _generate_backup_codes()
-    conn = get_db(); cur = conn.cursor()
-    cur.execute("""UPDATE students SET mfa_secret=%s, mfa_enabled=TRUE, mfa_backup_codes=%s
-                   WHERE id=%s""", (encrypt_mfa_secret(secret), json.dumps(hashed_codes), s["id"]))
-    conn.commit(); cur.close()
+    with db_cursor(commit=True) as cur:
+        cur.execute("""UPDATE students SET mfa_secret=%s, mfa_enabled=TRUE, mfa_backup_codes=%s
+                       WHERE id=%s""", (encrypt_mfa_secret(secret), json.dumps(hashed_codes), s["id"]))
     session.pop("mfa_pending_secret", None)
     session["mfa_verified"] = True  # they just proved possession — no need to re-enter immediately
     log_event(s["id"], "mfa_enabled")
@@ -533,26 +538,25 @@ def mfa_verify_page():
         # both reading the same pre-request snapshot of the code list
         # (via `s`, fetched before this request even started) and both
         # independently believing they'd successfully consumed it.
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("SELECT mfa_backup_codes FROM students WHERE id=%s FOR UPDATE", (s["id"],))
-        locked_row = cur.fetchone()
-        try:
-            hashed_codes = json.loads((locked_row or {}).get("mfa_backup_codes") or "[]")
-        except Exception:
-            hashed_codes = []
-        for i, h in enumerate(hashed_codes):
-            if check_password_hash(h, code):
-                verified = True
-                remaining = hashed_codes[:i] + hashed_codes[i + 1:]
-                cur.execute("UPDATE students SET mfa_backup_codes=%s WHERE id=%s",
-                            (json.dumps(remaining), s["id"]))
-                log_event(s["id"], "mfa_backup_code_used")
-                break
+        with db_cursor(commit=True) as cur:
+            cur.execute("SELECT mfa_backup_codes FROM students WHERE id=%s FOR UPDATE", (s["id"],))
+            locked_row = cur.fetchone()
+            try:
+                hashed_codes = json.loads((locked_row or {}).get("mfa_backup_codes") or "[]")
+            except Exception:
+                hashed_codes = []
+            for i, h in enumerate(hashed_codes):
+                if check_password_hash(h, code):
+                    verified = True
+                    remaining = hashed_codes[:i] + hashed_codes[i + 1:]
+                    cur.execute("UPDATE students SET mfa_backup_codes=%s WHERE id=%s",
+                                (json.dumps(remaining), s["id"]))
+                    log_event(s["id"], "mfa_backup_code_used")
+                    break
         # Commits (releasing the row lock) whether or not a match was
         # found — an unmatched attempt didn't change anything, but the
         # SELECT ... FOR UPDATE above still needs its transaction closed
         # out promptly rather than held open for the rest of the request.
-        conn.commit(); cur.close()
 
     if not verified:
         return render_template("mfa_verify.html", error="That code wasn't right — please try again.")
@@ -578,9 +582,8 @@ def mfa_disable():
     pw = request.form.get("password", "").strip()
     if not pw or not check_password_hash(s["password_hash"], pw):
         return jsonify({"error": "Incorrect password."}), 400
-    conn = get_db(); cur = conn.cursor()
-    cur.execute("""UPDATE students SET mfa_secret=NULL, mfa_enabled=FALSE, mfa_backup_codes='[]'
-                   WHERE id=%s""", (s["id"],))
-    conn.commit(); cur.close()
+    with db_cursor(commit=True) as cur:
+        cur.execute("""UPDATE students SET mfa_secret=NULL, mfa_enabled=FALSE, mfa_backup_codes='[]'
+                       WHERE id=%s""", (s["id"],))
     log_event(s["id"], "mfa_disabled")
     return jsonify({"ok": True})

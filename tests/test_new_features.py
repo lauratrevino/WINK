@@ -3,6 +3,7 @@ import os
 
 FIXTURES_DIR = os.path.join(os.path.dirname(__file__), "fixtures")
 from datetime import date, timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -23,18 +24,31 @@ class TestSpacedRepetitionScheduling:
 
     def test_correct_answer_roughly_triples_interval(self):
         from wink.services.practice import schedule_next_review
+        from datetime import datetime
+        from wink import config
         new_interval, next_date = schedule_next_review(1, correct=True)
         assert new_interval == 3
-        assert next_date == date.today() + timedelta(days=3)
+        # schedule_next_review() deliberately anchors to the app's configured
+        # local timezone (see its own docstring/config.APP_TIMEZONE), not
+        # whatever timezone the test runner's system clock happens to be in
+        # — comparing against the bare date.today() here was flaky for
+        # several hours a day whenever the two disagreed on the calendar
+        # date, exactly the class of bug already fixed elsewhere in this
+        # app (extract_deadlines(), the progress-page activity charts).
+        local_today = datetime.now(ZoneInfo(config.APP_TIMEZONE)).date()
+        assert next_date == local_today + timedelta(days=3)
 
         new_interval, _ = schedule_next_review(3, correct=True)
         assert new_interval == 9
 
     def test_incorrect_answer_resets_to_one_day_regardless_of_streak(self):
         from wink.services.practice import schedule_next_review
+        from datetime import datetime
+        from wink import config
         new_interval, next_date = schedule_next_review(27, correct=False)
         assert new_interval == 1
-        assert next_date == date.today() + timedelta(days=1)
+        local_today = datetime.now(ZoneInfo(config.APP_TIMEZONE)).date()
+        assert next_date == local_today + timedelta(days=1)
 
     def test_interval_is_capped(self):
         from wink.services.practice import schedule_next_review

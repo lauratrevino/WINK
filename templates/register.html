@@ -267,6 +267,7 @@
 
         <form method="POST" action="/register" id="register-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="timezone" id="register-timezone-field">
           <h2 class="form-section-label">Your Info</h2>
           <div class="form-row">
             <div class="form-group">
@@ -2807,6 +2808,23 @@
         }
         btn.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
       });
+    })();
+
+    (function captureTimezone() {
+      // Populated immediately on page load rather than at submit time —
+      // simpler, and it means the value is already sitting in the form
+      // by the time any submit path runs, with nothing else that needs
+      // to remember to set it. Falls back to leaving the field blank
+      // (never throws) if the browser genuinely can't report one; the
+      // server already treats a missing/invalid timezone as "unknown"
+      // and falls back to Mountain Time itself.
+      const field = document.getElementById('register-timezone-field');
+      if (!field) return;
+      try {
+        field.value = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+      } catch (e) {
+        field.value = '';
+      }
     })();
 
     (function setupTermsGate() {

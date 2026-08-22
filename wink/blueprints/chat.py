@@ -12,7 +12,7 @@ from werkzeug.utils import secure_filename
 
 from .. import config
 from ..errors import log_error
-from ..extensions import anthropic_client, csrf, generate_csrf_token, get_db, release_db
+from ..extensions import anthropic_client, csrf, generate_csrf_token, db_cursor, release_db
 from ..security import login_required, page_login_required, rate_limited, verified_required
 from ..services.analytics import log_event, log_token_usage, parse_conversation_messages
 from ..services.deadlines import build_deadlines_context
@@ -23,7 +23,7 @@ from ..services.practice import (generate_practice_questions, generate_practice_
                                   record_attempt, store_practice_questions)
 from ..services.research import log_answer, record_student_feedback
 from ..services.system_prompt import build_chat_instructions
-from ..timeutil import utcnow_naive
+from ..timeutil import utcnow_naive, resolve_student_timezone
 
 bp = Blueprint("chat", __name__)
 
@@ -159,18 +159,16 @@ def chat():
         conv_id = data.get("conversation_id")
         conv_row = None
         if config.DB_URL:
-            conn = get_db(); cur = conn.cursor()
-            if conv_id:
-                cur.execute("SELECT id, title, messages FROM conversations WHERE id=%s AND student_id=%s AND deleted_at IS NULL",
-                            (conv_id, s["id"]))
-                conv_row = cur.fetchone()
-            if not conv_row:
-                title = (str(user_msg).strip()[:60] or "New conversation")
-                cur.execute("""INSERT INTO conversations(student_id, title, messages)
-                               VALUES(%s,%s,'[]') RETURNING id, title, messages""", (s["id"], title))
-                conv_row = cur.fetchone()
-                conn.commit()
-            cur.close()
+            with db_cursor(commit=True) as cur:
+                if conv_id:
+                    cur.execute("SELECT id, title, messages FROM conversations WHERE id=%s AND student_id=%s AND deleted_at IS NULL",
+                                (conv_id, s["id"]))
+                    conv_row = cur.fetchone()
+                if not conv_row:
+                    title = (str(user_msg).strip()[:60] or "New conversation")
+                    cur.execute("""INSERT INTO conversations(student_id, title, messages)
+                                   VALUES(%s,%s,'[]') RETURNING id, title, messages""", (s["id"], title))
+                    conv_row = cur.fetchone()
             conv_id = conv_row["id"]
 
         messages = messages[-config.MAX_CHAT_HISTORY_MESSAGES:]
@@ -247,9 +245,19 @@ def chat():
             if over_by > 0:
                 temp_doc_ctx = temp_doc_ctx[:max(0, len(temp_doc_ctx) - over_by)]
 
-        now = datetime.now(ZoneInfo(config.APP_TIMEZONE))
+        now = datetime.now(ZoneInfo(resolve_student_timezone(s)))
         today = now.strftime("%A, %B %d, %Y")
-        university_display = student_university or "their university"
+        # "Other" is a real, selectable option in the registration dropdown
+        # (see universities_list.py) for students whose school isn't listed
+        # — but with no matching free-text field to capture what it
+        # actually is, so student_university can literally be the string
+        # "Other" rather than a real name. Passed straight through, that
+        # produced answers like "let me search for Other's campus map,"
+        # since the AI has no way to know "Other" isn't an actual
+        # institution name. Treating it the same as no university on file
+        # avoids that for every account already stored this way, not just
+        # new registrations after the form is fixed to ask what "Other" is.
+        university_display = student_university if student_university and student_university.strip().lower() != "other" else "their university"
         is_utep = "utep" in student_university.lower() or "el paso" in student_university.lower()
         instructions = build_chat_instructions(
             s, today, university_display, is_utep, temp_doc_ctx,
@@ -352,7 +360,6 @@ def chat():
             message_index = None
             if config.DB_URL and conv_id:
                 try:
-                    conn = get_db(); cur = conn.cursor()
                     # Re-read the CURRENT messages under a row lock, rather than
                     # trusting conv_row's snapshot from before the AI call —
                     # that snapshot can be stale by the time we get here (the
@@ -362,25 +369,31 @@ def chat():
                     # silently erase the first's exchange. FOR UPDATE makes a
                     # second concurrent request here wait for this transaction
                     # to commit, then see this exchange already appended.
-                    cur.execute("SELECT messages FROM conversations WHERE id=%s FOR UPDATE", (conv_id,))
-                    fresh = cur.fetchone()
-                    saved = parse_conversation_messages(fresh["messages"]) if fresh else []
-                    if not isinstance(saved, list): saved = []
-                    saved.append({"role": "user", "content": user_msg, "ts": utcnow_naive().isoformat()})
-                    saved.append({"role": "assistant", "content": reply, "ts": utcnow_naive().isoformat()})
-                    if len(saved) > config.MAX_STORED_MESSAGES_PER_CONVERSATION:
-                        # Trim from the oldest end rather than growing forever —
-                        # a single very long-running conversation over a full
-                        # semester shouldn't turn into an unbounded JSON blob.
-                        # The AI context window (MAX_CHAT_HISTORY_MESSAGES) is
-                        # already far smaller than this, so trimming old
-                        # history here doesn't change what WINK can "see" —
-                        # it only bounds how much a single row can grow.
-                        saved = saved[-config.MAX_STORED_MESSAGES_PER_CONVERSATION:]
-                    message_index = len(saved) - 1
-                    cur.execute("UPDATE conversations SET messages=%s, updated_at=NOW() WHERE id=%s",
-                                (json.dumps(saved), conv_id))
-                    conn.commit(); cur.close()
+                    #
+                    # get_db() (called inside db_cursor()) legitimately
+                    # re-acquires a fresh connection here — release_db() was
+                    # called further down, back in the outer request
+                    # function, before this generator's body actually starts
+                    # running during the stream (see the comment there).
+                    with db_cursor(commit=True) as cur:
+                        cur.execute("SELECT messages FROM conversations WHERE id=%s FOR UPDATE", (conv_id,))
+                        fresh = cur.fetchone()
+                        saved = parse_conversation_messages(fresh["messages"]) if fresh else []
+                        if not isinstance(saved, list): saved = []
+                        saved.append({"role": "user", "content": user_msg, "ts": utcnow_naive().isoformat()})
+                        saved.append({"role": "assistant", "content": reply, "ts": utcnow_naive().isoformat()})
+                        if len(saved) > config.MAX_STORED_MESSAGES_PER_CONVERSATION:
+                            # Trim from the oldest end rather than growing forever —
+                            # a single very long-running conversation over a full
+                            # semester shouldn't turn into an unbounded JSON blob.
+                            # The AI context window (MAX_CHAT_HISTORY_MESSAGES) is
+                            # already far smaller than this, so trimming old
+                            # history here doesn't change what WINK can "see" —
+                            # it only bounds how much a single row can grow.
+                            saved = saved[-config.MAX_STORED_MESSAGES_PER_CONVERSATION:]
+                        message_index = len(saved) - 1
+                        cur.execute("UPDATE conversations SET messages=%s, updated_at=NOW() WHERE id=%s",
+                                    (json.dumps(saved), conv_id))
                 except Exception as e:
                     log_error("chat.conversation_save", e, conversation_id=conv_id)
             log_answer(
@@ -479,7 +492,7 @@ def generate_practice():
             return jsonify({"summary": summary})
 
         questions = generate_practice_questions(material_text, count=count, qtype=qtype, student_id=s["id"])
-        questions = store_practice_questions(s["id"], course, questions, qtype=qtype)
+        questions = store_practice_questions(s["id"], course, questions, qtype=qtype, tz=resolve_student_timezone(s))
         log_event(s["id"], "practice_questions_generated", {
             "course": course, "count": len(questions), "qtype": qtype,
             "material_chars": len(temp_material),
@@ -552,7 +565,7 @@ def practice_attempt():
         correct = data.get("correct")
         if question_id is None or not isinstance(correct, bool):
             return jsonify({"error": "question_id and correct (true/false) are required"}), 400
-        updated = record_attempt(s["id"], question_id, correct)
+        updated = record_attempt(s["id"], question_id, correct, tz=resolve_student_timezone(s))
         if not updated:
             return jsonify({"error": "Question not found"}), 404
         return jsonify({"success": True, "question": updated})
@@ -566,7 +579,7 @@ def practice_attempt():
 def practice_review():
     s = g.student
     course = request.args.get("course")
-    return jsonify({"questions": get_due_questions(s["id"], course=course)})
+    return jsonify({"questions": get_due_questions(s["id"], course=course, tz=resolve_student_timezone(s))})
 
 
 @bp.route("/grade-quiz-answer", methods=["POST"])
@@ -579,7 +592,7 @@ def grade_quiz_answer_route():
         selected_index = data.get("selected_index")
         if question_id is None or not isinstance(selected_index, int):
             return jsonify({"error": "question_id and selected_index are required"}), 400
-        result = grade_quiz_answer(s["id"], question_id, selected_index)
+        result = grade_quiz_answer(s["id"], question_id, selected_index, tz=resolve_student_timezone(s))
         if not result:
             return jsonify({"error": "Question not found, or isn't a multiple-choice question."}), 404
         return jsonify(result)
@@ -617,10 +630,10 @@ def list_conversations():
     s = g.student
     if not config.DB_URL: return jsonify({"conversations": []})
     try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("""SELECT id, title, messages, updated_at FROM conversations
-                       WHERE student_id=%s AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT 50""", (s["id"],))
-        rows = cur.fetchall(); cur.close()
+        with db_cursor() as cur:
+            cur.execute("""SELECT id, title, messages, updated_at FROM conversations
+                           WHERE student_id=%s AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT 50""", (s["id"],))
+            rows = cur.fetchall()
         out = []
         for r in rows:
             msgs = parse_conversation_messages(r["messages"])
@@ -641,10 +654,10 @@ def get_conversation(conv_id):
     s = g.student
     if not config.DB_URL: return jsonify({"error": "No database"}), 500
     try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("SELECT id, title, messages FROM conversations WHERE id=%s AND student_id=%s AND deleted_at IS NULL",
-                    (conv_id, s["id"]))
-        row = cur.fetchone(); cur.close()
+        with db_cursor() as cur:
+            cur.execute("SELECT id, title, messages FROM conversations WHERE id=%s AND student_id=%s AND deleted_at IS NULL",
+                        (conv_id, s["id"]))
+            row = cur.fetchone()
         if not row: return jsonify({"error": "Not found"}), 404
         msgs = parse_conversation_messages(row["messages"])
         return jsonify({"id": row["id"], "title": row["title"], "messages": msgs})
@@ -659,16 +672,15 @@ def delete_conversation(conv_id):
     s = g.student
     if not config.DB_URL: return jsonify({"error": "No database"}), 500
     try:
-        conn = get_db(); cur = conn.cursor()
-        # Soft-delete only: this hides the conversation from the student
-        # immediately, but the row (and its research value) is kept for 3
-        # months — see purge_deleted_conversations() below for the actual
-        # hard-delete after that retention window.
-        cur.execute("""UPDATE conversations SET deleted_at=NOW()
-                       WHERE id=%s AND student_id=%s AND deleted_at IS NULL RETURNING id""",
-                    (conv_id, s["id"]))
-        row = cur.fetchone()
-        conn.commit(); cur.close()
+        with db_cursor(commit=True) as cur:
+            # Soft-delete only: this hides the conversation from the student
+            # immediately, but the row (and its research value) is kept for 3
+            # months — see purge_deleted_conversations() below for the actual
+            # hard-delete after that retention window.
+            cur.execute("""UPDATE conversations SET deleted_at=NOW()
+                           WHERE id=%s AND student_id=%s AND deleted_at IS NULL RETURNING id""",
+                        (conv_id, s["id"]))
+            row = cur.fetchone()
         if not row:
             return jsonify({"error": "Not found"}), 404
         return jsonify({"success": True})
@@ -692,10 +704,10 @@ def export_conversation(conv_id):
     s = g.student
     if not config.DB_URL: return jsonify({"error": "No database"}), 500
     try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("SELECT title, messages FROM conversations WHERE id=%s AND student_id=%s AND deleted_at IS NULL",
-                    (conv_id, s["id"]))
-        row = cur.fetchone(); cur.close()
+        with db_cursor() as cur:
+            cur.execute("SELECT title, messages FROM conversations WHERE id=%s AND student_id=%s AND deleted_at IS NULL",
+                        (conv_id, s["id"]))
+            row = cur.fetchone()
         if not row: return jsonify({"error": "Not found"}), 404
         msgs = parse_conversation_messages(row["messages"])
         transcript = _conversation_transcript(row["title"], msgs)
@@ -714,18 +726,15 @@ def share_conversation(conv_id):
     s = g.student
     if not config.DB_URL: return jsonify({"error": "No database"}), 500
     try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("SELECT id, share_token FROM conversations WHERE id=%s AND student_id=%s AND deleted_at IS NULL",
-                    (conv_id, s["id"]))
-        row = cur.fetchone()
-        if not row:
-            cur.close()
-            return jsonify({"error": "Not found"}), 404
-        token = row["share_token"] or secrets.token_urlsafe(24)
-        if not row["share_token"]:
-            cur.execute("UPDATE conversations SET share_token=%s WHERE id=%s", (token, conv_id))
-            conn.commit()
-        cur.close()
+        with db_cursor(commit=True) as cur:
+            cur.execute("SELECT id, share_token FROM conversations WHERE id=%s AND student_id=%s AND deleted_at IS NULL",
+                        (conv_id, s["id"]))
+            row = cur.fetchone()
+            if not row:
+                return jsonify({"error": "Not found"}), 404
+            token = row["share_token"] or secrets.token_urlsafe(24)
+            if not row["share_token"]:
+                cur.execute("UPDATE conversations SET share_token=%s WHERE id=%s", (token, conv_id))
         return jsonify({"share_url": url_for("chat.view_shared_conversation", token=token, _external=True)})
     except Exception as e:
         log_error("chat.share_conversation", e)
@@ -736,12 +745,12 @@ def share_conversation(conv_id):
 def view_shared_conversation(token):
     if not config.DB_URL: return "Not available.", 404
     try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("""SELECT c.title, c.messages
-                       FROM conversations c JOIN students s ON s.id = c.student_id
-                       WHERE c.share_token=%s AND c.deleted_at IS NULL
-                       AND s.account_deleted_at IS NULL""", (token,))
-        row = cur.fetchone(); cur.close()
+        with db_cursor() as cur:
+            cur.execute("""SELECT c.title, c.messages
+                           FROM conversations c JOIN students s ON s.id = c.student_id
+                           WHERE c.share_token=%s AND c.deleted_at IS NULL
+                           AND s.account_deleted_at IS NULL""", (token,))
+            row = cur.fetchone()
         if not row: return "This shared conversation could not be found.", 404
         msgs = parse_conversation_messages(row["messages"])
         return render_template("shared_conversation.html",
@@ -757,11 +766,10 @@ def unshare_conversation(conv_id):
     s = g.student
     if not config.DB_URL: return jsonify({"error": "No database"}), 500
     try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("UPDATE conversations SET share_token=NULL WHERE id=%s AND student_id=%s RETURNING id",
-                    (conv_id, s["id"]))
-        row = cur.fetchone()
-        conn.commit(); cur.close()
+        with db_cursor(commit=True) as cur:
+            cur.execute("UPDATE conversations SET share_token=NULL WHERE id=%s AND student_id=%s RETURNING id",
+                        (conv_id, s["id"]))
+            row = cur.fetchone()
         if not row:
             return jsonify({"error": "Not found"}), 404
         return jsonify({"ok": True})
@@ -786,32 +794,28 @@ def purge_deleted_conversations():
     if not config.DB_URL:
         return jsonify({"error": "No database"}), 500
 
-    conn = get_db(); cur = conn.cursor()
-    cur.execute("INSERT INTO cron_runs(job_name) VALUES('purge_deleted_conversations') RETURNING id")
-    run_id = cur.fetchone()["id"]
-    conn.commit(); cur.close()
+    with db_cursor(commit=True) as cur:
+        cur.execute("INSERT INTO cron_runs(job_name) VALUES('purge_deleted_conversations') RETURNING id")
+        run_id = cur.fetchone()["id"]
 
     try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("""DELETE FROM conversations
-                       WHERE deleted_at IS NOT NULL AND deleted_at < NOW() - INTERVAL '3 months'
-                       RETURNING id""")
-        purged = cur.fetchall()
-        conn.commit(); cur.close()
+        with db_cursor(commit=True) as cur:
+            cur.execute("""DELETE FROM conversations
+                           WHERE deleted_at IS NOT NULL AND deleted_at < NOW() - INTERVAL '3 months'
+                           RETURNING id""")
+            purged = cur.fetchall()
 
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("UPDATE cron_runs SET completed_at=NOW(), number_processed=%s WHERE id=%s",
-                    (len(purged), run_id))
-        conn.commit(); cur.close()
+        with db_cursor(commit=True) as cur:
+            cur.execute("UPDATE cron_runs SET completed_at=NOW(), number_processed=%s WHERE id=%s",
+                        (len(purged), run_id))
 
         return jsonify({"purged": len(purged)})
     except Exception as e:
         log_error("chat.purge_deleted_conversations", e)
         try:
-            conn = get_db(); cur = conn.cursor()
-            cur.execute("UPDATE cron_runs SET completed_at=NOW(), last_error=%s WHERE id=%s",
-                        (str(e)[:500], run_id))
-            conn.commit(); cur.close()
+            with db_cursor(commit=True) as cur:
+                cur.execute("UPDATE cron_runs SET completed_at=NOW(), last_error=%s WHERE id=%s",
+                            (str(e)[:500], run_id))
         except Exception:
             pass
         return jsonify({"error": "Something went wrong on our end."}), 500

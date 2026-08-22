@@ -2,7 +2,7 @@ import json
 
 from .. import config
 from ..errors import log_error
-from ..extensions import get_db
+from ..extensions import db_cursor
 
 _VALID_RATINGS = {"correct", "incorrect", "unsure"}
 
@@ -13,114 +13,69 @@ def log_answer(student_id, question, answer_text="", conversation_id=None, messa
                 unverified_citations=None):
     if not config.DB_URL:
         return None
-    conn = None
-    cur = None
     try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("""INSERT INTO answer_logs
-                       (student_id, conversation_id, message_index, question, answer_text, model,
-                        retrieval_backend, chunk_count, document_ids, latency_ms, prompt_version,
-                        retrieved_context, unverified_citations)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
-                    (student_id, conversation_id, message_index, question or "", answer_text or "",
-                     config.CHAT_MODEL, retrieval_backend, chunk_count,
-                     json.dumps(document_ids or []), latency_ms, prompt_version, retrieved_context or "",
-                     json.dumps(unverified_citations or [])))
-        new_id = cur.fetchone()["id"]
-        conn.commit()
-        return new_id
+        with db_cursor(commit=True) as cur:
+            cur.execute("""INSERT INTO answer_logs
+                           (student_id, conversation_id, message_index, question, answer_text, model,
+                            retrieval_backend, chunk_count, document_ids, latency_ms, prompt_version,
+                            retrieved_context, unverified_citations)
+                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
+                        (student_id, conversation_id, message_index, question or "", answer_text or "",
+                         config.CHAT_MODEL, retrieval_backend, chunk_count,
+                         json.dumps(document_ids or []), latency_ms, prompt_version, retrieved_context or "",
+                         json.dumps(unverified_citations or [])))
+            return cur.fetchone()["id"]
     except Exception as e:
         log_error("services.research.log_answer", e)
-        if conn:
-            try:
-                conn.rollback()
-            except Exception:
-                pass
         return None
-    finally:
-        if cur:
-            try:
-                cur.close()
-            except Exception:
-                pass
 
 
 def record_student_feedback(conversation_id, message_index, rating, student_id):
     if not config.DB_URL or rating not in ("up", "down"):
         return
-    conn = None
-    cur = None
     try:
-        conn = get_db(); cur = conn.cursor()
-        # The ownership check is folded into the WHERE clause itself (a
-        # subquery against conversations.student_id) rather than done as a
-        # separate SELECT beforehand — that way there's no gap between
-        # checking ownership and applying the update for another request to
-        # exploit, and a student can never move another student's feedback
-        # even if they know/guess a conversation_id and message_index.
-        cur.execute("""UPDATE answer_logs SET student_feedback=%s
-                       WHERE conversation_id=%s AND message_index=%s
-                       AND conversation_id IN (
-                           SELECT id FROM conversations WHERE student_id=%s
-                       )""",
-                    (rating, conversation_id, message_index, student_id))
-        conn.commit()
+        with db_cursor(commit=True) as cur:
+            # The ownership check is folded into the WHERE clause itself (a
+            # subquery against conversations.student_id) rather than done as a
+            # separate SELECT beforehand — that way there's no gap between
+            # checking ownership and applying the update for another request to
+            # exploit, and a student can never move another student's feedback
+            # even if they know/guess a conversation_id and message_index.
+            cur.execute("""UPDATE answer_logs SET student_feedback=%s
+                           WHERE conversation_id=%s AND message_index=%s
+                           AND conversation_id IN (
+                               SELECT id FROM conversations WHERE student_id=%s
+                           )""",
+                        (rating, conversation_id, message_index, student_id))
     except Exception as e:
         log_error("services.research.record_student_feedback", e)
-        if conn:
-            try:
-                conn.rollback()
-            except Exception:
-                pass
-    finally:
-        if cur:
-            try:
-                cur.close()
-            except Exception:
-                pass
 
 
 def rate_answer(log_id, rating, notes, rated_by):
     if not config.DB_URL or rating not in _VALID_RATINGS:
         return None
-    conn = None
-    cur = None
     try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("""UPDATE answer_logs
-                       SET faculty_rating=%s, faculty_notes=%s, rated_by=%s, rated_at=NOW()
-                       WHERE id=%s RETURNING id""", (rating, notes or "", rated_by, log_id))
-        updated = cur.fetchone()
-        conn.commit()
-        return dict(updated) if updated else None
+        with db_cursor(commit=True) as cur:
+            cur.execute("""UPDATE answer_logs
+                           SET faculty_rating=%s, faculty_notes=%s, rated_by=%s, rated_at=NOW()
+                           WHERE id=%s RETURNING id""", (rating, notes or "", rated_by, log_id))
+            updated = cur.fetchone()
+            return dict(updated) if updated else None
     except Exception as e:
         log_error("services.research.rate_answer", e)
-        if conn:
-            try:
-                conn.rollback()
-            except Exception:
-                pass
         return None
-    finally:
-        if cur:
-            try:
-                cur.close()
-            except Exception:
-                pass
 
 
 def get_feedback_vs_accuracy_gap():
     if not config.DB_URL:
         return None
-    conn = None
-    cur = None
     try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("""SELECT student_feedback, faculty_rating, COUNT(*) as n
-                       FROM answer_logs
-                       WHERE student_feedback IS NOT NULL AND faculty_rating IS NOT NULL
-                       GROUP BY student_feedback, faculty_rating""")
-        rows = {(r["student_feedback"], r["faculty_rating"]): r["n"] for r in cur.fetchall()}
+        with db_cursor() as cur:
+            cur.execute("""SELECT student_feedback, faculty_rating, COUNT(*) as n
+                           FROM answer_logs
+                           WHERE student_feedback IS NOT NULL AND faculty_rating IS NOT NULL
+                           GROUP BY student_feedback, faculty_rating""")
+            rows = {(r["student_feedback"], r["faculty_rating"]): r["n"] for r in cur.fetchall()}
         if not rows:
             return None
         total = sum(rows.values())
@@ -134,12 +89,6 @@ def get_feedback_vs_accuracy_gap():
     except Exception as e:
         log_error("services.research.get_feedback_vs_accuracy_gap", e)
         return None
-    finally:
-        if cur:
-            try:
-                cur.close()
-            except Exception:
-                pass
 
 
 def get_config_snapshot():
@@ -161,27 +110,25 @@ def get_config_snapshot():
 def get_answer_log_stats(days=30):
     if not config.DB_URL:
         return None
-    conn = None
-    cur = None
     try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("""SELECT COUNT(*) as n, COUNT(DISTINCT student_id) as students,
-                              AVG(latency_ms) as avg_latency, AVG(chunk_count) as avg_chunks
-                       FROM answer_logs WHERE created_at >= NOW() - (%s * INTERVAL '1 day')""",
-                    (days,))
-        base = cur.fetchone()
+        with db_cursor() as cur:
+            cur.execute("""SELECT COUNT(*) as n, COUNT(DISTINCT student_id) as students,
+                                  AVG(latency_ms) as avg_latency, AVG(chunk_count) as avg_chunks
+                           FROM answer_logs WHERE created_at >= NOW() - (%s * INTERVAL '1 day')""",
+                        (days,))
+            base = cur.fetchone()
 
-        cur.execute("""SELECT retrieval_backend, COUNT(*) as n FROM answer_logs
-                       WHERE created_at >= NOW() - (%s * INTERVAL '1 day')
-                       GROUP BY retrieval_backend""", (days,))
-        backend_breakdown = {r["retrieval_backend"]: r["n"] for r in cur.fetchall()}
+            cur.execute("""SELECT retrieval_backend, COUNT(*) as n FROM answer_logs
+                           WHERE created_at >= NOW() - (%s * INTERVAL '1 day')
+                           GROUP BY retrieval_backend""", (days,))
+            backend_breakdown = {r["retrieval_backend"]: r["n"] for r in cur.fetchall()}
 
-        cur.execute("""SELECT faculty_rating, COUNT(*) as n FROM answer_logs
-                       WHERE faculty_rating IS NOT NULL GROUP BY faculty_rating""")
-        rating_breakdown = {r["faculty_rating"]: r["n"] for r in cur.fetchall()}
+            cur.execute("""SELECT faculty_rating, COUNT(*) as n FROM answer_logs
+                           WHERE faculty_rating IS NOT NULL GROUP BY faculty_rating""")
+            rating_breakdown = {r["faculty_rating"]: r["n"] for r in cur.fetchall()}
 
         correct, incorrect = rating_breakdown.get("correct", 0), rating_breakdown.get("incorrect", 0)
-        judged = correct + incorrect  
+        judged = correct + incorrect
         return {
             "window_days": days,
             "total_answers": base["n"] or 0,
@@ -196,26 +143,18 @@ def get_answer_log_stats(days=30):
     except Exception as e:
         log_error("services.research.get_answer_log_stats", e)
         return None
-    finally:
-        if cur:
-            try:
-                cur.close()
-            except Exception:
-                pass
 
 
 def get_unrated_sample(limit=20):
     if not config.DB_URL:
         return []
-    conn = None
-    cur = None
     try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("""SELECT id, student_id, question, answer_text, model, retrieval_backend,
-                              chunk_count, document_ids, latency_ms, created_at
-                       FROM answer_logs WHERE faculty_rating IS NULL
-                       ORDER BY created_at DESC LIMIT %s""", (limit,))
-        rows = [dict(r) for r in cur.fetchall()]
+        with db_cursor() as cur:
+            cur.execute("""SELECT id, student_id, question, answer_text, model, retrieval_backend,
+                                  chunk_count, document_ids, latency_ms, created_at
+                           FROM answer_logs WHERE faculty_rating IS NULL
+                           ORDER BY created_at DESC LIMIT %s""", (limit,))
+            rows = [dict(r) for r in cur.fetchall()]
         for r in rows:
             r["document_ids"] = json.loads(r["document_ids"]) if r["document_ids"] else []
             r["created_at"] = r["created_at"].isoformat() if r["created_at"] else None
@@ -223,27 +162,19 @@ def get_unrated_sample(limit=20):
     except Exception as e:
         log_error("services.research.get_unrated_sample", e)
         return []
-    finally:
-        if cur:
-            try:
-                cur.close()
-            except Exception:
-                pass
 
 
 def get_rated_sample(limit=500):
     if not config.DB_URL:
         return []
-    conn = None
-    cur = None
     try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("""SELECT id, student_id, question, answer_text, model, retrieval_backend,
-                              chunk_count, document_ids, latency_ms, prompt_version,
-                              faculty_rating, faculty_notes, rated_by, rated_at, created_at
-                       FROM answer_logs WHERE faculty_rating IS NOT NULL
-                       ORDER BY created_at DESC LIMIT %s""", (limit,))
-        rows = [dict(r) for r in cur.fetchall()]
+        with db_cursor() as cur:
+            cur.execute("""SELECT id, student_id, question, answer_text, model, retrieval_backend,
+                                  chunk_count, document_ids, latency_ms, prompt_version,
+                                  faculty_rating, faculty_notes, rated_by, rated_at, created_at
+                           FROM answer_logs WHERE faculty_rating IS NOT NULL
+                           ORDER BY created_at DESC LIMIT %s""", (limit,))
+            rows = [dict(r) for r in cur.fetchall()]
         for r in rows:
             r["document_ids"] = json.loads(r["document_ids"]) if r["document_ids"] else []
             r["created_at"] = r["created_at"].isoformat() if r["created_at"] else None
@@ -252,12 +183,6 @@ def get_rated_sample(limit=500):
     except Exception as e:
         log_error("services.research.get_rated_sample", e)
         return []
-    finally:
-        if cur:
-            try:
-                cur.close()
-            except Exception:
-                pass
 
 
 def get_full_sample(limit=100000):
@@ -275,17 +200,15 @@ def get_full_sample(limit=100000):
     """
     if not config.DB_URL:
         return []
-    conn = None
-    cur = None
     try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("""SELECT id, student_id, question, answer_text, model, retrieval_backend,
-                              chunk_count, document_ids, latency_ms, prompt_version,
-                              student_feedback, faculty_rating, faculty_notes, rated_by, rated_at,
-                              created_at, retrieved_context, unverified_citations
-                       FROM answer_logs
-                       ORDER BY created_at ASC LIMIT %s""", (limit,))
-        rows = [dict(r) for r in cur.fetchall()]
+        with db_cursor() as cur:
+            cur.execute("""SELECT id, student_id, question, answer_text, model, retrieval_backend,
+                                  chunk_count, document_ids, latency_ms, prompt_version,
+                                  student_feedback, faculty_rating, faculty_notes, rated_by, rated_at,
+                                  created_at, retrieved_context, unverified_citations
+                           FROM answer_logs
+                           ORDER BY created_at ASC LIMIT %s""", (limit,))
+            rows = [dict(r) for r in cur.fetchall()]
         for r in rows:
             r["document_ids"] = json.loads(r["document_ids"]) if r["document_ids"] else []
             r["unverified_citations"] = json.loads(r["unverified_citations"]) if r.get("unverified_citations") else []
@@ -295,12 +218,6 @@ def get_full_sample(limit=100000):
     except Exception as e:
         log_error("services.research.get_full_sample", e)
         return []
-    finally:
-        if cur:
-            try:
-                cur.close()
-            except Exception:
-                pass
 
 
 def get_export_history(limit=25):
@@ -310,16 +227,15 @@ def get_export_history(limit=25):
     in blueprints/research.py) already writes to."""
     if not config.DB_URL:
         return []
-    conn = None
-    cur = None
     try:
-        conn = get_db(); cur = conn.cursor()
-        cur.execute("""SELECT e.created_at, e.payload, s.email
-                       FROM events e LEFT JOIN students s ON s.id = e.student_id
-                       WHERE e.event_type = 'research_export'
-                       ORDER BY e.created_at DESC LIMIT %s""", (limit,))
+        with db_cursor() as cur:
+            cur.execute("""SELECT e.created_at, e.payload, s.email
+                           FROM events e LEFT JOIN students s ON s.id = e.student_id
+                           WHERE e.event_type = 'research_export'
+                           ORDER BY e.created_at DESC LIMIT %s""", (limit,))
+            fetched = cur.fetchall()
         rows = []
-        for r in cur.fetchall():
+        for r in fetched:
             payload = json.loads(r["payload"] or "{}")
             rows.append({
                 "created_at": r["created_at"].isoformat() if r["created_at"] else None,
@@ -331,9 +247,3 @@ def get_export_history(limit=25):
     except Exception as e:
         log_error("services.research.get_export_history", e)
         return []
-    finally:
-        if cur:
-            try:
-                cur.close()
-            except Exception:
-                pass
