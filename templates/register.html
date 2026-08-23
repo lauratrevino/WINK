@@ -140,6 +140,11 @@
     .auth-alt { text-align: center; font-size: 12px; color: #6b7a99; margin-top: 8px; }
     .auth-alt a { color: #002855; font-weight: 700; text-decoration: none; }
     .auth-alt a:hover { color: #FF8200; }
+    .verify-email-msg {
+      margin-top: 10px; padding: 10px 14px;
+      background: #eaf7ee; border: 1.5px solid #7fce9a; border-left: 4px solid #2e9e52;
+      border-radius: 8px; font-size: 13px; color: #175a30; line-height: 1.5; text-align: left;
+    }
 
     .back-link {
       display: block; text-align: center; margin-top: 8px; padding-top: 8px;
@@ -242,6 +247,7 @@
 </head>
 <body>
 <script src="{{ url_for('static', filename='js/scroll-reset.js') }}"></script>
+<script src="{{ url_for('static', filename='js/csrf-fetch.js') }}"></script>
 <script src="{{ url_for('static', filename='js/wink-ui.js') }}"></script>
   <div class="register-bg"></div>
   <div class="register-bg-overlay"></div>
@@ -2711,6 +2717,8 @@
           <button type="submit" class="btn-submit">Create My Account →</button>
         </form>
 
+        <div class="verify-email-msg" id="verify-email-msg" role="status" aria-live="polite" style="display:none;"></div>
+
         <div class="auth-alt">
           Already have an account? <a href="/#signin-panel">Sign in</a>
         </div>
@@ -2859,27 +2867,41 @@
         agreeBtn.textContent = 'Creating your account…';
         overlay.classList.remove('open');
 
-        // Some older browsers (notably Safari before version 16) don't
-        // support HTMLFormElement.requestSubmit(), and calling it there
-        // throws immediately — silently, since nothing here was catching
-        // it. That left the modal closed, the typed values still sitting
-        // in the (never-submitted) form, and no way to tell whether
-        // anything had happened. Wrapping it, with a real fallback, means
-        // every path either submits the form or visibly tells the user
-        // it didn't.
-        try {
-          if (typeof form.requestSubmit === 'function') {
-            form.requestSubmit();
-          } else {
-            form.submit();
-          }
-        } catch (err) {
-          submitting = false;
-          approved = false;
-          agreeBtn.disabled = false;
-          agreeBtn.textContent = agreeBtnDefaultText;
-          alert('Something went wrong submitting your information. Please try again, or use a different browser if this keeps happening.');
-        }
+        const verifyMsg = document.getElementById('verify-email-msg');
+
+        // Submitted via fetch (not a plain form POST/redirect) so we can show
+        // the "check your email to verify" confirmation right here, then move
+        // to the Documents page ourselves — instead of a full-page navigation
+        // that can flash an intermediate page while the browser follows the
+        // server's redirect chain.
+        fetch(form.action, {
+          method: 'POST',
+          headers: { 'X-Requested-With': 'XMLHttpRequest' },
+          body: new FormData(form)
+        })
+          .then(function(res) {
+            return res.json().then(function(data) { return { ok: res.ok, data: data }; });
+          })
+          .then(function(result) {
+            if (result.ok && result.data && result.data.success) {
+              if (verifyMsg) {
+                verifyMsg.textContent = '✅ Account created! We just sent a verification link to '
+                  + (result.data.email || 'your email address') + ' — validate it whenever you '
+                  + 'get a chance. Taking you to your Documents now…';
+                verifyMsg.style.display = 'block';
+              }
+              window.location.href = result.data.redirect || '/documents';
+              return;
+            }
+            throw new Error((result.data && result.data.error) || 'Something went wrong submitting your information. Please try again.');
+          })
+          .catch(function(err) {
+            submitting = false;
+            approved = false;
+            agreeBtn.disabled = false;
+            agreeBtn.textContent = agreeBtnDefaultText;
+            alert(err.message || 'Something went wrong submitting your information. Please try again, or use a different browser if this keeps happening.');
+          });
 
         // Safety net: if the page hasn't navigated away within a few
         // seconds (e.g. a network stall), restore the button instead of

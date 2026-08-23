@@ -112,6 +112,28 @@
   {% include "_nav.html" %}
   <script src="{{ url_for('static', filename='js/scroll-reset.js') }}"></script>
 
+  {% if request.args.get('verify') == '1' %}
+  <div class="page-shell" style="padding-bottom:0;">
+    <div class="verify-banner" id="verify-banner" role="status">
+      ✅ Account created! We've sent a verification link to your email address — please
+      validate it before you chat with WINK or upload documents.
+      <button type="button" class="verify-banner-close" onclick="document.getElementById('verify-banner').style.display='none';" aria-label="Dismiss">✕</button>
+    </div>
+  </div>
+  <style nonce="{{ csp_nonce() }}">
+    .verify-banner {
+      margin: 16px 0 0; padding: 10px 16px;
+      background: #eaf7ee; border: 1.5px solid #7fce9a; border-left: 4px solid #2e9e52;
+      border-radius: 8px; font-size: 13px; color: #175a30; line-height: 1.5;
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    }
+    .verify-banner-close {
+      background: none; border: none; color: #175a30; cursor: pointer;
+      font-size: 13px; padding: 2px 4px; flex-shrink: 0;
+    }
+  </style>
+  {% endif %}
+
   <div class="page-shell">
 
     <div class="hero-card">

@@ -57,6 +57,7 @@
     .result-label { font-size: 13px; color: #6b7a99; }
     .result-value { font-size: 30px; font-weight: 800; color: #002855; }
     .result-sub { font-size: 12px; color: #6b7a99; width: 100%; }
+    .result-formula { font-size: 12px; color: #8a96ad; width: 100%; font-family: 'SFMono-Regular', Consolas, monospace; margin-top: 4px; }
 
     .target-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
     .target-row input { width: 90px; padding: 9px 12px; border: 1.5px solid #dde3f0; border-radius: 8px; font-size: 14px; }

@@ -26,7 +26,17 @@ _DUMMY_PASSWORD_HASH = generate_password_hash(secrets.token_hex(32))
 
 @bp.route("/register", methods=["GET", "POST"])
 def register():
+    # Registration is submitted via fetch() as JSON from register.html so the
+    # page can show a "check your email to verify" message and then move to
+    # Documents itself, instead of a full-page form POST/redirect chain that
+    # can flash an intermediate page during navigation. is_ajax detects that
+    # path; a real (non-JS) form POST still gets the old plain redirect/
+    # re-render behavior as a fallback.
+    is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+
     def err(msg):
+        if is_ajax:
+            return jsonify(success=False, error=msg), 400
         return render_template("register.html", error=msg,
                                classifications=config.CLASSIFICATIONS, majors=config.MAJORS,
                                preferred_languages=config.PREFERRED_LANGUAGES)
@@ -149,7 +159,10 @@ def register():
             except Exception as e:
                 log_error("auth.register.global_deadline_assignment", e)
 
-            return redirect(url_for("documents.documents_page"))
+            redirect_url = url_for("documents.documents_page", verify=1)
+            if is_ajax:
+                return jsonify(success=True, redirect=redirect_url, email=email)
+            return redirect(redirect_url)
         return render_template("register.html", error=None,
                                classifications=config.CLASSIFICATIONS, majors=config.MAJORS,
                                preferred_languages=config.PREFERRED_LANGUAGES)
