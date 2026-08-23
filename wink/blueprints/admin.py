@@ -296,6 +296,48 @@ def anonymize_student():
         return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
 
 
+@bp.route("/delete-student", methods=["POST"])
+@admin_required
+def delete_student():
+    """Permanently and irreversibly removes a student row from the database
+    (not the same as Anonymize, which keeps a scrubbed record for research
+    retention). Every table with a foreign key to students.id cascades on
+    delete except events/document_chunks, which have no FK constraint and
+    are simply left with a dangling student_id — harmless, but a reminder
+    this is a real delete, not a soft one.
+
+    Intended for test/junk accounts (e.g. so a real email can be reused to
+    register again), NOT for real pilot participants — use Anonymize for
+    those to honor the research data retention commitment in the consent
+    form. As an extra guard against fat-fingering a real student, the
+    caller must echo back the target's exact email.
+    """
+    try:
+        s = g.student
+        if not config.DB_URL: return jsonify({"error": "No database"}), 500
+        data = request.get_json() or {}
+        target_id = data.get("student_id")
+        confirm_email = (data.get("confirm_email") or "").strip().lower()
+        if not target_id:
+            return jsonify({"error": "Missing student_id"}), 400
+        if str(target_id) == str(s["id"]):
+            return jsonify({"error": "You can't delete your own admin account."}), 400
+        with db_cursor() as cur:
+            cur.execute("SELECT id, email FROM students WHERE id=%s", (target_id,))
+            target = cur.fetchone()
+        if not target:
+            return jsonify({"error": "Student not found"}), 404
+        if not confirm_email or confirm_email != target["email"].strip().lower():
+            return jsonify({"error": "Typed email doesn't match this student's email."}), 400
+        with db_cursor(commit=True) as cur:
+            cur.execute("DELETE FROM students WHERE id=%s", (target_id,))
+        log_event(s["id"], "student_deleted", {"target_id": target_id, "target_email": target["email"]})
+        return jsonify({"success": True, "email": target["email"]})
+    except Exception as e:
+        log_error("admin.delete_student", e)
+        return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
+
+
 @bp.route("/health-data")
 @admin_required
 def health_data():

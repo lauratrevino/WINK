@@ -3,263 +3,299 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Analytics — WINK Admin</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/nav.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/analytics.css') }}">
+  <title>Create Account — WINK</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/register.css') }}">
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <style nonce="{{ csp_nonce() }}">
-    .stats-row {
-      display: grid;
-      grid-template-columns: repeat(6, 1fr);
-      gap: 10px;
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; width: 100%; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; display: block; }
+    .register-bg {
+      position: fixed; inset: 0; z-index: -2;
+      background-image: url("{{ url_for('static', filename='images/login-hero.jpg') }}");
+      background-size: cover;
+      background-position: center center;
     }
-    .stats-row .stat-card {
-      padding: 12px 8px;
-      min-width: 0;
+    .register-bg-overlay {
+      position: fixed; inset: 0; z-index: -1;
+
+      background: linear-gradient(90deg,
+        rgba(240,244,252,0) 0%,
+        rgba(240,244,252,0) 35%,
+        rgba(240,244,252,0.35) 55%,
+        rgba(240,244,252,0.75) 72%,
+        rgba(240,244,252,0.94) 88%,
+        rgba(240,244,252,0.97) 100%);
     }
-    .stats-row .stat-value { font-size: 22px; }
-    .stats-row .stat-label { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    @media (max-width: 720px) {
-      .stats-row { gap: 6px; }
-      .stats-row .stat-card { padding: 8px 4px; }
-      .stats-row .stat-value { font-size: 16px; }
-      .stats-row .stat-label { font-size: 9px; }
+    .register-shell {
+      position: relative;
+      min-height: 100vh;
+      display: flex;
+      align-items: flex-start;
+      justify-content: flex-end;
+      padding: 32px 6vw 56px;
+    }
+    .register-card-wrap { width: 100%; max-width: 428px; }
+    .register-brand { text-align: center; margin-bottom: 14px; }
+    .register-brand .wordmark {
+      font-size: 30px; font-weight: 900; color: #002855; letter-spacing: -1px;
+      font-family: Georgia, "Times New Roman", serif; line-height: 1;
+      text-shadow: 0 2px 10px rgba(255,255,255,0.85);
+    }
+    .register-brand .brand-sub {
+      font-size: 13px; font-weight: 700; color: #002855; opacity: 0.82; margin-top: 2px;
+      text-shadow: 0 1px 8px rgba(255,255,255,0.85);
+    }
+    .register-card {
+      background: linear-gradient(160deg, #ffffff 0%, #ffffff 55%, #fff7ec 100%);
+      border-radius: 20px;
+      border-top: 6px solid transparent;
+      border-image: linear-gradient(90deg, #FF8200, #ffb347, #002855) 1;
+      box-shadow: 0 20px 60px rgba(0,20,50,0.28), 0 2px 8px rgba(0,20,50,0.10);
+      padding: 22px 24px 16px;
+      position: relative;
+      overflow: hidden;
     }
 
-    .badge-active { background: #ecfdf5; color: #047857; }
+    .register-card::before, .register-card::after {
+      content: ''; position: absolute; border-radius: 50%; pointer-events: none;
+    }
+    .register-card::before {
+      width: 220px; height: 220px; background: radial-gradient(circle, rgba(255,130,0,0.18), transparent 70%);
+      top: -80px; right: -80px;
+    }
+    .register-card::after {
+      width: 200px; height: 200px; background: radial-gradient(circle, rgba(0,40,85,0.14), transparent 70%);
+      bottom: -70px; left: -70px;
+    }
+    .register-card-blob-3 {
+      position: absolute; pointer-events: none; border-radius: 50%;
+      width: 130px; height: 130px; background: radial-gradient(circle, rgba(34,197,94,0.10), transparent 70%);
+      top: 40%; left: -50px;
+    }
+    .register-card > * { position: relative; z-index: 1; }
+    .register-card > .register-card-blob-3 { position: absolute; }
 
-    th.sortable {
-      cursor: pointer; user-select: none; white-space: nowrap;
-      position: relative; padding-right: 18px;
+    .auth-card-header { text-align: center; margin-bottom: 6px; }
+    .auth-card-header h1 { font-size: 18px; font-weight: 800; color: #002855; margin: 0 0 3px; }
+    .auth-card-header p { font-size: 11.5px; color: #6b7a99; margin: 0; }
+    .auth-card-header-underline {
+      width: 40px; height: 3px; margin: 8px auto 10px; border-radius: 999px;
+      background: linear-gradient(90deg, #FF8200, #002855);
     }
-    th.sortable:hover { color: #FF8200; }
-    th.sortable::after {
-      content: '↕'; position: absolute; right: 4px; opacity: 0.35; font-size: 11px;
+
+    .form-section-label {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+      color: #FF8200; margin: 12px 0 6px;
     }
-    th.sortable.sort-asc::after { content: '↑'; opacity: 1; color: #FF8200; }
-    th.sortable.sort-desc::after { content: '↓'; opacity: 1; color: #FF8200; }
+    .form-section-label:first-of-type { margin-top: 0; }
+    .form-section-label::before {
+      content: ''; width: 18px; height: 3px; border-radius: 999px;
+      background: linear-gradient(90deg, #FF8200, #002855);
+    }
+
+    .alert-danger {
+      background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c;
+      border-radius: 10px; padding: 8px 12px; font-size: 12.5px; margin-bottom: 10px;
+    }
+
+    .form-row { display: flex; gap: 8px; }
+    .form-row .form-group { flex: 1; min-width: 0; }
+    .form-group { margin-bottom: 8px; }
+    .form-group label {
+      display: block; font-size: 11.5px; font-weight: 700; color: #002855;
+      margin-bottom: 3px; letter-spacing: .01em;
+    }
+    .form-group input, .form-group select {
+      width: 100%; padding: 7px 10px; border: 1.5px solid #dde3f0; border-radius: 8px;
+      font-size: 13px; color: #002855; background: #f8f9ff; outline: none;
+      font-family: inherit; transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+    }
+    .form-group input:focus, .form-group select:focus {
+      border-color: #FF8200; background: #ffffff; box-shadow: 0 0 0 3px rgba(255,130,0,0.12);
+    }
+
+    .field-with-icon { position: relative; display: flex; align-items: center; }
+    .field-with-icon input { padding-right: 34px; }
+    .field-icon-btn {
+      position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; cursor: pointer; padding: 4px 6px;
+      font-size: 13px; line-height: 1; color: #6b7a99; border-radius: 4px;
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+    .field-icon-btn:hover { color: #002855; background: rgba(0,40,85,0.06); }
+
+    .btn-submit {
+      width: 100%; padding: 10px; margin-top: 4px;
+      background: linear-gradient(135deg, #FF8200 0%, #ff9a2e 55%, #ffb347 100%);
+      color: #fff; font-size: 14px; font-weight: 800;
+      border: none; border-radius: 10px; cursor: pointer;
+      box-shadow: 0 6px 20px rgba(255,130,0,0.38);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .btn-submit:hover { transform: translateY(-2px); box-shadow: 0 8px 26px rgba(255,130,0,0.48); }
+    .btn-submit:active { transform: translateY(0); }
+
+    .auth-alt { text-align: center; font-size: 12px; color: #6b7a99; margin-top: 8px; }
+    .auth-alt a { color: #002855; font-weight: 700; text-decoration: none; }
+    .auth-alt a:hover { color: #FF8200; }
+    .verify-email-msg {
+      margin-top: 10px; padding: 10px 14px;
+      background: #eaf7ee; border: 1.5px solid #7fce9a; border-left: 4px solid #2e9e52;
+      border-radius: 8px; font-size: 13px; color: #175a30; line-height: 1.5; text-align: left;
+    }
+
+    .back-link {
+      display: block; text-align: center; margin-top: 8px; padding-top: 8px;
+      border-top: 1px solid #eef0f6; font-size: 11px; color: #9ca3af;
+      text-decoration: none; transition: color 0.15s;
+    }
+    .back-link:hover { color: #002855; }
+
+    @media (max-width: 480px) {
+      .register-card { padding: 22px 18px 16px; border-radius: 16px; }
+      .form-row { flex-direction: column; gap: 0; }
+      .register-shell { justify-content: center; align-items: flex-start; padding: 32px 16px; }
+      .register-bg-overlay {
+        background: linear-gradient(180deg, rgba(240,244,252,0.55) 0%, rgba(240,244,252,0.85) 100%);
+      }
+    }
+
+    .sr-only {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+    }
+
+    .skip-link {
+      position: absolute; top: -60px; left: 12px; z-index: 1000;
+      background: #002855; color: #fff; padding: 10px 18px; border-radius: 8px;
+      font-size: 13px; font-weight: 700; text-decoration: none; transition: top 0.15s;
+    }
+    .skip-link:focus { top: 12px; }
+
+    .form-group input:focus-visible, .form-group select:focus-visible,
+    .btn-submit:focus-visible, .auth-alt a:focus-visible, .back-link:focus-visible {
+      outline: 2px solid #002855; outline-offset: 2px;
+    }
+    .required-marker { color: #b91c1c; margin-left: 2px; }
+    .pw-hint { font-size: 11px; color: #9ca3af; margin-top: 4px; padding-left: 16px; }
+    .pw-hint li { margin-top: 2px; }
+    .field-hint { font-size: 11.5px; color: #9ca3af; margin-top: 5px; line-height: 1.4; }
+    @media (prefers-reduced-motion: reduce) {
+      .btn-submit, .btn-submit:hover { transition: none; transform: none; }
+    }
+
+    .terms-overlay {
+      display: none; position: fixed; inset: 0; z-index: 10000;
+      background: rgba(0,20,50,.68); backdrop-filter: blur(3px);
+      align-items: center; justify-content: center; padding: 20px;
+    }
+    .terms-overlay.open { display: flex; }
+    .terms-card {
+      width: 100%; max-width: 720px; max-height: 90vh; overflow: hidden;
+      background: #fff; border-radius: 20px;
+      box-shadow: 0 24px 80px rgba(0,20,50,.38);
+      border-top: 7px solid #FF8200;
+      display: flex; flex-direction: column;
+    }
+    .terms-header {
+      padding: 22px 26px 15px;
+      background: linear-gradient(135deg, #002855 0%, #083e72 100%);
+      color: #fff;
+    }
+    .terms-header h2 { margin: 0 0 5px; font-size: 22px; }
+    .terms-header p { margin: 0; font-size: 12.5px; opacity: .9; }
+    .terms-header p .before-highlight { font-weight: 800; color: #FF8200; font-size: 20.5px; }
+    .terms-scroll {
+      padding: 20px 26px; overflow-y: auto; line-height: 1.55;
+      color: #26364f; font-size: 13px;
+    }
+    .terms-scroll h3 { color: #002855; font-size: 15px; margin: 18px 0 6px; }
+    .terms-scroll h3:first-child { margin-top: 0; }
+    .terms-scroll ul { padding-left: 20px; }
+    .terms-data-box {
+      background: #fff7ec; border: 2px solid #FF8200; border-radius: 12px;
+      padding: 14px 16px; margin: 12px 0;
+    }
+    .terms-data-box strong { color: #002855; }
+    .terms-consents {
+      padding: 16px 26px 20px; border-top: 1px solid #e5e9f2;
+      background: #f8f9ff;
+    }
+    .consent-row {
+      display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px;
+      color: #26364f; font-size: 12.5px; line-height: 1.45;
+    }
+    .consent-row input { width: 18px; height: 18px; margin-top: 1px; accent-color: #FF8200; flex: 0 0 auto; }
+    .terms-actions { display: flex; gap: 10px; margin-top: 14px; }
+    .terms-agree-btn {
+      flex: 1; padding: 11px 14px; border: 0; border-radius: 10px;
+      background: linear-gradient(135deg, #FF8200, #ff9a2e); color: #fff;
+      font-weight: 800; cursor: pointer;
+    }
+    .terms-agree-btn:disabled { opacity: .45; cursor: not-allowed; }
+    .terms-cancel-btn {
+      padding: 11px 16px; border-radius: 10px; border: 1.5px solid #cbd3e1;
+      background: #fff; color: #002855; font-weight: 700; cursor: pointer;
+    }
+    @media (max-width: 600px) {
+      .terms-card { max-height: 94vh; border-radius: 14px; }
+      .terms-header, .terms-scroll, .terms-consents { padding-left: 18px; padding-right: 18px; }
+    }
 </style>
 </head>
 <body>
+<script src="{{ url_for('static', filename='js/scroll-reset.js') }}"></script>
+<script src="{{ url_for('static', filename='js/csrf-fetch.js') }}"></script>
+<script src="{{ url_for('static', filename='js/wink-ui.js') }}"></script>
+  <div class="register-bg"></div>
+  <div class="register-bg-overlay"></div>
+  <a href="#register-form" class="skip-link">Skip to registration form</a>
+  <div class="register-shell">
+    <div class="register-card-wrap">
+      <main class="register-card" aria-labelledby="register-heading">
+        <div class="register-card-blob-3" aria-hidden="true"></div>
 
-  {% include "_nav.html" %}
-  <script src="{{ url_for('static', filename='js/scroll-reset.js') }}"></script>
-
-  <div class="page-shell">
-    <div class="page-header">
-      <div>
-        <h1>📊 Analytics Dashboard</h1>
-        <p>Usage data across all WINK students and sessions.</p>
-      </div>
-      <div style="display:flex;align-items:center;gap:12px;">
-        <span class="admin-badge">Admin View</span>
-        <button class="btn-refresh" onclick="loadData()">🔄 Refresh</button>
-      </div>
-    </div>
-
-    <div class="stats-row" id="stats-row">
-      <div class="stat-card"><div class="stat-loading"></div><div class="stat-label">Total Students</div></div>
-      <div class="stat-card navy-top"><div class="stat-loading"></div><div class="stat-label">Total Sessions</div></div>
-      <div class="stat-card"><div class="stat-loading"></div><div class="stat-label">Questions Asked</div></div>
-      <div class="stat-card green-top"><div class="stat-loading"></div><div class="stat-label">Files Uploaded</div></div>
-      <div class="stat-card navy-top"><div class="stat-loading"></div><div class="stat-label">Upcoming Deadlines</div></div>
-      <div class="stat-card"><div class="stat-loading"></div><div class="stat-label">Est. AI Cost (Pilot)</div></div>
-    </div>
-
-    <div class="tab-bar">
-      <button class="tab-btn active" onclick="switchTab('students')">👥 Students</button>
-      <button class="tab-btn" onclick="switchTab('activity')">⚡ Activity Feed</button>
-      <button class="tab-btn" onclick="switchTab('conversations')">💬 Conversations</button>
-      <button class="tab-btn" onclick="switchTab('deadlines')">📅 Deadlines</button>
-      <button class="tab-btn" onclick="switchTab('distributions')">📊 Distributions</button>
-      <button class="tab-btn" onclick="switchTab('insights')">🔎 Insights</button>
-      <button class="tab-btn" onclick="switchTab('general-docs')">📁 General Docs</button>
-    </div>
-
-    <div class="tab-panel active" id="tab-students">
-      <div class="card">
-        <div class="card-header"><h2>Enrolled Students</h2><span id="student-count" style="font-size:13px;color:#6b7a99;"></span></div>
-        <div style="overflow-x:auto;">
-          <table>
-            <thead><tr>
-              <th class="sortable" data-sort="name" data-type="str">Name</th>
-              <th class="sortable" data-sort="email" data-type="str">Email</th>
-              <th class="sortable" data-sort="university" data-type="str">University</th>
-              <th class="sortable" data-sort="classification" data-type="str">Classification</th>
-              <th class="sortable" data-sort="major" data-type="str">Major</th>
-              <th class="sortable" data-sort="first_generation" data-type="str">First Gen</th>
-              <th class="sortable" data-sort="joined" data-type="date">Joined</th>
-              <th class="sortable" data-sort="sessions" data-type="num">Sessions</th>
-              <th class="sortable" data-sort="questions" data-type="num">Questions</th>
-              <th class="sortable" data-sort="uploads" data-type="num">Uploads</th>
-              <th class="sortable" data-sort="time_spent_minutes" data-type="num">Time Spent</th>
-              <th class="sortable" data-sort="total_tokens" data-type="num">Tokens</th>
-              <th class="sortable" data-sort="estimated_cost_usd" data-type="num">Est. Cost</th>
-              <th class="sortable" data-sort="status" data-type="str">Status</th>
-            </tr></thead>
-            <tbody id="students-tbody"><tr><td colspan="13" style="text-align:center;padding:32px;color:#6b7a99;">Loading…</td></tr></tbody>
-          </table>
+        <div class="register-brand" aria-hidden="true">
+          <div class="wordmark">WINK</div>
+          <div class="brand-sub">(What I Need to Know)</div>
         </div>
-      </div>
-    </div>
 
-    <div class="tab-panel" id="tab-activity">
-      <div class="card">
-        <div class="card-header"><h2>Recent Activity</h2><span style="font-size:13px;color:#6b7a99;">Last 60 events</span></div>
-        <div class="card-body">
-          <div class="event-feed" id="event-feed"><div style="color:#6b7a99;text-align:center;padding:24px;">Loading…</div></div>
+        <div class="auth-card-header">
+          <h1 id="register-heading">Create your account 🎓</h1>
+          <p>Set up WINK in under a minute.</p>
         </div>
-      </div>
-    </div>
+        <div class="auth-card-header-underline" aria-hidden="true"></div>
 
-    <div class="tab-panel" id="tab-conversations">
-      <div class="card">
-        <div class="card-header"><h2>Student Q&amp;A Conversations</h2><span style="font-size:13px;color:#6b7a99;">Click to expand answers</span></div>
-        <div class="card-body" id="convos-body"><div style="color:#6b7a99;text-align:center;padding:24px;">Loading…</div></div>
-      </div>
-    </div>
+        {% if error %}
+          <div class="alert-danger" role="alert">{{ error }}</div>
+        {% endif %}
 
-    <div class="tab-panel" id="tab-deadlines">
-      <div class="card">
-        <div class="card-header"><h2>Upcoming Deadlines (All Students)</h2><span style="font-size:13px;color:#6b7a99;">Extracted automatically from uploaded documents</span></div>
-        <div style="overflow-x:auto;">
-          <table>
-            <thead><tr><th>Due</th><th>Title</th><th>Course</th><th>Student</th></tr></thead>
-            <tbody id="deadlines-tbody"><tr><td colspan="4" style="text-align:center;padding:32px;color:#6b7a99;">Loading…</td></tr></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <div class="tab-panel" id="tab-distributions">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
-        <div class="card">
-          <div class="card-header"><h2>By Classification</h2></div>
-          <div class="card-body"><div class="bar-chart" id="class-chart"><div style="color:#6b7a99;font-size:13px;">Loading…</div></div></div>
-        </div>
-        <div class="card">
-          <div class="card-header"><h2>By Major</h2></div>
-          <div class="card-body"><div class="bar-chart" id="major-chart"><div style="color:#6b7a99;font-size:13px;">Loading…</div></div></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="tab-panel" id="tab-insights">
-
-      <div class="card" style="margin-bottom:20px;">
-        <div class="card-header"><h2>Engagement at a Glance</h2></div>
-        <div class="card-body">
-          <div class="mini-stats" id="insight-mini-stats">
-            <div class="mini-stat"><div class="mini-stat-value">—</div><div class="mini-stat-label">Avg Session</div></div>
-            <div class="mini-stat"><div class="mini-stat-value">—</div><div class="mini-stat-label">Questions / Session</div></div>
-            <div class="mini-stat"><div class="mini-stat-value">—</div><div class="mini-stat-label">Retention (2+ weeks)</div></div>
-            <div class="mini-stat"><div class="mini-stat-value">—</div><div class="mini-stat-label">Time to First Question</div></div>
-            <div class="mini-stat"><div class="mini-stat-value">—</div><div class="mini-stat-label">Questions w/ General Docs</div></div>
+        <form method="POST" action="/register" id="register-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="timezone" id="register-timezone-field">
+          <h2 class="form-section-label">Your Info</h2>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="first_name">First Name<span class="required-marker" aria-hidden="true">*</span><span class="sr-only"> (required)</span></label>
+              <input type="text" id="first_name" name="first_name" placeholder="First" required aria-required="true" autocomplete="given-name">
+            </div>
+            <div class="form-group">
+              <label for="last_name">Last Name<span class="required-marker" aria-hidden="true">*</span><span class="sr-only"> (required)</span></label>
+              <input type="text" id="last_name" name="last_name" placeholder="Last" required aria-required="true" autocomplete="family-name">
+            </div>
           </div>
-        </div>
-      </div>
 
-      <div class="card" style="margin-bottom:20px;">
-        <div class="card-header"><h2>Demo Usage</h2><span style="font-size:13px;color:#6b7a99;">Try WINK Demo — separate from real enrolled students, excluded everywhere else on this page</span></div>
-        <div class="card-body">
-          <div class="mini-stats" id="demo-mini-stats">
-            <div class="mini-stat"><div class="mini-stat-value">—</div><div class="mini-stat-label">Total Demos Started</div></div>
-            <div class="mini-stat"><div class="mini-stat-value">—</div><div class="mini-stat-label">Active Right Now</div></div>
-            <div class="mini-stat"><div class="mini-stat-value">—</div><div class="mini-stat-label">Avg Duration</div></div>
-            <div class="mini-stat"><div class="mini-stat-value">—</div><div class="mini-stat-label">Longest Session</div></div>
-            <div class="mini-stat"><div class="mini-stat-value">—</div><div class="mini-stat-label">Total Questions Asked</div></div>
-          </div>
-        </div>
-      </div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
-        <div class="card">
-          <div class="card-header"><h2>By University</h2></div>
-          <div style="overflow-x:auto;">
-            <table>
-              <thead><tr><th>University</th><th>Students</th><th>Sessions</th><th>Questions</th><th>Uploads</th><th>Avg Session</th></tr></thead>
-              <tbody id="university-tbody"><tr><td colspan="6" style="text-align:center;padding:20px;color:#6b7a99;">Loading…</td></tr></tbody>
-            </table>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-header"><h2>Most Active Courses</h2></div>
-          <div class="card-body"><div class="bar-chart" id="course-chart"><div style="color:#6b7a99;font-size:13px;">Loading…</div></div></div>
-        </div>
-      </div>
-
-      <div class="card" style="margin-bottom:20px;">
-        <div class="card-header"><h2>Peak Usage — Questions Asked</h2><span style="font-size:13px;color:#6b7a99;">By day of week &amp; hour</span></div>
-        <div class="card-body heatmap-wrap" id="heatmap-container">
-          <div style="color:#6b7a99;font-size:13px;">Loading…</div>
-        </div>
-      </div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
-        <div class="card">
-          <div class="card-header"><h2>Deadline-Driven Activity</h2><span style="font-size:13px;color:#6b7a99;">Questions asked around due dates</span></div>
-          <div style="overflow-x:auto;">
-            <table>
-              <thead><tr><th>Due Date</th><th>Deadlines Due</th><th>Questions That Day</th><th>Questions (3 Days Prior)</th></tr></thead>
-              <tbody id="deadline-spikes-tbody"><tr><td colspan="4" style="text-align:center;padding:20px;color:#6b7a99;">Loading…</td></tr></tbody>
-            </table>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-header"><h2>Upload Mix</h2><span style="font-size:13px;color:#6b7a99;">Permanent vs. temporary vs. admin</span></div>
-          <div class="card-body" id="upload-mix-container">
-            <div style="color:#6b7a99;font-size:13px;">Loading…</div>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-header"><h2>Answer Feedback</h2><span style="font-size:13px;color:#6b7a99;">Thumbs up/down from students</span></div>
-          <div class="card-body" id="answer-feedback-container">
-            <div style="color:#6b7a99;font-size:13px;">Loading…</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-header"><h2>Common Questions This Week</h2><span style="font-size:13px;color:#6b7a99;">Same question, asked by 2+ different students — may signal something worth clarifying in the material</span></div>
-        <div class="card-body" id="common-questions-container">
-          <div style="color:#6b7a99;font-size:13px;">Loading…</div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-header"><h2>Stale General Reference Documents</h2><span style="font-size:13px;color:#6b7a99;">Untouched 90+ days — may be worth refreshing</span></div>
-        <div style="overflow-x:auto;">
-          <table>
-            <thead><tr><th>University</th><th>Label</th><th>File</th><th>Uploaded</th></tr></thead>
-            <tbody id="stale-docs-tbody"><tr><td colspan="4" style="text-align:center;padding:20px;color:#6b7a99;">Loading…</td></tr></tbody>
-          </table>
-        </div>
-      </div>
-
-    </div>
-
-    <div class="tab-panel" id="tab-general-docs">
-      <div class="card">
-        <div class="card-header">
-          <h2>General Reference Documents</h2>
-          <span id="gd-count-text" style="font-size:13px;color:#6b7a99;">0 files</span>
-        </div>
-        <div class="card-body">
-          <p style="font-size:13px;color:#6b7a99;margin-bottom:16px;max-width:640px;">
-            Files uploaded here are automatically included as background knowledge in every
-            student's chat with WINK <strong>at the university selected below</strong> — but they
-            never appear in any student's own document list, never count against anyone's upload
-            limit, and WINK never mentions them as a separate upload. Each university's documents
-            are kept separate, so pick a school before uploading or viewing its knowledge base.
-          </p>
-          <div class="gd-form-row">
-            <label for="gd-university-select">University</label>
-            <input type="text" placeholder="Type to search…" autocomplete="off"
-                   style="width:100%;padding:9px 12px;border:1.5px solid #dde3f0;border-radius:6px;font-size:14px;margin-bottom:6px;"
-                   oninput="filterUniversityOptions(this.value, 'gd-university-select')">
-            <select id="gd-university-select" onchange="onGdUniversityChange()">
-              <option value="">Select a university…</option>
-                  <option value="ALL" style="font-weight:700;">🌐 All Universities (send to every school)</option>
+          <div class="form-group">
+            <label for="university-filter">University<span class="required-marker" aria-hidden="true">*</span><span class="sr-only"> (required)</span></label>
+            <input type="text" id="university-filter" placeholder="Type to search…" autocomplete="off"
+                   aria-label="Filter the university list below"
+                   style="width:100%;padding:10px 13px;border:1.5px solid #dde3f0;border-radius:6px;font-size:14px;margin-bottom:6px;"
+                   oninput="filterUniversityOptions(this.value, 'university')">
+            <select id="university" name="university" required aria-required="true" aria-label="University">
+              <option value="">Select your university...</option>
+                  <option value="Other" style="font-weight:700;">Other (not currently a student, or my school isn't listed)</option>
                   <option value="42 US">42 US</option>
                   <option value="ASA College">ASA College</option>
                   <option value="Aaniiih Nakoda College">Aaniiih Nakoda College</option>
@@ -2599,728 +2635,293 @@
                   <option value="Zane State College">Zane State College</option>
             </select>
           </div>
-          <div class="gd-form-row">
-            <label for="gd-label-input">Label (internal only — students never see it)</label>
-            <input type="text" id="gd-label-input" placeholder="e.g., Academic Calendar, Financial Aid FAQ, Honor Code">
-          </div>
-          <div class="gd-drop-zone" id="gd-drop-zone" onclick="document.getElementById('gd-file-input').click()">
-            <input type="file" id="gd-file-input" onchange="handleGdFileSelect(this.files[0])" aria-label="Upload a reference document">
-            <div style="font-size:13px;color:#6b7a99;" id="gd-drop-zone-text">Click to choose a file, or drag one here</div>
-            <div style="font-size:13px;font-weight:700;color:#002855;margin-top:6px;" id="gd-drop-zone-filename"></div>
-          </div>
-          <div id="gd-form-msg" style="font-size:13px;font-weight:600;padding:8px 0;"></div>
-          <button type="button" class="btn-upload" id="gd-upload-btn" onclick="uploadGdDoc()" disabled>Upload</button>
-        </div>
-      </div>
 
-      <div class="card">
-        <div class="card-header"><h2>Currently Uploaded</h2><span id="gd-scope-text" style="font-size:13px;color:#6b7a99;"></span></div>
-        <div style="overflow-x:auto;">
-          <table>
-            <thead><tr><th>Label</th><th>File</th><th>Size</th><th>Uploaded</th><th></th></tr></thead>
-            <tbody id="gd-tbody"><tr><td colspan="5" style="text-align:center;padding:24px;color:#6b7a99;">Select a university above to view its knowledge base.</td></tr></tbody>
-          </table>
+          <h2 class="form-section-label">Account</h2>
+          <div class="form-group">
+            <label for="email">Email Address<span class="required-marker" aria-hidden="true">*</span><span class="sr-only"> (required)</span></label>
+            <input type="email" id="email" name="email" placeholder="yourname@example.com" required aria-required="true" autocomplete="email">
+          </div>
+
+          <div class="form-group">
+            <label for="password">Password<span class="required-marker" aria-hidden="true">*</span><span class="sr-only"> (required)</span></label>
+            <div class="field-with-icon">
+              <input type="password" id="password" name="password" placeholder="At least 8 characters" required aria-required="true" minlength="8"
+                     autocomplete="new-password" aria-describedby="password-hint">
+              <button type="button" class="field-icon-btn" id="toggle-password-btn" aria-label="Show password">
+                <svg id="eye-icon-visible" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+                <svg id="eye-icon-hidden" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:none;">
+                  <path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a21.86 21.86 0 0 1 5.06-6.06M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a21.8 21.8 0 0 1-3.22 4.51"></path>
+                  <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"></path>
+                  <path d="M1 1l22 22"></path>
+                </svg>
+              </button>
+            </div>
+            <ul class="pw-hint" id="password-hint">
+              <li>At least 8 characters</li>
+              <li>Include at least one letter and one number</li>
+            </ul>
+          </div>
+
+          <h2 class="form-section-label">Academic Details</h2>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="classification">Classification<span class="required-marker" aria-hidden="true">*</span><span class="sr-only"> (required)</span></label>
+              <select id="classification" name="classification" required aria-required="true">
+                <option value="">Select...</option>
+                {% for c in classifications %}
+                  <option value="{{ c }}">{{ c }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="major">Major<span class="required-marker" aria-hidden="true">*</span><span class="sr-only"> (required)</span></label>
+              <select id="major" name="major" required aria-required="true">
+                <option value="">Select...</option>
+                {% for m in majors %}
+                  <option value="{{ m }}">{{ m }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <fieldset style="border:none; padding:0; margin:0;">
+              <legend style="font-size:inherit; font-weight:inherit; padding:0; margin:0 0 6px;">
+                Are you a first-generation college student?<span class="required-marker" aria-hidden="true">*</span><span class="sr-only"> (required)</span>
+              </legend>
+              <label style="display:inline-flex; align-items:center; gap:6px; font-weight:normal; margin-right:20px;">
+                <input type="radio" id="first_generation_yes" name="first_generation" value="yes" required style="width:auto;">
+                Yes
+              </label>
+              <label style="display:inline-flex; align-items:center; gap:6px; font-weight:normal;">
+                <input type="radio" id="first_generation_no" name="first_generation" value="no" required style="width:auto;">
+                No
+              </label>
+            </fieldset>
+          </div>
+
+          <div class="form-group">
+            <label for="preferred_language">Preferred Reply Language</label>
+            <select id="preferred_language" name="preferred_language">
+              <option value="">Auto-detect (match whatever language I type in)</option>
+              {% for l in preferred_languages %}
+                <option value="{{ l }}">{{ l }}</option>
+              {% endfor %}
+            </select>
+            <p class="field-hint">Leave this on auto-detect and WINK will reply in whichever language you write in. Choose a specific language here if you'd rather WINK always reply in that language, even on messages you type in English.</p>
+          </div>
+
+          <button type="submit" class="btn-submit">Create My Account →</button>
+        </form>
+
+        <div class="verify-email-msg" id="verify-email-msg" role="status" aria-live="polite" style="display:none;"></div>
+
+        <div class="auth-alt">
+          Already have an account? <a href="/#signin-panel">Sign in</a>
+        </div>
+
+        <a href="/" class="back-link">← Back to home</a>
+      </main>
+    </div>
+  </div>
+
+  <div class="terms-overlay" id="terms-overlay" role="dialog" aria-modal="true" aria-labelledby="terms-title">
+    <div class="terms-card">
+      <div class="terms-header">
+        <h2 id="terms-title">WINK Terms of Agreement</h2>
+        <p>Please read this information <span class="before-highlight">before</span> creating your account. (<a href="/terms" target="_blank" rel="noopener" style="color:#fff;text-decoration:underline;">View the full Terms of Use</a> and <a href="/privacy" target="_blank" rel="noopener" style="color:#fff;text-decoration:underline;">Privacy Policy</a> in a new tab.)</p>
+      </div>
+      <div class="terms-scroll">
+        <h3>WINK Research Pilot</h3>
+        <p>WINK is an experimental AI-powered student success platform being evaluated as part of a research project. Access is provided free of charge during the Fall 2026 pilot period, currently scheduled from August 17, 2026 through December 20, 2026.</p>
+        <p><strong>WINK is not owned, operated, or hosted by UTEP.</strong> It is independently developed and operated by Dr. Laura Trevino, who is both WINK's developer/administrator and the study's investigator. <strong>As administrator, Dr. Trevino can access what you enter into or generate through WINK — including uploads, questions, AI responses, deadlines, practice activity, and grade-calculator information — at any time, for any user. This administrative access applies regardless of whether you agree to the research participation checkbox below</strong> — it is a separate thing from the research use described under "Research Data."</p>
+
+        <h3>Your Responsibility</h3>
+        <p>WINK is an assistance tool. Students remain responsible for their academic work, decisions, deadlines, registrations, submissions, attendance, and compliance with course and university requirements. Important information should be verified using official course or university sources.</p>
+
+        <h3>Artificial Intelligence</h3>
+        <p>AI systems can make mistakes. WINK responses may be inaccurate, incomplete, outdated, or based on an incorrect interpretation of uploaded materials.</p>
+
+        <h3>Information We Collect</h3>
+        <div class="terms-data-box">
+          <strong>WINK Collects and Stores information about your use of the system, including:</strong>
+          <ul>
+            <li>Account and profile information you provide</li>
+            <li>Course and academic information</li>
+            <li>Files and course materials you upload to WINK</li>
+            <li>Questions, prompts, and messages you submit to WINK</li>
+            <li>Responses generated by WINK</li>
+            <li>Information you enter into WINK features</li>
+            <li>Usage and interaction information needed to operate and evaluate WINK</li>
+          </ul>
+        </div>
+
+        <h3>How Information Is Used</h3>
+        <p>Information is used operationally to provide WINK itself — to authenticate your account, answer your questions, process uploaded materials, track deadlines, and calculate your progress. WINK also relies on third-party technology providers (including artificial intelligence, hosting, storage, and email services) to operate, so some information is processed by those providers as part of delivering WINK's functionality.</p>
+
+        <h3>Research Data</h3>
+        <p>Separately from that operational use, your interactions with WINK — including questions and AI-generated responses — will be recorded and analyzed for research purposes. Access to research data is limited to Dr. Laura Trevino and the small number of research team members who need it to conduct the study, and it is kept on secured, access-controlled systems. Data will be anonymized before being used in research publications or presentations, and reporting will not intentionally identify individual students.</p>
+        <p>If you later delete your account, that's how you'd withdraw: your name and email are immediately replaced with a non-identifying label and you're logged out for good, but your already-collected activity data is retained in this de-identified form to support the study rather than being deleted outright. Full details are in the <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</p>
+
+        <h3>Uploaded Content and Privacy</h3>
+        <p>Upload only materials you are authorized to provide. Do not upload passwords, Social Security numbers, financial account information, medical records, or other highly sensitive information that is unnecessary for WINK's academic functions.</p>
+
+        <h3>Academic Integrity</h3>
+        <p>You are responsible for following your institution's and instructors' academic-integrity requirements. WINK should not be used for cheating, plagiarism, unauthorized collaboration, or other prohibited conduct.</p>
+
+        <h3>Agreement</h3>
+        <p>By continuing, you acknowledge that you have read and understood these terms and the WINK privacy disclosures and agree to the collection and use of information described above.</p>
+      </div>
+      <div class="terms-consents">
+        <label class="consent-row">
+          <input type="checkbox" id="terms-check" name="terms_agree" form="register-form">
+          <span><strong>I have read and agree to the WINK Terms of Agreement and Privacy Policy, including the collection of my data as described in the Privacy Policy under “Information We Collect” and “Research Data.”</strong> (See above for policy link)</span>
+        </label>
+        <label class="consent-row">
+          <input type="checkbox" id="research-check" name="research_agree" form="register-form">
+          <span><strong>I understand that, separately from Dr. Trevino's standing administrative access described above (which applies regardless of this checkbox), my WINK data may also be collected and analyzed for research purposes if I agree here. Research access is limited to Dr. Trevino and research team members who need it for the study, and data will be anonymized before use in research publications or presentations.</strong> (See above for policy link)</span>
+        </label>
+        <div class="terms-actions">
+          <button type="button" class="terms-cancel-btn" id="terms-cancel">Cancel</button>
+          <button type="button" class="terms-agree-btn" id="terms-agree" disabled>Agree &amp; Create My Account →</button>
         </div>
       </div>
     </div>
-
   </div>
 
-  <script src="{{ url_for('static', filename='js/csrf-fetch.js') }}"></script>
-  <script src="{{ url_for('static', filename='js/wink-ui.js') }}"></script>
-<script nonce="{{ csp_nonce() }}">
+  <script nonce="{{ csp_nonce() }}">
 
-    let analyticsData = null;
-
-    function switchTab(name) {
-      document.querySelectorAll('.tab-btn').forEach((b, i) => {
-        const tabs = ['students','activity','conversations','deadlines','distributions','insights','general-docs'];
-        b.classList.toggle('active', tabs[i] === name);
-      });
-      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-      document.getElementById('tab-' + name).classList.add('active');
-    }
-
-    const eventIcons = {
-      account_created: '🆕', login: '🔐', page_view: '👁',
-      file_uploaded: '📁', question_asked: '❓', answer_given: '💬',
-      file_deleted: '🗑'
-    };
-
-    function formatTimeSpent(minutes) {
-      const total = Math.round(Number(minutes) || 0);
-      if (total <= 0) return '—';
-      const hrs = Math.floor(total / 60);
-      const mins = total % 60;
-      return hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
-    }
-
-    function formatTokenCount(tokens) {
-      const n = Math.round(Number(tokens) || 0);
-      return n > 0 ? n.toLocaleString() : '—';
-    }
-    function formatCostUsd(usd) {
-      const n = Number(usd) || 0;
-      if (n === 0) return '$0.00';
-
-      return n < 1 ? `$${n.toFixed(4)}` : `$${n.toFixed(2)}`;
-    }
-
-    let currentStudents = [];
-    let sortState = { field: null, dir: 'asc' };
-
-    function applySort(students) {
-      if (!sortState.field) return students;
-      const { field, dir } = sortState;
-      const th = document.querySelector(`th[data-sort="${field}"]`);
-      const type = th ? th.dataset.type : 'str';
-      const getVal = (s) => {
-        if (field === 'name') return `${s.first_name || ''} ${s.last_name || ''}`.trim().toLowerCase();
-        if (field === 'status') return s.is_active ? 'active' : 'suspended';
-        const v = s[field];
-        if (type === 'str') return String(v || '').toLowerCase();
-        if (type === 'num') return Number(v) || 0;
-        if (type === 'date') return new Date(v || 0).getTime() || 0;
-        return v;
-      };
-      const sorted = [...students].sort((a, b) => {
-        const av = getVal(a), bv = getVal(b);
-        if (av < bv) return dir === 'asc' ? -1 : 1;
-        if (av > bv) return dir === 'asc' ? 1 : -1;
-        return 0;
-      });
-      return sorted;
-    }
-
-    function renderStudentsTable(students) {
-      document.getElementById('student-count').textContent = students.length + ' students';
-      const tbody = document.getElementById('students-tbody');
-      if (students.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="14" style="text-align:center;padding:32px;color:#6b7a99;">No students yet.</td></tr>';
-        return;
-      }
-      tbody.innerHTML = students.map(s => `
-        <tr>
-          <td><strong>${escapeHtml(s.first_name)} ${escapeHtml(s.last_name)}</strong></td>
-          <td style="color:#6b7a99;">${escapeHtml(s.email)}</td>
-          <td>${escapeHtml(s.university)}</td>
-          <td><span class="badge badge-navy">${escapeHtml(s.classification)}</span></td>
-          <td>${escapeHtml(s.major)}</td>
-          <td>${s.first_generation ? '<span class="badge badge-orange">Yes</span>' : '<span style="color:#6b7a99;">No</span>'}</td>
-          <td style="color:#6b7a99;">${escapeHtml(s.joined)}</td>
-          <td>${s.sessions}</td>
-          <td><span class="badge badge-orange">${s.questions}</span></td>
-          <td>${s.uploads}</td>
-          <td style="color:#6b7a99;">${formatTimeSpent(s.time_spent_minutes)}</td>
-          <td style="color:#6b7a99;">${formatTokenCount(s.total_tokens)}</td>
-          <td style="color:#6b7a99;">${formatCostUsd(s.estimated_cost_usd)}</td>
-          <td>${renderStudentStatusCell(s)}</td>
-        </tr>`).join('');
-      // Names are attached via dataset + addEventListener rather than baked into an
-      // inline onclick string — untrusted text inside an inline event-handler
-      // attribute is unsafe even when HTML-escaped, since the browser HTML-decodes
-      // the attribute before handing it to the JS engine, undoing the escaping.
-      tbody.querySelectorAll('.student-toggle-btn').forEach((btn, idx) => {
-        const student = students[idx];
-        btn.addEventListener('click', () => {
-          toggleStudentActive(
-            parseInt(btn.dataset.id, 10),
-            `${student.first_name} ${student.last_name}`,
-            btn.dataset.active === 'true'
-          );
-        });
-      });
-      tbody.querySelectorAll('.student-anonymize-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          anonymizeStudent(parseInt(btn.dataset.id, 10));
-        });
-      });
-      tbody.querySelectorAll('.student-delete-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          deleteStudent(parseInt(btn.dataset.id, 10), btn.dataset.email);
-        });
-      });
-    }
-
-    function renderStudentStatusCell(s) {
-      if (s.anonymized_at) {
-        return `<span class="badge" style="background:#eef0f6;color:#6b7a99;">Anonymized</span>`;
-      }
-      if (s.account_deleted_at) {
-        return `<span class="badge" style="background:#fef2f2;color:#b91c1c;">Deleted</span>
-                <button class="tab-btn student-anonymize-btn" style="padding:4px 10px;font-size:11px;margin-left:6px;" data-id="${s.id}">Anonymize</button>
-                <button class="tab-btn student-delete-btn" style="padding:4px 10px;font-size:11px;margin-left:6px;color:#b91c1c;border-color:#f3c6c6;" data-id="${s.id}" data-email="${escapeHtml(s.email)}">Delete</button>`;
-      }
-      if (s.is_active) {
-        return `<span class="badge badge-active">Active</span>
-                <button class="tab-btn student-toggle-btn" style="padding:4px 10px;font-size:11px;margin-left:6px;" data-id="${s.id}" data-active="true">Suspend</button>
-                <button class="tab-btn student-anonymize-btn" style="padding:4px 10px;font-size:11px;margin-left:6px;" data-id="${s.id}">Anonymize</button>
-                <button class="tab-btn student-delete-btn" style="padding:4px 10px;font-size:11px;margin-left:6px;color:#b91c1c;border-color:#f3c6c6;" data-id="${s.id}" data-email="${escapeHtml(s.email)}">Delete</button>`;
-      }
-      return `<span class="badge" style="background:#fef2f2;color:#b91c1c;">Suspended</span>
-              <button class="tab-btn student-toggle-btn" style="padding:4px 10px;font-size:11px;margin-left:6px;" data-id="${s.id}" data-active="false">Reactivate</button>
-              <button class="tab-btn student-anonymize-btn" style="padding:4px 10px;font-size:11px;margin-left:6px;" data-id="${s.id}">Anonymize</button>
-              <button class="tab-btn student-delete-btn" style="padding:4px 10px;font-size:11px;margin-left:6px;color:#b91c1c;border-color:#f3c6c6;" data-id="${s.id}" data-email="${escapeHtml(s.email)}">Delete</button>`;
-    }
-
-    async function anonymizeStudent(studentId) {
-      const ok = await winkConfirm({
-        title: 'Anonymize this student?',
-        message: "This is IRREVERSIBLE — their name/email will be replaced with an " +
-          "untraceable label, and they won't be able to log in again. Their " +
-          "conversations, documents, and research data stay intact for analysis, " +
-          "just no longer tied to an identifiable name.",
-        confirmLabel: 'Anonymize',
-        danger: true
-      });
-      if (!ok) return;
-      try {
-        const res = await fetch('/anonymize-student', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ student_id: studentId })
-        });
-        const data = await res.json();
-        if (!data.success) { winkToast(data.error || 'Something went wrong.', true); return; }
-        winkToast(`Anonymized as ${data.label}.`);
-        loadData();
-      } catch (e) {
-        winkToast('Something went wrong — please try again.', true);
-      }
-    }
-
-    async function deleteStudent(studentId, email) {
-      const ok = await winkConfirm({
-        title: 'Permanently delete this student?',
-        message: `This is IRREVERSIBLE and different from Anonymize — the entire row ` +
-          `for ${email} is erased, along with their conversations, documents, deadlines, ` +
-          `grades, and research data. Only use this for test/junk accounts so the email ` +
-          `can be reused to register — never for a real pilot participant (use Anonymize ` +
-          `for those, to honor the data retention consent they agreed to).`,
-        confirmLabel: 'Continue',
-        danger: true
-      });
-      if (!ok) return;
-      const typed = prompt(`Type this student's exact email address to confirm permanent deletion:\n${email}`);
-      if (typed === null) return;
-      if (typed.trim().toLowerCase() !== email.trim().toLowerCase()) {
-        winkToast('Email did not match — nothing was deleted.', true);
-        return;
-      }
-      try {
-        const res = await fetch('/delete-student', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ student_id: studentId, confirm_email: typed.trim() })
-        });
-        const data = await res.json();
-        if (!data.success) { winkToast(data.error || 'Something went wrong.', true); return; }
-        winkToast(`Deleted ${data.email} — that email can be used to register again.`);
-        loadData();
-      } catch (e) {
-        winkToast('Something went wrong — please try again.', true);
-      }
-    }
-
-    document.addEventListener('DOMContentLoaded', () => {
-      document.querySelectorAll('th.sortable').forEach(th => {
-        th.addEventListener('click', () => {
-          const field = th.dataset.sort;
-          if (sortState.field === field) {
-            sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
-          } else {
-            sortState = { field, dir: 'asc' };
-          }
-          document.querySelectorAll('th.sortable').forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
-          th.classList.add(sortState.dir === 'asc' ? 'sort-asc' : 'sort-desc');
-          renderStudentsTable(applySort(currentStudents));
-        });
-      });
-    });
-
-    async function loadData() {
-      try {
-        const res = await fetch('/analytics-data-full');
-        const d = await res.json();
-        if (d.error) { winkToast('Error: ' + d.error, true); return; }
-        analyticsData = d;
-
-        const cards = document.querySelectorAll('.stat-card');
-        const vals = [d.total_students, d.total_sessions, d.total_questions, d.total_uploads, d.total_deadlines, formatCostUsd(d.total_estimated_cost_usd)];
-        cards.forEach((c, i) => {
-          c.querySelector('.stat-loading') && (c.innerHTML = `<div class="stat-value">${vals[i]}</div><div class="stat-label">${c.querySelector('.stat-label').textContent}</div>`);
-          c.querySelector('.stat-value') && (c.querySelector('.stat-value').textContent = vals[i]);
-        });
-
-        const sr = document.getElementById('stats-row');
-        const labels = ['Total Students','Total Sessions','Questions Asked','Files Uploaded','Upcoming Deadlines','Est. AI Cost (Pilot)'];
-        const tops = ['','navy-top','','green-top','navy-top',''];
-        sr.innerHTML = vals.map((v,i) => `<div class="stat-card ${tops[i]}"><div class="stat-value">${v}</div><div class="stat-label">${labels[i]}</div></div>`).join('');
-
-        // Students table
-        currentStudents = d.students;
-        renderStudentsTable(applySort(currentStudents));
-
-        // Activity feed
-        const feed = document.getElementById('event-feed');
-        feed.innerHTML = d.recent.map(e => {
-          const icon = eventIcons[e.event_type] || '📌';
-          const name = e.first_name ? `${escapeHtml(e.first_name)} ${escapeHtml(e.last_name)}` : 'Unknown';
-          let detail = escapeHtml(e.event_type.replace(/_/g,' '));
-          if (e.payload && e.payload.q) detail = '"' + escapeHtml(e.payload.q.substring(0,80)) + (e.payload.q.length > 80 ? '…' : '') + '"';
-          else if (e.payload && e.payload.page) detail = 'viewed ' + escapeHtml(e.payload.page);
-          else if (e.payload && e.payload.name) detail = escapeHtml(e.payload.name);
-          return `<div class="event-item">
-            <div class="event-icon">${icon}</div>
-            <div class="event-body">
-              <div class="event-name">${name}</div>
-              <div class="event-detail">${detail}</div>
-            </div>
-            <div class="event-time">${escapeHtml(e.ts)}</div>
-          </div>`;
-        }).join('') || '<div style="color:#6b7a99;font-size:13px;padding:12px;">No events yet.</div>';
-
-        // Conversations
-        const cb = document.getElementById('convos-body');
-        if (!d.conversations || d.conversations.length === 0) {
-          cb.innerHTML = '<div style="color:#6b7a99;font-size:14px;text-align:center;padding:32px;">No conversations yet.</div>';
-        } else {
-          cb.innerHTML = d.conversations.map((c, i) => `
-            <div class="convo-item">
-              <div class="convo-header" data-convo-index="${i}">
-                <div>
-                  <div style="font-size:11px;color:#6b7a99;margin-bottom:3px;">${escapeHtml(c.first_name)} ${escapeHtml(c.last_name)} · ${escapeHtml(c.ts)}</div>
-                  <div class="convo-q">❓ ${escapeHtml(c.question.substring(0,120))}${c.question.length > 120 ? '…' : ''}</div>
-                </div>
-                <span style="font-size:12px;color:#6b7a99;flex-shrink:0;margin-left:12px;">▼</span>
-              </div>
-              <div class="convo-body" id="convo-body-${i}">
-                <div class="convo-answer">${c.answer ? escapeHtml(c.answer).replace(/\n/g,'<br>') : 'No answer recorded.'}</div>
-              </div>
-            </div>`).join('');
+    (function setupPasswordToggle() {
+      const btn = document.getElementById('toggle-password-btn');
+      const input = document.getElementById('password');
+      const iconVisible = document.getElementById('eye-icon-visible');
+      const iconHidden = document.getElementById('eye-icon-hidden');
+      if (!btn || !input) return;
+      btn.addEventListener('click', () => {
+        const showing = input.type === 'text';
+        input.type = showing ? 'password' : 'text';
+        if (iconVisible && iconHidden) {
+          iconVisible.style.display = showing ? '' : 'none';
+          iconHidden.style.display = showing ? 'none' : '';
         }
-
-        // Deadlines
-        const dtbody = document.getElementById('deadlines-tbody');
-        if (!d.upcoming_deadlines || d.upcoming_deadlines.length === 0) {
-          dtbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:32px;color:#6b7a99;">No upcoming deadlines found yet.</td></tr>';
-        } else {
-          dtbody.innerHTML = d.upcoming_deadlines.map(dl => `
-            <tr>
-              <td><span class="badge badge-orange">${escapeHtml(dl.due_date)}</span></td>
-              <td><strong>${escapeHtml(dl.title)}</strong></td>
-              <td>${escapeHtml(dl.course)}</td>
-              <td style="color:#6b7a99;">${escapeHtml(dl.first_name)} ${escapeHtml(dl.last_name)}</td>
-            </tr>`).join('');
-        }
-
-        // Bar charts
-        function renderBars(containerId, items, maxN, orange) {
-          const max = Math.max(...items.map(x => x.n), 1);
-          const container = document.getElementById(containerId);
-          container.innerHTML = items.slice(0, maxN).map(item => `
-            <div class="bar-row">
-              <div class="bar-label" title="${item.major || item.classification}">${(item.major || item.classification).substring(0,20)}</div>
-              <div class="bar-track"><div class="bar-fill ${orange?'orange':''}" data-w="${Math.round(item.n/max*100)}%"></div></div>
-              <div class="bar-val">${item.n}</div>
-            </div>`).join('');
-          applyPendingStyles(container);
-        }
-        renderBars('class-chart', d.by_class, 8, false);
-        renderBars('major-chart', d.by_major, 12, true);
-
-        renderMiniStats(d);
-        renderDemoStats(d);
-        renderUniversityTable(d);
-        renderCourseChart(d.by_course);
-        renderHeatmap(d.usage_heatmap);
-        renderDeadlineSpikes(d.deadline_spikes);
-        renderUploadMix(d.upload_mix);
-        renderAnswerFeedback(d.answer_feedback);
-        renderCommonQuestions(d.common_questions);
-        renderStaleDocs(d.stale_global_docs);
-
-      } catch(e) {
-        console.error('Analytics load error:', e);
-        winkToast('Failed to load analytics data.', true);
-      }
-    }
-
-    function renderMiniStats(d) {
-      const box = document.getElementById('insight-mini-stats');
-      if (!box) return;
-      const fmt = v => (v === null || v === undefined) ? '—' : v;
-      const items = [
-        [fmt(d.avg_session_minutes) + (d.avg_session_minutes ? ' min' : ''), 'Avg Session'],
-        [d.total_sessions ? Math.round((d.total_questions / d.total_sessions) * 10) / 10 : '—', 'Questions / Session'],
-        [fmt(d.retention_pct) + (d.retention_pct !== undefined ? '%' : ''), 'Retention (2+ weeks)'],
-        [d.avg_minutes_to_first_question === null ? 'n/a' : fmt(d.avg_minutes_to_first_question) + ' min', 'Time to First Question'],
-        [fmt(d.general_doc_availability_pct) + '%', 'Questions w/ General Docs'],
-      ];
-      box.innerHTML = items.map(([val, label]) => `
-        <div class="mini-stat"><div class="mini-stat-value">${val}</div><div class="mini-stat-label">${label}</div></div>
-      `).join('');
-    }
-
-    // Duration comes from the backend in whole seconds (see
-    // services/analytics.py's get_demo_usage_stats) — format for display.
-    function formatDemoDuration(seconds) {
-      const s = Math.round(Number(seconds) || 0);
-      if (s <= 0) return '—';
-      const mins = Math.floor(s / 60);
-      if (mins < 1) return `${s}s`;
-      const hrs = Math.floor(mins / 60);
-      return hrs > 0 ? `${hrs}h ${mins % 60}m` : `${mins}m`;
-    }
-
-    function renderDemoStats(d) {
-      const box = document.getElementById('demo-mini-stats');
-      if (!box) return;
-      const dm = d.demo_usage || {};
-      const items = [
-        [dm.total_sessions || 0, 'Total Demos Started'],
-        [dm.active_now || 0, 'Active Right Now'],
-        [formatDemoDuration(dm.avg_duration_seconds), 'Avg Duration'],
-        [formatDemoDuration(dm.max_duration_seconds), 'Longest Session'],
-        [dm.total_questions_asked || 0, 'Total Questions Asked'],
-      ];
-      box.innerHTML = items.map(([val, label]) => `
-        <div class="mini-stat"><div class="mini-stat-value">${val}</div><div class="mini-stat-label">${label}</div></div>
-      `).join('');
-    }
-
-    function renderUniversityTable(d) {
-      const tbody = document.getElementById('university-tbody');
-      if (!tbody) return;
-      const rows = d.by_university || [];
-      if (rows.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:#6b7a99;">No data yet.</td></tr>';
-        return;
-      }
-      const durByUni = d.avg_session_minutes_by_university || {};
-      tbody.innerHTML = rows.map(r => `
-        <tr>
-          <td><strong>${escapeHtml(r.university)}</strong></td>
-          <td>${r.students}</td>
-          <td>${r.sessions}</td>
-          <td><span class="badge badge-orange">${r.questions}</span></td>
-          <td>${r.uploads}</td>
-          <td>${durByUni[r.university] !== undefined ? durByUni[r.university] + ' min' : '—'}</td>
-        </tr>`).join('');
-    }
-
-    function renderCourseChart(items) {
-      const el = document.getElementById('course-chart');
-      if (!el) return;
-      const filtered = (items || []).filter(x => x.course && x.course.trim());
-      if (filtered.length === 0) { el.innerHTML = '<div style="color:#6b7a99;font-size:13px;">No documents uploaded yet.</div>'; return; }
-      const max = Math.max(...filtered.map(x => x.n), 1);
-      el.innerHTML = filtered.slice(0, 12).map(item => `
-        <div class="bar-row">
-          <div class="bar-label" title="${escapeHtml(item.course)}">${escapeHtml(item.course).substring(0,20)}</div>
-          <div class="bar-track"><div class="bar-fill orange" data-w="${Math.round(item.n/max*100)}%"></div></div>
-          <div class="bar-val">${item.n}</div>
-        </div>`).join('');
-      applyPendingStyles(el);
-    }
-
-    function renderHeatmap(grid) {
-      const el = document.getElementById('heatmap-container');
-      if (!el) return;
-      if (!grid || grid.length === 0) { el.innerHTML = '<div style="color:#6b7a99;font-size:13px;">No question activity yet.</div>'; return; }
-      const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-      const max = Math.max(...grid.flat(), 1);
-      const colorFor = n => {
-        if (n === 0) return '#eef0f6';
-        const t = n / max;
-        const r = Math.round(255 - t * (255-255));
-        return `rgba(255,130,0,${(0.15 + t * 0.85).toFixed(2)})`;
-      };
-      let html = '<table class="heatmap-table"><thead><tr><th></th>';
-      for (let h = 0; h < 24; h++) html += `<th>${h}</th>`;
-      html += '</tr></thead><tbody>';
-      for (let d = 0; d < 7; d++) {
-        html += `<tr><td class="heatmap-row-label">${days[d]}</td>`;
-        for (let h = 0; h < 24; h++) {
-          const n = grid[d][h] || 0;
-          html += `<td data-bg="${colorFor(n)}" title="${days[d]} ${h}:00 — ${n} question${n!==1?'s':''}">${n || ''}</td>`;
-        }
-        html += '</tr>';
-      }
-      html += '</tbody></table>';
-      el.innerHTML = html;
-      applyPendingStyles(el);
-    }
-
-    function renderDeadlineSpikes(spikes) {
-      const tbody = document.getElementById('deadline-spikes-tbody');
-      if (!tbody) return;
-      if (!spikes || spikes.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:#6b7a99;">No deadline data yet.</td></tr>';
-        return;
-      }
-      tbody.innerHTML = spikes.slice().reverse().map(s => `
-        <tr>
-          <td><span class="badge badge-orange">${s.due_date}</span></td>
-          <td>${s.deadlines_due}</td>
-          <td>${s.questions_same_day}</td>
-          <td>${s.questions_prior_3_days}</td>
-        </tr>`).join('');
-    }
-
-    function renderUploadMix(mix) {
-      const el = document.getElementById('upload-mix-container');
-      if (!el) return;
-      if (!mix) { el.innerHTML = '<div style="color:#6b7a99;font-size:13px;">No uploads yet.</div>'; return; }
-      const total = (mix.permanent||0) + (mix.temporary||0) + (mix.global||0);
-      const rows = [
-        ['#002855', 'Permanent (student uploads)', mix.permanent||0],
-        ['#FF8200', 'Temporary (this-conversation-only)', mix.temporary||0],
-        ['#166534', 'Global (admin knowledge base)', mix.global||0],
-      ];
-      el.innerHTML = rows.map(([color, label, n]) => `
-        <div class="upload-mix-row">
-          <div class="upload-mix-swatch" data-bg="${color}"></div>
-          <div style="flex:1;font-size:13px;color:#444;">${label}</div>
-          <div style="font-weight:700;color:#002855;">${n}</div>
-          <div style="width:50px;text-align:right;color:#6b7a99;font-size:12px;">${total ? Math.round(n/total*100) : 0}%</div>
-        </div>`).join('');
-      applyPendingStyles(el);
-    }
-
-    function renderAnswerFeedback(feedback) {
-      const el = document.getElementById('answer-feedback-container');
-      if (!el) return;
-      if (!feedback || (feedback.up === 0 && feedback.down === 0)) {
-        el.innerHTML = '<div style="color:#6b7a99;font-size:13px;">No feedback recorded yet — students can rate answers with the 👍/👎 buttons in chat.</div>';
-        return;
-      }
-      const total = feedback.up + feedback.down;
-      const pct = feedback.positive_pct;
-      const rows = [
-        ['#166534', '👍 Helpful', feedback.up],
-        ['#dc2626', '👎 Not helpful', feedback.down],
-      ];
-      let html = rows.map(([color, label, n]) => `
-        <div class="upload-mix-row">
-          <div class="upload-mix-swatch" data-bg="${color}"></div>
-          <div style="flex:1;font-size:13px;color:#444;">${label}</div>
-          <div style="font-weight:700;color:#002855;">${n}</div>
-          <div style="width:50px;text-align:right;color:#6b7a99;font-size:12px;">${total ? Math.round(n/total*100) : 0}%</div>
-        </div>`).join('');
-      html += `<div style="margin-top:12px;padding-top:12px;border-top:1px solid #eef0f6;font-size:13px;color:#444;">
-        <strong style="color:#002855;">${pct !== null ? pct + '%' : '—'}</strong> of rated answers were marked helpful (${total} total ratings).
-      </div>`;
-      el.innerHTML = html;
-      applyPendingStyles(el);
-    }
-
-    function renderCommonQuestions(items) {
-      const el = document.getElementById('common-questions-container');
-      if (!el) return;
-      if (!items || items.length === 0) {
-        el.innerHTML = '<div style="color:#6b7a99;font-size:13px;">No question has been asked by 2 or more different students in the past week yet.</div>';
-        return;
-      }
-      el.innerHTML = items.map(item => `
-        <div style="display:flex;gap:14px;align-items:flex-start;padding:10px 0;border-bottom:1px solid #eef0f6;">
-          <div style="flex-shrink:0;min-width:78px;text-align:center;font-weight:700;color:#002855;font-size:13px;background:#eef4ff;border-radius:6px;padding:4px 6px;">${item.n_students} students</div>
-          <div>
-            <div style="font-size:13px;font-weight:600;color:#002855;">${escapeHtml(item.question)}</div>
-            <div style="font-size:11px;color:#6b7a99;margin-top:2px;">Asked ${item.n} time${item.n !== 1 ? 's' : ''} total</div>
-          </div>
-        </div>`).join('');
-    }
-
-    function renderStaleDocs(docs) {
-      const tbody = document.getElementById('stale-docs-tbody');
-      if (!tbody) return;
-      if (!docs || docs.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:#6b7a99;">Nothing stale — all general reference docs are recent.</td></tr>';
-        return;
-      }
-      tbody.innerHTML = docs.map(d => `
-        <tr>
-          <td>${escapeHtml(d.university || 'Not set')}</td>
-          <td>${escapeHtml(d.label || 'General')}</td>
-          <td style="font-weight:600;color:#002855;">${escapeHtml(d.orig_name)}</td>
-          <td style="color:#6b7a99;">${d.uploaded_at}</td>
-        </tr>`).join('');
-    }
-
-    async function toggleStudentActive(studentId, studentName, isSuspending) {
-      const ok = await winkConfirm({
-        title: isSuspending ? `Suspend ${studentName}?` : `Reactivate ${studentName}?`,
-        message: isSuspending
-          ? `${studentName} will be immediately logged out and won't be able to log back in until reactivated.`
-          : `${studentName} will be able to log in again immediately.`,
-        confirmLabel: isSuspending ? 'Suspend' : 'Reactivate',
-        danger: isSuspending
+        btn.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
       });
-      if (!ok) return;
+    })();
+
+    (function captureTimezone() {
+      // Populated immediately on page load rather than at submit time —
+      // simpler, and it means the value is already sitting in the form
+      // by the time any submit path runs, with nothing else that needs
+      // to remember to set it. Falls back to leaving the field blank
+      // (never throws) if the browser genuinely can't report one; the
+      // server already treats a missing/invalid timezone as "unknown"
+      // and falls back to Mountain Time itself.
+      const field = document.getElementById('register-timezone-field');
+      if (!field) return;
       try {
-        const res = await fetch('/toggle-student-active', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ student_id: studentId })
-        });
-        const data = await res.json();
-        if (!data.success) { winkToast(data.error || 'Could not update status.', true); return; }
-        winkToast(isSuspending ? `${studentName} has been suspended.` : `${studentName} has been reactivated.`);
-        loadData();
+        field.value = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
       } catch (e) {
-        winkToast('Could not update status — please try again.', true);
-      }
-    }
-
-    // Delegated: convo-header no longer carries a per-item inline onclick
-    // (its index changes every render, so it can't be CSP-hash-allowlisted).
-    document.addEventListener('click', function(e) {
-      const header = e.target.closest('.convo-header');
-      if (header && header.dataset.convoIndex !== undefined) {
-        const body = document.getElementById('convo-body-' + header.dataset.convoIndex);
-        if (body) body.classList.toggle('open');
-      }
-    });
-
-    // ── General reference documents ─────────────────────────────
-
-    // Applies width/background set via data-w/data-bg placeholders using the
-    // DOM style property directly — never restricted by CSP, unlike setting
-    // the style="..." HTML attribute itself. Used anywhere a value (a bar's
-    // percentage width, a heatmap cell's color) varies per row and so can't
-    // be a fixed, CSP-hash-allowlisted inline style string.
-    function applyPendingStyles(root) {
-      root.querySelectorAll('[data-w]').forEach(el => { el.style.width = el.dataset.w; el.removeAttribute('data-w'); });
-      root.querySelectorAll('[data-bg]').forEach(el => { el.style.background = el.dataset.bg; el.removeAttribute('data-bg'); });
-    }
-
-    let gdSelectedFile = null;
-    let gdSelectedUniversity = '';
-    const gdDropZone = document.getElementById('gd-drop-zone');
-
-    function handleGdFileSelect(file) {
-      gdSelectedFile = file || null;
-      document.getElementById('gd-drop-zone-filename').textContent = gdSelectedFile ? gdSelectedFile.name : '';
-      document.getElementById('gd-upload-btn').disabled = !(gdSelectedFile && gdSelectedUniversity);
-    }
-
-    function onGdUniversityChange() {
-      gdSelectedUniversity = document.getElementById('gd-university-select').value;
-      document.getElementById('gd-upload-btn').disabled = !(gdSelectedFile && gdSelectedUniversity);
-      loadGdDocs();
-    }
-
-    if (gdDropZone) {
-      gdDropZone.addEventListener('dragover', e => { e.preventDefault(); gdDropZone.classList.add('drag-over'); });
-      gdDropZone.addEventListener('dragleave', () => gdDropZone.classList.remove('drag-over'));
-      gdDropZone.addEventListener('drop', e => {
-        e.preventDefault(); gdDropZone.classList.remove('drag-over');
-        if (e.dataTransfer.files[0]) handleGdFileSelect(e.dataTransfer.files[0]);
-      });
-    }
-
-    async function uploadGdDoc() {
-      if (!gdSelectedFile || !gdSelectedUniversity) return;
-      const label = document.getElementById('gd-label-input').value.trim() || 'General';
-      const btn = document.getElementById('gd-upload-btn');
-      const msgEl = document.getElementById('gd-form-msg');
-      btn.disabled = true; btn.textContent = 'Uploading…';
-      msgEl.innerHTML = '';
-
-      try {
-        const formData = new FormData();
-        formData.append('file', gdSelectedFile);
-        formData.append('label', label);
-        formData.append('university', gdSelectedUniversity);
-        const res = await fetch('/upload-global', { method: 'POST', body: formData });
-        const data = await res.json();
-        if (data.success) {
-          msgEl.innerHTML = `<span style="color:#166534;">Uploaded "${escapeHtml(gdSelectedFile.name)}" for ${escapeHtml(gdSelectedUniversity)} (${data.chars_extracted} characters extracted).</span>`;
-          document.getElementById('gd-label-input').value = '';
-          document.getElementById('gd-file-input').value = '';
-          handleGdFileSelect(null);
-          loadGdDocs();
-        } else {
-          msgEl.innerHTML = `<span style="color:#b91c1c;">${escapeHtml(data.error || 'Upload failed.')}</span>`;
-        }
-      } catch (e) {
-        msgEl.innerHTML = '<span style="color:#b91c1c;">Upload failed — please try again.</span>';
-      }
-      btn.textContent = 'Upload'; btn.disabled = !(gdSelectedFile && gdSelectedUniversity);
-    }
-
-    document.addEventListener('click', function(e) {
-      const gdBtn = e.target.closest('.btn-delete-gd');
-      if (gdBtn && gdBtn.dataset.gdDocId) deleteGdDoc(parseInt(gdBtn.dataset.gdDocId, 10));
-    });
-
-    async function deleteGdDoc(id) {
-      const ok = await winkConfirm({
-        title: 'Remove this general document?',
-        message: 'It will no longer be available to any student at this university.',
-        confirmLabel: 'Remove', danger: true
-      });
-      if (!ok) return;
-      try {
-        const res = await fetch('/delete-global-document', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ doc_id: id, university: gdSelectedUniversity })
-        });
-        const data = await res.json();
-        if (data.success) { loadGdDocs(); winkToast('Document removed.'); }
-        else winkToast(data.error || 'Could not delete.', true);
-      } catch (e) {
-        winkToast('Could not delete — please try again.', true);
-      }
-    }
-
-    async function loadGdDocs() {
-      const tbody = document.getElementById('gd-tbody');
-      const scopeText = document.getElementById('gd-scope-text');
-      if (!tbody) return;
-      if (!gdSelectedUniversity) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:#6b7a99;">Select a university above to view its knowledge base.</td></tr>';
-        document.getElementById('gd-count-text').textContent = '0 files';
-        if (scopeText) scopeText.textContent = '';
-        return;
-      }
-      if (scopeText) scopeText.textContent = gdSelectedUniversity;
-      try {
-        const res = await fetch('/global-documents?university=' + encodeURIComponent(gdSelectedUniversity));
-        const data = await res.json();
-        const docs = data.docs || [];
-        document.getElementById('gd-count-text').textContent = `${docs.length} file${docs.length !== 1 ? 's' : ''}`;
-        if (docs.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:#6b7a99;">No general documents uploaded yet for this university.</td></tr>';
-          return;
-        }
-        tbody.innerHTML = docs.map(d => `
-          <tr>
-            <td>${escapeHtml(d.course || 'General')}</td>
-            <td style="font-weight:600;color:#002855;">${escapeHtml(d.orig_name)}</td>
-            <td>${(d.size_bytes / 1024).toFixed(1)} KB</td>
-            <td>${d.uploaded_at ? new Date(d.uploaded_at).toLocaleDateString() : ''}</td>
-            <td><button class="btn-delete-gd" data-gd-doc-id="${d.id}" aria-label="Delete ${escapeHtml(d.orig_name)}">🗑</button></td>
-          </tr>
-        `).join('');
-      } catch (e) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:#6b7a99;">Could not load documents.</td></tr>';
-      }
-    }
-
-    // Default to UTEP since that's WINK's original/primary school — admins
-
-    (function initGdUniversity() {
-      const sel = document.getElementById('gd-university-select');
-      if (sel) {
-        sel.value = 'University of Texas at El Paso';
-        gdSelectedUniversity = sel.value;
+        field.value = '';
       }
     })();
-    loadGdDocs();
-    loadData();
+
+    (function setupTermsGate() {
+      const form = document.getElementById('register-form');
+      const overlay = document.getElementById('terms-overlay');
+      const termsCheck = document.getElementById('terms-check');
+      const researchCheck = document.getElementById('research-check');
+      const agreeBtn = document.getElementById('terms-agree');
+      const cancelBtn = document.getElementById('terms-cancel');
+      if (!form || !overlay || !termsCheck || !researchCheck || !agreeBtn) return;
+
+      let approved = false;
+      let submitting = false;
+      const agreeBtnDefaultText = agreeBtn.textContent;
+
+      function updateAgreeButton() {
+        if (submitting) return; // don't re-enable mid-submit
+        agreeBtn.disabled = !(termsCheck.checked && researchCheck.checked);
+      }
+
+      termsCheck.addEventListener('change', updateAgreeButton);
+      researchCheck.addEventListener('change', updateAgreeButton);
+
+      form.addEventListener('submit', function(e) {
+        if (approved) return;
+        e.preventDefault();
+        if (!form.reportValidity()) return;
+        overlay.classList.add('open');
+        termsCheck.focus();
+      });
+
+      agreeBtn.addEventListener('click', function() {
+        if (submitting) return; // guard against double-clicks firing two submissions
+        if (!(termsCheck.checked && researchCheck.checked)) return;
+
+        submitting = true;
+        approved = true;
+        agreeBtn.disabled = true;
+        agreeBtn.textContent = 'Creating your account…';
+        overlay.classList.remove('open');
+
+        const verifyMsg = document.getElementById('verify-email-msg');
+
+        // Submitted via fetch (not a plain form POST/redirect) so we can show
+        // the "check your email to verify" confirmation right here, then move
+        // to the Documents page ourselves — instead of a full-page navigation
+        // that can flash an intermediate page while the browser follows the
+        // server's redirect chain.
+        fetch(form.action, {
+          method: 'POST',
+          headers: { 'X-Requested-With': 'XMLHttpRequest' },
+          body: new FormData(form)
+        })
+          .then(function(res) {
+            return res.json().then(function(data) { return { ok: res.ok, data: data }; });
+          })
+          .then(function(result) {
+            if (result.ok && result.data && result.data.success) {
+              if (verifyMsg) {
+                verifyMsg.textContent = '✅ Account created! We just sent a verification link to '
+                  + (result.data.email || 'your email address') + ' — validate it whenever you '
+                  + 'get a chance. Taking you to your Documents now…';
+                verifyMsg.style.display = 'block';
+              }
+              window.location.href = result.data.redirect || '/documents';
+              return;
+            }
+            throw new Error((result.data && result.data.error) || 'Something went wrong submitting your information. Please try again.');
+          })
+          .catch(function(err) {
+            submitting = false;
+            approved = false;
+            agreeBtn.disabled = false;
+            agreeBtn.textContent = agreeBtnDefaultText;
+            alert(err.message || 'Something went wrong submitting your information. Please try again, or use a different browser if this keeps happening.');
+          });
+
+        // Safety net: if the page hasn't navigated away within a few
+        // seconds (e.g. a network stall), restore the button instead of
+        // leaving the student staring at a permanently disabled,
+        // "Creating your account…" button with no way to retry.
+        setTimeout(function() {
+          if (submitting) {
+            submitting = false;
+            approved = false;
+            agreeBtn.disabled = !(termsCheck.checked && researchCheck.checked);
+            agreeBtn.textContent = agreeBtnDefaultText;
+          }
+        }, 8000);
+      });
+
+      cancelBtn.addEventListener('click', function() {
+        overlay.classList.remove('open');
+      });
+    })();
+
   </script>
 </body>
 </html>

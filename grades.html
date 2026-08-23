@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Grade Calculator — WINK</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/nav.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/grades.css') }}">
+  <style nonce="{{ csp_nonce() }}">
+    :root{--navy:#002855;--navy2:#0b477e;--orange:#FF8200;--cream:#fff7ec;--ink:#26364f;--muted:#6b7a99;--line:#dde3f0;--bg:#f4f6fb}
+    body{background:var(--bg)}
+    .page-shell{max-width:900px;margin:0 auto;padding:28px 22px 60px}
+    .page-header{margin-bottom:24px}
+    .page-header h1{font-size:24px;font-weight:800;color:var(--navy)}
+    .page-header p{font-size:14px;color:var(--muted);margin-top:4px}
+    .empty-state{background:#fff;border:2px dashed #cfd8e6;border-radius:18px;padding:36px;text-align:center;color:var(--muted);margin-bottom:22px}
+    .empty-icon{font-size:34px;display:block;margin-bottom:10px}
+    .empty-state h3{margin:0 0 6px;color:var(--navy)}
+    .card{background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:0 3px 14px rgba(0,40,85,.07);padding:22px 24px;margin-bottom:20px;border-top:5px solid var(--orange)}
+    .card h2{margin:0 0 14px;color:var(--navy);font-size:19px}
+    .course-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    #course-input{flex:1;min-width:180px;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;font-size:14px;color:var(--ink);background:#fff}
+    .btn{border:0;border-radius:999px;padding:10px 18px;font-size:13px;font-weight:800;cursor:pointer;transition:transform .05s ease}
+    .btn:active{transform:scale(.97)}
+    .btn-primary{background:var(--orange);color:#fff;box-shadow:0 4px 12px rgba(255,130,0,.3)}
+    .btn-primary:hover{background:#e97600}
+    .btn-primary:disabled{background:#f0c497;cursor:not-allowed;box-shadow:none}
+    .btn-secondary{background:#fff;color:var(--navy);border:1.5px solid var(--navy)}
+    .btn-secondary:hover{border-color:var(--orange);color:#c75e00}
+    .your-score-note{background:#fff7ec;border-left:4px solid var(--orange);border-radius:8px;padding:10px 12px;font-size:13px;line-height:1.5;color:var(--ink);margin:0 0 14px}
+    .target-explainer{background:#f3f7fb;border-left:4px solid var(--navy2);border-radius:8px;padding:10px 12px;font-size:13px;line-height:1.6;color:var(--ink);margin:0 0 14px}
+    .mode-toggle{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+    .mode-btn{border:1.5px solid var(--line);background:#fff;color:var(--muted);border-radius:999px;padding:8px 14px;font-size:12.5px;font-weight:800;cursor:pointer}
+    .mode-btn.active{border-color:var(--navy);color:var(--navy);background:var(--cream)}
+    .mode-btn:hover{border-color:var(--orange)}
+    .mode-note{font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5}
+    .weights-table{width:100%;border-collapse:collapse;margin-bottom:8px}
+    .weights-table thead th{background:var(--navy);color:#fff;text-align:left;font-size:11.5px;letter-spacing:.03em;padding:10px 12px;border-radius:0}
+    .weights-table thead th:first-child{border-radius:10px 0 0 10px}
+    .weights-table thead th:last-child{border-radius:0 10px 10px 0}
+    .weights-table tbody tr:nth-child(even){background:#f7f9fc}
+    .weights-table td{padding:8px 10px;border-bottom:1px solid var(--line)}
+    .weights-table input{border:1.5px solid var(--line);border-radius:8px;padding:7px 9px;font-size:13px;color:var(--ink);width:100%}
+    .weights-table input:focus{outline:2px solid var(--orange);outline-offset:1px;border-color:var(--orange)}
+    .weight-input-wrap{position:relative}
+    .weight-input-wrap input{padding-right:22px}
+    .weight-input-wrap .input-suffix{
+      position:absolute; right:9px; top:50%; transform:translateY(-50%);
+      font-size:13px; color:var(--muted); pointer-events:none;
+    }
+    .btn-danger{background:#fdecec;color:#c0392b;border:1px solid #f3c9c9;border-radius:8px;cursor:pointer;padding:5px 9px}
+    .weight-total-row td{padding-top:10px;font-size:12.5px;color:var(--muted);border-bottom:0}
+    .weight-off{color:#c0392b;font-weight:800}
+    .add-row-btn{margin-top:6px}
+    .extract-note{margin-top:14px;font-size:12px;color:var(--muted);line-height:1.5}
+    .extract-msg{font-size:12.5px;color:var(--navy2);margin-top:8px}
+    .result-card{background:var(--cream);border-radius:14px;padding:18px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+    .result-label{font-size:13px;color:var(--muted)}
+    .result-value{font-size:28px;font-weight:900;color:var(--navy)}
+    .result-sub{font-size:12.5px;color:var(--muted);margin-top:10px}
+    .target-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    #target-input{padding:9px 11px;border:1.5px solid var(--line);border-radius:10px;font-size:14px;width:100px}
+    .target-result{margin-top:14px;font-size:13.5px;line-height:1.6;color:var(--ink);background:#f3f7fb;border-left:4px solid var(--navy2);border-radius:8px;padding:12px 14px}
+    .target-result.bad{background:#fdecec;border-left-color:#c0392b}
+    .target-result.warn{background:#fff7ec;border-left-color:var(--orange)}
+
+    @media (max-width: 640px) {
+      .page-shell { padding: 18px 14px 48px; }
+      .card { padding: 16px 14px; }
+      .page-header h1 { font-size: 20px; }
+
+      /* Course picker: stack instead of forcing the dropdown and button
+         onto one cramped row; 16px input avoids iOS Safari's zoom-on-
+         focus (anything under 16px triggers it). */
+      .course-row { flex-direction: column; align-items: stretch; }
+      #course-input { font-size: 16px; min-width: 0; padding: 12px; }
+      .course-row .btn { width: 100%; padding: 12px 18px; }
+
+      .mode-toggle { flex-direction: column; align-items: stretch; }
+      .mode-btn { padding: 11px 14px; }
+
+      /* The grading table has 4 columns of real content (category,
+         weight, score, delete) — that doesn't fit a narrow phone width
+         no matter how tight the padding gets. Scrolling the table
+         horizontally inside its card keeps every column reachable and
+         legible, instead of clipping columns off-screen or squeezing
+         input fields down to unusable widths. */
+      .weights-table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -14px; padding: 0 14px; }
+      .weights-table { min-width: 480px; }
+      .weights-table input { font-size: 16px; padding: 9px; }
+      .weight-input-wrap input { padding-right: 24px; }
+      .weights-table th, .weights-table td { padding: 10px 8px; }
+      .btn-danger { padding: 8px 11px; }
+
+      .result-card { flex-direction: column; align-items: flex-start; }
+      .result-value { font-size: 24px; }
+
+      .target-row { flex-direction: column; align-items: stretch; }
+      #target-input { font-size: 16px; width: 100%; padding: 11px; }
+      .target-row .btn { width: 100%; padding: 12px 18px; }
+    }
+  </style>
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+</head>
+<body>
+
+  {% include "_nav.html" %}
+  <script src="{{ url_for('static', filename='js/scroll-reset.js') }}"></script>
+
+  <div class="page-shell">
+    <div class="page-header">
+      <h1>🧮 Grade Calculator</h1>
+      <p>Pull your grading breakdown from an uploaded course document, then enter your scores to see your current grade — or switch to What-If mode to test hypothetical scores.</p>
+    </div>
+
+    <div class="empty-state" id="no-course-state">
+      <span class="empty-icon">🧮</span>
+      <h3>Start by picking a course</h3>
+      <p>Choose a course below and pull its grading weights, or add categories by hand if you'd rather build the table yourself.</p>
+    </div>
+
+    <div class="card">
+      <h2>1. Pick a course</h2>
+      <div class="course-row">
+        <select id="course-input" aria-label="Course">
+          {% if known_courses %}
+            {% for c in known_courses %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          {% else %}
+            <option value="" disabled selected>No courses uploaded yet</option>
+          {% endif %}
+        </select>
+        <button class="btn btn-primary" id="extract-btn" onclick="extractWeights()" {% if not known_courses %}disabled{% endif %}>Pull Grade Weights</button>
+      </div>
+      <div class="extract-msg" id="extract-msg"></div>
+    </div>
+
+    <div class="card" id="weights-card" style="display:none;">
+      <h2>2. Grading breakdown</h2>
+      <p class="your-score-note"><strong>Your Score</strong> — Most assignments are graded on a 100 point basis. If you scored 80 out of 100, enter 80 into the Your Score column.</p>
+      <div class="mode-toggle" role="group" aria-label="Scoring mode">
+        <button type="button" class="mode-btn active" id="mode-actual-btn" onclick="setMode('actual')">📌 Actual Scores</button>
+        <button type="button" class="mode-btn" id="mode-whatif-btn" onclick="setMode('whatif')">🧪 What-If Scenario</button>
+        <button type="button" class="btn btn-secondary" id="reset-whatif-btn" onclick="resetWhatIf()" style="display:none;">↺ Reset to my actual scores</button>
+      </div>
+      <div class="mode-note" id="mode-note">Actual Scores autosave and drive your real Current Grade. Switch to What-If Scenario to test hypothetical scores — nothing there gets saved, so you can't lose your real data.</div>
+      <div class="weights-table-scroll">
+      <table class="weights-table" id="weights-table">
+        <thead>
+          <tr><th>Category</th><th style="width:90px;">Weight %</th><th style="width:150px;">YOUR SCORE (out of 100 points)</th><th style="width:36px;"></th></tr>
+        </thead>
+        <tbody id="weights-tbody"></tbody>
+        <tfoot>
+          <tr class="weight-total-row">
+            <td colspan="4" id="weight-total-label"></td>
+          </tr>
+        </tfoot>
+      </table>
+      </div>
+      <div class="weights-empty" id="weights-empty" style="display:none;">No categories yet — extract from a course document above, or add one manually.</div>
+      <button class="btn btn-secondary add-row-btn" id="add-row-btn" onclick="addRow('', '', '')">+ Add category</button>
+      <div class="extract-note">You can remove an item or add an item but your total grade weight must add to 100%. Weights are shown as percentages, but every score you enter should be on a 100-point scale (for example, 92, not 0.92).</div>
+    </div>
+
+    <div class="card" id="current-grade-card" style="display:none;">
+      <h2 id="current-grade-title">3. Current grade</h2>
+      <div class="result-card">
+        <span class="result-label" id="current-grade-label">Based on the categories you've entered a score for:</span>
+        <span class="result-value" id="current-grade-value">—</span>
+      </div>
+      <div class="result-sub" id="current-grade-sub"></div>
+      <div class="result-formula" id="current-grade-formula"></div>
+    </div>
+
+    <div class="card" id="target-card" style="display:none;">
+      <h2>4. What do I need on the rest?</h2>
+      <p class="target-explainer">
+        Your final grade is a <strong>weighted average</strong> — each category counts toward
+        it based on its weight, not equally. So a 60% on a category worth 5% barely moves your
+        grade, while a 60% on a category worth 40% moves it a lot. Here's the idea: every
+        category you've already entered a score for has already "banked" some points toward
+        your final grade. Whatever's left of your final grade is riding entirely on the
+        categories you haven't scored yet — so to hit your goal, you need to know what average
+        you'd need across just those remaining categories. That's what this section figures
+        out for you.
+      </p>
+      <div class="target-row">
+        <label for="target-input" style="font-size:13px;color:#6b7a99;">I want an overall grade of</label>
+        <input type="number" id="target-input" placeholder="90" min="0" max="100" step="0.1">
+        <span style="font-size:13px;color:#6b7a99;">out of 100 points</span>
+        <button class="btn btn-primary" onclick="calculateTarget()">Calculate</button>
+      </div>
+      <div class="target-result" id="target-result"></div>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/csrf-fetch.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/wink-ui.js') }}"></script>
+<script nonce="{{ csp_nonce() }}">
+
+    // Scores are scratch-pad "what-if" numbers, not the real grading
+
+    const SCORES_KEY_PREFIX = 'wink-grades-scores:{{ s.id }}:';
+
+    function loadScores(course) {
+      try {
+        const raw = localStorage.getItem(SCORES_KEY_PREFIX + course.toLowerCase());
+        return raw ? JSON.parse(raw) : {};
+      } catch (e) { return {}; }
+    }
+
+    function saveScores(course, scoresByRowId) {
+      try {
+        localStorage.setItem(SCORES_KEY_PREFIX + course.toLowerCase(), JSON.stringify(scoresByRowId));
+      } catch (e) {  }
+    }
+
+    let rowSeq = 0;
+    let currentCourse = '';
+    let saveTimer = null;
+    let mode = 'actual'; // 'actual' (autosaved, real grade) or 'whatif' (sandbox, never saved)
+    let actualScoresByCategory = {};   // mirrors what's saved for real
+    let whatIfScoresByCategory = {};   // hypothetical scratch pad, never persisted
+
+    function currentCourseName() {
+      return document.getElementById('course-input').value.trim();
+    }
+
+    function addRow(category, weight, score) {
+      document.getElementById('weights-card').style.display = 'block';
+      document.getElementById('no-course-state').style.display = 'none';
+      const tbody = document.getElementById('weights-tbody');
+      const id = 'row-' + (++rowSeq);
+      const tr = document.createElement('tr');
+      tr.dataset.rowId = id;
+      tr.innerHTML = `
+        <td><input type="text" class="category-input" value="${escapeHtml(category || '')}" placeholder="e.g. Homework" aria-label="Category name"></td>
+        <td><div class="weight-input-wrap"><input type="number" class="weight-input" value="${weight !== '' && weight != null ? weight : ''}" min="0" max="100" step="0.1" aria-label="Weight percent"><span class="input-suffix">%</span></div></td>
+        <td><input type="number" class="score-input" value="${score !== '' && score != null ? score : ''}" min="0" max="100" step="0.1" aria-label="Your score percent"></td>
+        <td><button type="button" class="btn-danger" title="Remove category" aria-label="Remove category">✕</button></td>`;
+      tbody.appendChild(tr);
+      tr.querySelector('.category-input').addEventListener('input', onWeightsChanged);
+      tr.querySelector('.weight-input').addEventListener('input', onWeightsChanged);
+      tr.querySelector('.score-input').addEventListener('input', onScoreChanged);
+      // Attached here rather than as an inline onclick attribute with an
+      // interpolated id — this app's CSP only allows inline event-handler
+      // attributes whose exact value was pre-hashed from the static
+      // template files at startup (see csp_hashes.py). A dynamically-built
+      // attribute value can never be pre-hashed, so the browser silently
+      // drops it and the button does nothing. addEventListener isn't
+      // subject to that restriction.
+      tr.querySelector('.btn-danger').addEventListener('click', () => removeRow(id));
+      recompute();
+    }
+
+    function removeRow(id) {
+      const tr = document.querySelector(`tr[data-row-id="${id}"]`);
+      if (tr) tr.remove();
+      onWeightsChanged();
+    }
+
+    function clearTable() {
+      document.getElementById('weights-tbody').innerHTML = '';
+    }
+
+    function getRows() {
+      return [...document.querySelectorAll('#weights-tbody tr')].map(tr => ({
+        id: tr.dataset.rowId,
+        category: tr.querySelector('.category-input').value.trim(),
+        weight: parseFloat(tr.querySelector('.weight-input').value),
+        score: tr.querySelector('.score-input').value === '' ? null : parseFloat(tr.querySelector('.score-input').value),
+      }));
+    }
+
+    function onScoreChanged() {
+      if (mode === 'actual') {
+        syncActualFromRows();
+        const course = currentCourseName();
+        if (course) saveScores(course, actualScoresByCategory);
+      } else {
+        whatIfScoresByCategory = {};
+        getRows().forEach(r => { if (r.score !== null && !isNaN(r.score)) whatIfScoresByCategory[r.category] = r.score; });
+      }
+      recompute();
+    }
+
+    function syncActualFromRows() {
+      actualScoresByCategory = {};
+      getRows().forEach(r => { if (r.score !== null && !isNaN(r.score)) actualScoresByCategory[r.category] = r.score; });
+    }
+
+    function applyScoresToInputs(scoresByCategory) {
+      document.querySelectorAll('#weights-tbody tr').forEach(tr => {
+        const cat = tr.querySelector('.category-input').value.trim();
+        const scoreInput = tr.querySelector('.score-input');
+        const val = scoresByCategory[cat];
+        scoreInput.value = (val !== undefined && val !== null) ? val : '';
+      });
+    }
+
+    function setMode(newMode) {
+      if (newMode === mode) return;
+      if (newMode === 'whatif') {
+        syncActualFromRows();
+        whatIfScoresByCategory = { ...actualScoresByCategory };
+        applyScoresToInputs(whatIfScoresByCategory);
+      } else {
+        applyScoresToInputs(actualScoresByCategory);
+      }
+      mode = newMode;
+      updateModeUI();
+      recompute();
+    }
+
+    function resetWhatIf() {
+      whatIfScoresByCategory = { ...actualScoresByCategory };
+      applyScoresToInputs(whatIfScoresByCategory);
+      recompute();
+    }
+
+    function updateModeUI() {
+      const inWhatIf = mode === 'whatif';
+      document.getElementById('mode-actual-btn').classList.toggle('active', !inWhatIf);
+      document.getElementById('mode-whatif-btn').classList.toggle('active', inWhatIf);
+      document.getElementById('reset-whatif-btn').style.display = inWhatIf ? 'inline-block' : 'none';
+      document.getElementById('mode-note').textContent = inWhatIf
+        ? 'What-If Scenario: test hypothetical scores freely — nothing here is saved, so your real scores are safe.'
+        : "Actual Scores autosave and drive your real Current Grade. Switch to What-If Scenario to test hypothetical scores — nothing there gets saved, so you can't lose your real data.";
+      document.getElementById('current-grade-title').textContent = inWhatIf ? '3. What-if grade preview' : '3. Current grade';
+      document.getElementById('current-grade-label').textContent = inWhatIf
+        ? 'Based on your what-if scores:'
+        : "Based on the categories you've entered a score for:";
+      document.querySelectorAll('.category-input, .weight-input').forEach(el => el.disabled = inWhatIf);
+      const addBtn = document.getElementById('add-row-btn');
+      if (addBtn) addBtn.disabled = inWhatIf;
+      // Course selection stays enabled even in What-If mode — loadCourse()
+      // already resets back to Actual mode for whichever course gets
+      // selected, so there's no need to force the student to back out of
+      // What-If first just to look at a different class.
+      document.getElementById('extract-btn').disabled = inWhatIf || !currentCourseName();
+    }
+
+    function onWeightsChanged() {
+      recompute();
+      scheduleSaveWeights();
+    }
+
+    function scheduleSaveWeights() {
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(saveWeightsNow, 700);
+    }
+
+    async function saveWeightsNow() {
+      const course = currentCourseName();
+      if (!course) return;
+      const weights = getRows()
+        .filter(r => r.category && !isNaN(r.weight) && r.weight > 0)
+        .map(r => ({ category: r.category, weight: r.weight }));
+      try {
+        await fetch('/save-grading-weights', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ course, weights }),
+        });
+      } catch (e) {  }
+    }
+
+    function recompute() {
+      const rows = getRows().filter(r => r.category && !isNaN(r.weight) && r.weight > 0);
+      const totalWeight = rows.reduce((sum, r) => sum + r.weight, 0);
+
+      document.getElementById('weights-empty').style.display = rows.length ? 'none' : 'block';
+      const totalLabel = document.getElementById('weight-total-label');
+      if (rows.length) {
+        const diff = totalWeight - 100;
+        const off = Math.abs(diff) > 0.5;
+        let note = '';
+        if (off) {
+          note = diff > 0
+            ? ` — that's over 100%, double-check your categories.`
+            : ` — that's under 100%, double-check your categories.`;
+        }
+        totalLabel.innerHTML = `Total weight: <span class="${off ? 'weight-off' : ''}">${totalWeight.toFixed(1)}%</span>${note}`;
+      } else {
+        totalLabel.textContent = '';
+      }
+
+      const scored = rows.filter(r => r.score !== null && !isNaN(r.score));
+      const currentCard = document.getElementById('current-grade-card');
+      const targetCard = document.getElementById('target-card');
+      if (rows.length === 0) {
+        currentCard.style.display = 'none';
+        targetCard.style.display = 'none';
+        return;
+      }
+      currentCard.style.display = 'block';
+      // "What do I need on the rest?" only makes sense against your real,
+      // saved scores — hide it while in What-If Scenario mode so it
+      // doesn't solve against hypothetical numbers.
+      targetCard.style.display = (mode === 'actual') ? 'block' : 'none';
+
+      if (scored.length === 0) {
+        document.getElementById('current-grade-value').textContent = '—';
+        document.getElementById('current-grade-sub').textContent = 'Enter a score for at least one category.';
+        document.getElementById('current-grade-formula').textContent = '';
+      } else {
+        const scoredWeight = scored.reduce((s, r) => s + r.weight, 0);
+        const weighted = scored.reduce((s, r) => s + r.weight * r.score, 0);
+        const currentGrade = scoredWeight > 0 ? weighted / scoredWeight : 0;
+        document.getElementById('current-grade-value').textContent = currentGrade.toFixed(2) + '%';
+        const remaining = rows.length - scored.length;
+        document.getElementById('current-grade-sub').textContent = remaining > 0
+          ? `Based on ${scoredWeight.toFixed(1)}% of the total weight — ${remaining} categor${remaining === 1 ? 'y' : 'ies'} still blank.`
+          : 'Every category has a score entered — this is your full grade.';
+
+        const terms = scored.map(r => `${r.score}×${r.weight}%`).join(' + ');
+        document.getElementById('current-grade-formula').textContent =
+          `Formula: (${terms}) ÷ ${scoredWeight.toFixed(1)}% = ${currentGrade.toFixed(2)}%`;
+      }
+    }
+
+    function calculateTarget() {
+      const target = parseFloat(document.getElementById('target-input').value);
+      const resultEl = document.getElementById('target-result');
+      if (isNaN(target)) {
+        resultEl.className = 'target-result warn';
+        resultEl.textContent = 'Enter a target grade first.';
+        return;
+      }
+      const rows = getRows().filter(r => r.category && !isNaN(r.weight) && r.weight > 0);
+      const totalWeight = rows.reduce((s, r) => s + r.weight, 0);
+      if (totalWeight === 0) {
+        resultEl.className = 'target-result warn';
+        resultEl.textContent = 'Add at least one weighted category first.';
+        return;
+      }
+      const scored = rows.filter(r => r.score !== null && !isNaN(r.score));
+      const remaining = rows.filter(r => r.score === null || isNaN(r.score));
+      const knownWeighted = scored.reduce((s, r) => s + r.weight * r.score, 0);
+      const scoredWeight = scored.reduce((s, r) => s + r.weight, 0);
+      const remainingWeight = remaining.reduce((s, r) => s + r.weight, 0);
+      // Points already locked in, as a share of the FULL 100%-weight grade —
+      // e.g. a 90 on a 20%-weight category has banked 18 of your final 100
+      // possible points, regardless of what anything else scores.
+      const bankedPoints = knownWeighted / 100;
+
+      if (remainingWeight === 0) {
+        const finalGrade = totalWeight > 0 ? knownWeighted / totalWeight : 0;
+        resultEl.className = finalGrade >= target ? 'target-result' : 'target-result bad';
+        resultEl.innerHTML = `Every category already has a score, so there's nothing left to solve for — your final grade is <strong>${finalGrade.toFixed(2)}%</strong>.`;
+        return;
+      }
+
+      const needed = (target * totalWeight - knownWeighted) / remainingWeight;
+      const remainingLabel = `${remaining.length} categor${remaining.length === 1 ? 'y' : 'ies'}`;
+      resultEl.className = needed > 100 ? 'target-result bad' : 'target-result';
+      if (needed > 100) {
+        resultEl.innerHTML =
+          `<strong>Not reachable from here.</strong> You've banked ${bankedPoints.toFixed(1)} out of your final 100 points ` +
+          `from the ${scored.length} categor${scored.length === 1 ? 'y' : 'ies'} you've scored so far (${scoredWeight.toFixed(1)}% of your grade). ` +
+          `That leaves ${remainingWeight.toFixed(1)}% of your grade riding on the ${remainingLabel} you haven't scored yet — ` +
+          `and to reach ${target}% overall, you'd need to average <strong>${needed.toFixed(2)} points</strong> (out of 100) across ` +
+          `those, which is over 100. A ${target}% overall isn't possible anymore given your current scores — figure out the highest overall grade actually within reach instead.`;
+      } else if (needed < 0) {
+        resultEl.innerHTML =
+          `<strong>Already locked in.</strong> You've banked ${bankedPoints.toFixed(1)} out of your final 100 points ` +
+          `from the ${scored.length} categor${scored.length === 1 ? 'y' : 'ies'} you've scored so far — that alone guarantees at least ${target}% overall, ` +
+          `so even a 0 on everything else in the ${remainingLabel} left (${remainingWeight.toFixed(1)}% of your grade) won't drop you below it.`;
+      } else {
+        resultEl.innerHTML =
+          `You've banked ${bankedPoints.toFixed(1)} out of your final 100 points so far, from the ${scored.length} ` +
+          `categor${scored.length === 1 ? 'y' : 'ies'} you've already scored (${scoredWeight.toFixed(1)}% of your grade). ` +
+          `That leaves ${remainingWeight.toFixed(1)}% of your grade riding on the ${remainingLabel} you haven't scored yet. ` +
+          `To land at ${target}% overall, you need to average <strong>${needed.toFixed(2)} points</strong> (out of 100) across ` +
+          `just those remaining categories — not across everything, just what's left.`;
+      }
+    }
+
+    function showExtractMessage(text) {
+      const el = document.getElementById('extract-msg');
+      el.textContent = text;
+      el.classList.add('show');
+    }
+
+    function hideExtractMessage() {
+      document.getElementById('extract-msg').classList.remove('show');
+    }
+
+    async function loadCourse(course) {
+      currentCourse = course;
+      clearTable();
+      hideExtractMessage();
+      if (!course) {
+        document.getElementById('weights-card').style.display = 'none';
+        document.getElementById('current-grade-card').style.display = 'none';
+        document.getElementById('target-card').style.display = 'none';
+        document.getElementById('no-course-state').style.display = 'block';
+        return;
+      }
+      let weights = [];
+      try {
+        const res = await fetch(`/grading-weights?course=${encodeURIComponent(course)}`);
+        const data = await res.json();
+        weights = data.weights || [];
+      } catch (e) { console.error('grading-weights fetch error', e); }
+
+      if (weights.length === 0) {
+        document.getElementById('weights-card').style.display = 'none';
+        document.getElementById('current-grade-card').style.display = 'none';
+        document.getElementById('target-card').style.display = 'none';
+        document.getElementById('no-course-state').style.display = 'block';
+        return;
+      }
+      const scores = loadScores(course);
+      weights.forEach(w => addRow(w.category, w.weight, scores[w.category] ?? ''));
+      mode = 'actual';
+      syncActualFromRows();
+      whatIfScoresByCategory = { ...actualScoresByCategory };
+      updateModeUI();
+    }
+
+    async function extractWeights() {
+      const course = currentCourseName();
+      if (!course) { alert('Enter a course first.'); return; }
+      const btn = document.getElementById('extract-btn');
+      btn.disabled = true;
+      const originalLabel = btn.textContent;
+      btn.textContent = 'Reading your course document…';
+      hideExtractMessage();
+      try {
+        const res = await fetch('/extract-grading-weights', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ course }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          showExtractMessage(data.error || 'Something went wrong extracting weights.');
+          if (data.retry_after) btn.textContent = `Wait ${Math.ceil(data.retry_after)}s…`;
+          return;
+        }
+        if (data.message) showExtractMessage(data.message);
+        currentCourse = course;
+        clearTable();
+        const scores = loadScores(course);
+        (data.weights || []).forEach(w => addRow(w.category, w.weight, scores[w.category] ?? ''));
+        document.getElementById('weights-card').style.display = 'block';
+        document.getElementById('no-course-state').style.display = 'none';
+        mode = 'actual';
+        syncActualFromRows();
+        whatIfScoresByCategory = { ...actualScoresByCategory };
+        updateModeUI();
+      } catch (e) {
+        console.error('extractWeights error', e);
+        showExtractMessage('Network error — please try again.');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = originalLabel;
+      }
+    }
+
+    document.getElementById('course-input').addEventListener('change', (e) => loadCourse(e.target.value.trim()));
+
+    {% if known_courses %}
+    loadCourse({{ known_courses[0]|tojson }});
+    document.getElementById('course-input').value = {{ known_courses[0]|tojson }};
+    {% endif %}
+  </script>
+
+</body>
+</html>
