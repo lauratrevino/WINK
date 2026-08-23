@@ -175,9 +175,9 @@
     .welcome-cards .welcome-card:nth-child(4) { border-top: 3px solid #8E3B46; }
 
     .welcome-prompt-box {
-      display: flex; align-items: center; gap: 12px;
+      display: flex; align-items: center; justify-content: center; gap: 12px;
       background: #FDEBDC; border-radius: 12px;
-      padding: 14px 20px; text-align: left;
+      padding: 14px 20px; text-align: center;
       max-width: 640px; margin: 0 auto;
     }
     .welcome-prompt-icon { font-size: 22px; flex-shrink: 0; }
