@@ -178,7 +178,7 @@ def get_demo_usage_stats(cur):
         FROM demo_sessions
     """)
     row = dict(cur.fetchone())
-    cur.execute("SELECT COUNT(*) as n FROM students WHERE is_demo=TRUE")
+    cur.execute("SELECT COUNT(*) as n FROM students WHERE is_demo=TRUE AND is_active=TRUE")
     row["active_now"] = cur.fetchone()["n"] or 0
     row["avg_duration_seconds"] = round(float(row["avg_duration_seconds"] or 0))
     return row

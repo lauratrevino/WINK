@@ -187,6 +187,15 @@ def analytics_data_full():
             token_totals = get_total_token_usage(cur)
             demo_usage = get_demo_usage_stats(cur)
 
+            cur.execute("""
+                SELECT id, student_id, to_char(started_at, 'Mon DD HH24:MI') as started,
+                       duration_seconds, questions_asked, ended_reason
+                FROM demo_sessions
+                ORDER BY started_at DESC
+                LIMIT 100
+            """)
+            demo_sessions = [dict(r) for r in cur.fetchall()]
+
         return jsonify({
             "total_students": total_s,
             "total_sessions": total_sess,
@@ -203,6 +212,7 @@ def analytics_data_full():
             "daily": daily,
             "upcoming_deadlines": upcoming_deadlines,
             "demo_usage": demo_usage,
+            "demo_sessions": demo_sessions,
             **insights,
             **token_totals,
         })

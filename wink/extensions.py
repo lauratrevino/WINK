@@ -16,22 +16,26 @@ logger = logging.getLogger(__name__)
 try:
     from flask_wtf import CSRFProtect
     csrf = CSRFProtect()
-except ImportError:
-    class _NoOpCSRF:
-        def init_app(self, app):
-            logger.warning(
-                "flask-wtf is not installed in this environment, even "
-                "though it's listed in requirements.txt. CSRF PROTECTION "
-                "IS DISABLED. Trigger a clean rebuild of the deploy image "
-                "(not just a restart) so pip actually reinstalls from the "
-                "current requirements.txt, then redeploy."
-            )
-            app.jinja_env.globals.setdefault("csrf_token", lambda: "")
-
-        def exempt(self, f):
-            return f
-
-    csrf = _NoOpCSRF()
+except ImportError as e:
+    # Previously fell back to a no-op CSRFProtect stand-in and kept running
+    # with CSRF protection silently disabled — fine for surfacing the
+    # problem in logs, but the wrong default for anything handling real
+    # student accounts: a missing dependency should never quietly downgrade
+    # security posture in production. Fail closed instead: refuse to boot
+    # at all until the dependency is actually present, the same way a
+    # missing SECRET_KEY or DB_URL would be treated as fatal elsewhere in
+    # this app. flask-wtf is pinned in requirements.txt, so this should
+    # only ever fire from a broken/incomplete build image — trigger a
+    # clean rebuild (not just a restart) so pip actually reinstalls from
+    # the current requirements.txt.
+    logger.critical(
+        "flask-wtf is not installed in this environment, even though "
+        "it's listed in requirements.txt. Refusing to start rather than "
+        "run with CSRF protection disabled. Trigger a clean rebuild of "
+        "the deploy image (not just a restart) so pip actually "
+        "reinstalls from the current requirements.txt, then redeploy."
+    )
+    raise
 
 
 def generate_csrf_token():
@@ -39,14 +43,11 @@ def generate_csrf_token():
     across the blueprints, which can't use the `csrf_token()` Jinja global
     but still render a real <form method='POST' action='/logout'> — that
     form needs a real token now that /logout is no longer CSRF-exempt.
-    Mirrors the same "" fallback the Jinja global uses when flask-wtf
-    isn't installed, so a missing dependency degrades the same way in
-    both places rather than crashing one of them."""
-    try:
-        from flask_wtf.csrf import generate_csrf
-        return generate_csrf()
-    except ImportError:
-        return ""
+    flask-wtf is guaranteed importable here: the module-level import above
+    already raises (and refuses to start the app) if it's missing, so
+    there's no silent "" fallback to keep in sync with anymore."""
+    from flask_wtf.csrf import generate_csrf
+    return generate_csrf()
 
 _http_client = httpx.Client(
     timeout=httpx.Timeout(110.0, connect=5.0),

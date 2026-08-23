@@ -64,11 +64,14 @@ def register():
             student_timezone = timezone_raw if is_valid_timezone(timezone_raw) else None
             terms_agree = request.form.get("terms_agree") == "on"
             research_agree = request.form.get("research_agree") == "on"
-            first_generation = request.form.get("first_generation") == "on"
+            age_confirm = request.form.get("age_confirm") == "on"
+            first_generation = request.form.get("first_generation") == "yes"
             if not all([email, pw, fn, ln, cl, major, university]):
                 return err("All fields are required, including your university.")
             if not (terms_agree and research_agree):
                 return err("You must agree to the Terms of Use/Privacy Policy and the research data notice to create an account.")
+            if not age_confirm:
+                return err("You must confirm that you are 18 years of age or older to create an account.")
             if preferred_language and preferred_language not in config.PREFERRED_LANGUAGES:
                 return err("Please choose a valid preferred language.")
             if cl not in config.CLASSIFICATIONS or major not in config.MAJORS:

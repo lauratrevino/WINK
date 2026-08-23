@@ -1,7 +1,6 @@
 import json
 import secrets
 import os
-import shutil
 from datetime import date, datetime, timedelta
 
 from flask import Blueprint, jsonify, redirect, request, session, url_for
@@ -27,31 +26,39 @@ def _log_demo_session_ended(cur, student_id, reason):
                     (student_id,))
         questions_asked = cur.fetchone()["n"] or 0
         duration_seconds = max(0, int((datetime.utcnow() - started_at).total_seconds()))
-        cur.execute("""INSERT INTO demo_sessions(started_at, ended_at, duration_seconds, questions_asked, ended_reason)
-                       VALUES (%s, NOW(), %s, %s, %s)""",
-                    (started_at, duration_seconds, questions_asked, reason))
+        cur.execute("""INSERT INTO demo_sessions(started_at, ended_at, duration_seconds, questions_asked, ended_reason, student_id)
+                       VALUES (%s, NOW(), %s, %s, %s, %s)""",
+                    (started_at, duration_seconds, questions_asked, reason, student_id))
     except Exception:
         pass
 
 
 def _purge_expired(cur):
-    cur.execute("SELECT id FROM students WHERE is_demo=TRUE AND demo_expires_at < NOW()")
+    """Ends expired demo sessions WITHOUT deleting anything — the account
+    row, its uploaded/seeded documents, its events, and its conversations
+    are all kept indefinitely so every demo run remains visible in
+    Analytics (statistics + full conversation content), not just a
+    one-line summary. is_active=FALSE is what actually stops this from
+    re-matching on the next run (demo_expires_at alone would just keep
+    re-selecting the same rows forever) and also removes it from
+    'Active Right Now' in the demo usage stats."""
+    cur.execute("SELECT id FROM students WHERE is_demo=TRUE AND is_active=TRUE AND demo_expires_at < NOW()")
     expired = [r["id"] for r in cur.fetchall()]
     for sid in expired:
         _log_demo_session_ended(cur, sid, "expired")
-        shutil.rmtree(os.path.join(config.UPLOAD_FOLDER, str(sid)), ignore_errors=True)
-        cur.execute("DELETE FROM events WHERE student_id=%s", (sid,))
-        cur.execute("DELETE FROM students WHERE id=%s AND is_demo=TRUE", (sid,))
+        cur.execute("UPDATE students SET is_active=FALSE WHERE id=%s", (sid,))
 
 
 def delete_demo_student(student_id, reason="logout"):
+    """Historically hard-deleted the demo account on logout/replacement.
+    Now just ends the session the same way expiry does (see _purge_expired
+    above) — nothing is deleted, so the demo's statistics and full
+    conversation history stay available in Analytics."""
     if not student_id or not config.DB_URL:
         return
-    shutil.rmtree(os.path.join(config.UPLOAD_FOLDER, str(student_id)), ignore_errors=True)
     with db_cursor(commit=True) as cur:
         _log_demo_session_ended(cur, student_id, reason)
-        cur.execute("DELETE FROM events WHERE student_id=%s", (student_id,))
-        cur.execute("DELETE FROM students WHERE id=%s AND is_demo=TRUE", (student_id,))
+        cur.execute("UPDATE students SET is_active=FALSE WHERE id=%s AND is_demo=TRUE", (student_id,))
 
 
 def _seed_demo(cur, sid):

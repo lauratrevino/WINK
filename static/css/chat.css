@@ -141,7 +141,7 @@
 
     .welcome-msg {
       text-align: center; padding: 8px 24px 32px;
-      max-width: 920px; margin: 0 auto;
+      max-width: 920px; margin: auto;
     }
     .welcome-msg h2 { font-size: 24px; font-weight: 700; color: #002855; }
     .welcome-sub { font-size: 15px; color: #444455; margin-top: 8px; margin-bottom: 26px; }
