@@ -280,6 +280,7 @@
           </div>
 
           <button class="btn-upload" id="btn-upload" onclick="uploadFiles()">⬆ Upload File</button>
+          <div id="first-upload-note" class="first-upload-note" style="display:none; font-size:13px; color:#5a6472; margin-top:10px; margin-bottom:2px;">The first upload may take a minute while your class is being created.</div>
           <div id="upload-progress-wrap" class="upload-progress-wrap" style="display:none;">
             <div class="upload-progress-bar"><div class="upload-progress-fill" id="upload-progress-fill"></div></div>
             <div class="upload-progress-label" id="upload-progress-label">
@@ -528,6 +529,8 @@
       const progressFill = document.getElementById('upload-progress-fill');
       const progressText = document.getElementById('upload-progress-text');
       const doneSticker = document.getElementById('upload-done-sticker');
+      const firstUploadNote = document.getElementById('first-upload-note');
+      firstUploadNote.style.display = (currentDocCount === 0) ? 'block' : 'none';
       progressWrap.style.display = 'block';
       progressFill.style.width = '0%';
       progressFill.classList.remove('is-done');
@@ -552,6 +555,7 @@
       xhr.onload = () => {
         let data;
         try { data = JSON.parse(xhr.responseText); } catch (e) { data = null; }
+        firstUploadNote.style.display = 'none';
         if (data && !data.error) {
           currentDocCount = data.docs.length;
           COURSE_CRN_MAP[course.toLowerCase()] = crn;

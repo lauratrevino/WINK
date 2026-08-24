@@ -196,7 +196,7 @@ def start_demo():
         token=secrets.token_hex(8)
         email=f"demo-{token}@wink-demo.invalid"
         cur.execute("""INSERT INTO students(email,password_hash,first_name,last_name,classification,major,university,preferred_language,email_verified,is_active,is_demo,demo_expires_at)
-                       VALUES(%s,%s,'Winkling','Demo','Freshman','Business','University of Texas at El Paso','',TRUE,TRUE,TRUE,NOW() + %s * INTERVAL '1 hour') RETURNING id""",
+                       VALUES(%s,%s,'DemoWINK','Demo','Freshman','Business','University of Texas at El Paso','',TRUE,TRUE,TRUE,NOW() + %s * INTERVAL '1 hour') RETURNING id""",
                     (email,generate_password_hash(secrets.token_urlsafe(24)),DEMO_TTL_HOURS))
         sid=cur.fetchone()["id"]
         _seed_demo(cur,sid)
