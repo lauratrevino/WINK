@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Analytics — WINK Admin</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/nav.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/analytics.css') }}">
+  <link rel="stylesheet" href="{{ static_url('css/nav.css') }}">
+    <link rel="stylesheet" href="{{ static_url('css/analytics.css') }}">
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <style nonce="{{ csp_nonce() }}">
     .stats-row {
@@ -43,7 +43,7 @@
 <body>
 
   {% include "_nav.html" %}
-  <script src="{{ url_for('static', filename='js/scroll-reset.js') }}"></script>
+  <script src="{{ static_url('js/scroll-reset.js') }}"></script>
 
   <div class="page-shell">
     <div class="page-header">
@@ -2634,8 +2634,8 @@
 
   </div>
 
-  <script src="{{ url_for('static', filename='js/csrf-fetch.js') }}"></script>
-  <script src="{{ url_for('static', filename='js/wink-ui.js') }}"></script>
+  <script src="{{ static_url('js/csrf-fetch.js') }}"></script>
+  <script src="{{ static_url('js/wink-ui.js') }}"></script>
 <script nonce="{{ csp_nonce() }}">
 
     let analyticsData = null;

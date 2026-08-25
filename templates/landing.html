@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>WINK — What I Need to Know</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}">
+    <link rel="stylesheet" href="{{ static_url('css/landing.css') }}">
   <style nonce="{{ csp_nonce() }}">
     .btn-secondary { cursor: pointer; font: inherit; }
     .hero-text .cta-row {
@@ -300,10 +300,10 @@
 </style>
 </head>
 <body>
-<script src="{{ url_for('static', filename='js/scroll-reset.js') }}"></script>
+<script src="{{ static_url('js/scroll-reset.js') }}"></script>
 
   <div class="hero">
-    <img class="hero-bg-img" src="{{ url_for('static', filename='images/landing-hero.jpg') }}" alt="">
+    <img class="hero-bg-img" src="{{ static_url('images/landing-hero.jpg') }}" alt="">
     <div class="hero-overlay"></div>
 
     <div class="hero-text">

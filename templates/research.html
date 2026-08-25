@@ -4,15 +4,15 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>WINK — Research Dashboard</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/nav.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/research.css') }}">
+  <link rel="stylesheet" href="{{ static_url('css/nav.css') }}">
+  <link rel="stylesheet" href="{{ static_url('css/research.css') }}">
   <meta name="csrf-token" content="{{ csrf_token() }}">
 </head>
 <body>
 
 {% include "_nav.html" %}
-  <script src="{{ url_for('static', filename='js/scroll-reset.js') }}"></script>
-  <script src="{{ url_for('static', filename='js/csrf-fetch.js') }}"></script>
+  <script src="{{ static_url('js/scroll-reset.js') }}"></script>
+  <script src="{{ static_url('js/csrf-fetch.js') }}"></script>
 
 <header>
   <h1>WINK Research Dashboard</h1>

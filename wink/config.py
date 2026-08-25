@@ -28,14 +28,28 @@ IMAGE_EXTS_NO_OCR = {"png", "jpg", "jpeg"}
 
 DB_URL = os.environ.get("DATABASE_URL", "")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "").strip().lower()
-if not ADMIN_EMAIL:
+# Comma-separated list, e.g. "a@utep.edu, b@utep.edu" — supports more than
+# one admin account. ADMIN_EMAIL (singular) is still read as a fallback so
+# existing single-admin deployments keep working without changing anything.
+_raw_admin_emails = os.environ.get("ADMIN_EMAILS", "").strip()
+if not _raw_admin_emails:
+    _raw_admin_emails = os.environ.get("ADMIN_EMAIL", "").strip()
+_seen_admin_emails = set()
+ADMIN_EMAILS = tuple(
+    e for e in (part.strip().lower() for part in _raw_admin_emails.split(","))
+    if e and not (e in _seen_admin_emails or _seen_admin_emails.add(e))
+)
+if not ADMIN_EMAILS:
     raise RuntimeError(
-        "ADMIN_EMAIL environment variable is not set. Set it in Render's "
-        "Environment tab to the email address that should have admin access, "
-        "then redeploy."
+        "No admin email is configured. Set ADMIN_EMAILS (comma-separated — "
+        "one or more addresses) in Render's Environment tab to the email "
+        "address(es) that should have admin access, then redeploy."
     )
-logger.info("ADMIN_EMAIL loaded as %r", ADMIN_EMAIL)
+logger.info("ADMIN_EMAILS loaded as %r", ADMIN_EMAILS)
+# The first configured admin — used only where a single display/contact
+# address is needed (e.g. the mailto link on Privacy/Terms). Never used for
+# authorization; every access check below goes through ADMIN_EMAILS.
+ADMIN_EMAIL = ADMIN_EMAILS[0]
 MAX_DOCS_PER_STUDENT = 20
 EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 DEBUG_SHOW_RESET_LINKS = os.environ.get("DEBUG_SHOW_RESET_LINKS", "false").lower() == "true"

@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Your WINK Wrapped</title>
-<link rel="stylesheet" href="{{ url_for('static', filename='css/nav.css') }}">
+<link rel="stylesheet" href="{{ static_url('css/nav.css') }}">
 <style nonce="{{ csp_nonce() }}">
   :root {
     --navy: #002855; --navy-deep: #001833; --orange: #FF8200;
@@ -61,8 +61,8 @@
 <body>
 
 {% include "_nav.html" %}
-<script src="{{ url_for('static', filename='js/csrf-fetch.js') }}"></script>
-<script src="{{ url_for('static', filename='js/wink-ui.js') }}"></script>
+<script src="{{ static_url('js/csrf-fetch.js') }}"></script>
+<script src="{{ static_url('js/wink-ui.js') }}"></script>
 
 <div class="page-shell">
   <div class="wrapped-header">
@@ -110,7 +110,7 @@
   </div>
 </div>
 
-<script src="{{ url_for('static', filename='js/scroll-reset.js') }}"></script>
+<script src="{{ static_url('js/scroll-reset.js') }}"></script>
 <script nonce="{{ csp_nonce() }}">
 
   async function loadWrapped() {

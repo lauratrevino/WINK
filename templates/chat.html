@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Ask WINK — Chat</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/nav.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.css') }}">
+  <link rel="stylesheet" href="{{ static_url('css/nav.css') }}">
+    <link rel="stylesheet" href="{{ static_url('css/chat.css') }}">
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <!-- mermaid.min.js (~3.5MB) is no longer loaded here unconditionally on
        every visit to this page — see ensureMermaidLoaded()/
@@ -17,7 +17,7 @@
 <body>
 
   {% include "_nav.html" %}
-  <script src="{{ url_for('static', filename='js/scroll-reset.js') }}"></script>
+  <script src="{{ static_url('js/scroll-reset.js') }}"></script>
 
   <div class="chat-container">
     <div class="mobile-sidebar-backdrop" id="mobile-sidebar-backdrop" onclick="closeMobileSidebar()"></div>
@@ -137,8 +137,8 @@
 
   </div>
 
-  <script src="{{ url_for('static', filename='js/csrf-fetch.js') }}"></script>
-  <script src="{{ url_for('static', filename='js/wink-ui.js') }}"></script>
+  <script src="{{ static_url('js/csrf-fetch.js') }}"></script>
+  <script src="{{ static_url('js/wink-ui.js') }}"></script>
 <script nonce="{{ csp_nonce() }}">
 
     // Handles broken images from markdown embeds (see formatMessage()'s

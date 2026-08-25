@@ -126,7 +126,7 @@ def admin_required(f):
             return _auth_unavailable_json()
         if not s:
             return jsonify({"error": "Not logged in"}), 401
-        if s["email"].lower() != config.ADMIN_EMAIL:
+        if s["email"].lower() not in config.ADMIN_EMAILS:
             return jsonify({"error": "Not authorized"}), 403
         if s.get("mfa_enabled") and not session.get("mfa_verified"):
             return jsonify({"error": "Two-factor verification required", "mfa_required": True}), 403
@@ -144,7 +144,7 @@ def admin_page_required(f):
             return _auth_unavailable_page()
         if not s:
             return redirect(url_for("auth.login"))
-        if s["email"].lower() != config.ADMIN_EMAIL:
+        if s["email"].lower() not in config.ADMIN_EMAILS:
             return redirect(url_for("dashboard.dashboard"))
         if s.get("mfa_enabled") and not session.get("mfa_verified"):
             return redirect(url_for("auth.mfa_verify_page"))

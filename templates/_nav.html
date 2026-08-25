@@ -58,7 +58,7 @@
     <a href="/grades-page" class="{{ 'active' if active == 'grades' else '' }}">Grades</a>
     <a href="/progress-page" class="{{ 'active' if active == 'progress' else '' }}">My Progress</a>
     <a href="/manual" class="{{ 'active' if active == 'manual' else '' }}">Help</a>
-    {% if s.email == admin_email %}
+    {% if is_admin %}
     <a href="/admin-page" class="{{ 'active' if active in ['admin','analytics','research','health'] else '' }}">Admin</a>
     {% endif %}
   </div>

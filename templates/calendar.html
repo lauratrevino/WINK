@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Calendar — WINK</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/nav.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/calendar.css') }}">
+  <link rel="stylesheet" href="{{ static_url('css/nav.css') }}">
+    <link rel="stylesheet" href="{{ static_url('css/calendar.css') }}">
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <style nonce="{{ csp_nonce() }}">
     .cal-instructions { margin: 4px 0 0; color: #6b7a99; font-size: 14px; font-weight: bold; text-align: center; }
@@ -16,7 +16,7 @@
 <body>
 
   {% include "_nav.html" %}
-  <script src="{{ url_for('static', filename='js/scroll-reset.js') }}"></script>
+  <script src="{{ static_url('js/scroll-reset.js') }}"></script>
 
   <div class="page-shell">
     <div class="cal-header">
@@ -134,9 +134,9 @@
     </div>
   </div>
 
-  <script src="{{ url_for('static', filename='js/csrf-fetch.js') }}"></script>
-  <script src="{{ url_for('static', filename='js/course-colors.js') }}"></script>
-  <script src="{{ url_for('static', filename='js/wink-ui.js') }}"></script>
+  <script src="{{ static_url('js/csrf-fetch.js') }}"></script>
+  <script src="{{ static_url('js/course-colors.js') }}"></script>
+  <script src="{{ static_url('js/wink-ui.js') }}"></script>
 <script nonce="{{ csp_nonce() }}">
 
     const WINK_COURSE_COLORS = {{ course_colors | tojson }};

@@ -221,7 +221,7 @@ def login():
                     # admin_page_required won't grant access until the
                     # code is checked at /mfa/verify.
                     return redirect(url_for("auth.mfa_verify_page"))
-                if email == config.ADMIN_EMAIL:
+                if email in config.ADMIN_EMAILS:
                     return redirect(url_for("admin.admin_hub"))
                 return redirect(url_for("dashboard.dashboard"))
             return render_template("landing.html", error="Invalid email or password.")
@@ -582,7 +582,7 @@ def mfa_verify_page():
 
     session["mfa_verified"] = True
     log_event(s["id"], "mfa_verified")
-    if s["email"].lower() == config.ADMIN_EMAIL:
+    if s["email"].lower() in config.ADMIN_EMAILS:
         return redirect(url_for("admin.admin_hub"))
     return redirect(url_for("dashboard.dashboard"))
 

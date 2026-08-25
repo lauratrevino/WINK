@@ -4,7 +4,7 @@ import secrets
 from datetime import timedelta
 from pathlib import Path
 
-from flask import Flask, g, request
+from flask import Flask, g, request, url_for
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from . import config, csp_hashes, extensions
@@ -39,6 +39,33 @@ def create_app():
         g.csp_nonce = secrets.token_urlsafe(16)
 
     app.jinja_env.globals["csp_nonce"] = lambda: g.csp_nonce
+
+    def static_url(filename):
+        # Appends the file's own last-modified time as a `?v=` query param,
+        # so the URL itself changes the moment a CSS/JS file is edited —
+        # instead of relying on the browser to notice within the 24h
+        # Cache-Control window below. Without this, updating grades.css (or
+        # any other static file) doesn't reach anyone whose browser already
+        # cached the old copy until that cache naturally expires, which is
+        # exactly what made the demo's grades page look stuck on an old
+        # layout while the server-rendered HTML was already current.
+        path = os.path.join(config.BASE_DIR, "static", filename)
+        try:
+            version = int(os.path.getmtime(path))
+        except OSError:
+            version = 0
+        return f"{url_for('static', filename=filename)}?v={version}"
+
+    app.jinja_env.globals["static_url"] = static_url
+
+    @app.context_processor
+    def _inject_is_admin():
+        # Available in every template as `is_admin` without every blueprint
+        # having to pass it in — supports any number of admin accounts
+        # (config.ADMIN_EMAILS), not just a single hardcoded address.
+        s = getattr(g, "student", None)
+        is_admin = bool(s and s.get("email", "").lower() in config.ADMIN_EMAILS)
+        return {"is_admin": is_admin}
 
     _script_hashes, _style_hashes = csp_hashes.compute_hashes(Path(config.BASE_DIR) / "templates")
     _script_src_attr = " ".join(f"'sha256-{h}'" for h in _script_hashes)
