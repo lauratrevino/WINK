@@ -70,7 +70,7 @@ def _seed_demo(cur, sid):
     # inventing a category the rest of the app doesn't recognize.
     docs = [
         ("UNIV 1301", "12345", "UNIV1301_Syllabus.txt", "syllabus",
-         "UNIV 1301 Seminar in Critical Inquiry. Attendance 10%, Edge Activities 20%, Reflection Assignments 30%, Ethnography Project 40%. Office hours Tuesday 2-4 PM. Students should use tutoring and advising resources when needed."),
+         "UNIV 1301 Seminar in Critical Inquiry — Fall 2026, \"Designing Your College Experience with an Entrepreneurial Mindset.\" Major Assignments & Points (1000 total): Attendance 100, Common Read Participation 100, Entrepreneurial Mindset Activities 100, Becoming a Miner Group Project 300, Clifton Strengths 25, Survivor Series 100, Career Activity 100, Peer Leader Group Meeting 50, Choices 360 25, ESE Event 100. Office hours MWF 7:30-9:20am and 10:30am-12:20pm. Students should use tutoring and advising resources when needed."),
         ("MATH 1324", "23456", "MATH1324_Syllabus.txt", "syllabus",
          "MATH 1324 Mathematics for Business. Homework 25%, Quizzes 15%, Midterm Exams 35%, Final Exam 25%. Chapters 1-5 cover equations, functions, systems, matrices, and finance applications."),
         ("HIST 1301", "34567", "HIST1301_Calendar.txt", "course_calendar",
@@ -90,11 +90,11 @@ def _seed_demo(cur, sid):
             f.write(content)
 
     deadlines = [
-        (0,"UNIV 1301","Identity Reflection",today+timedelta(days=1),"confirmed",False),
+        (0,"UNIV 1301","Clifton Strengths Assessment",today+timedelta(days=1),"confirmed",False),
         (1,"MATH 1324","Homework: Functions",today+timedelta(days=2),"confirmed",False),
         (2,"HIST 1301","Primary Source Analysis",today+timedelta(days=2),"confirmed",False),
         (3,"BIOL 1305","Chapter 4 Quiz",today+timedelta(days=3),"corrected",False),
-        (0,"UNIV 1301","Career Fair Reflection",today+timedelta(days=5),"confirmed",False),
+        (0,"UNIV 1301","Survivor Series Activity",today+timedelta(days=5),"confirmed",False),
         (1,"MATH 1324","Exam 1",today+timedelta(days=6),"confirmed",False),
         (2,"HIST 1301","Reading Response 3",today-timedelta(days=3),"confirmed",True),
         (3,"BIOL 1305","Cell Lab Worksheet",today-timedelta(days=5),"confirmed",True),
@@ -103,15 +103,15 @@ def _seed_demo(cur, sid):
         # a demo that only ever seeds ~11 days of assignments left the
         # calendar (and the "Study Plan — Next 4 Weeks" feature) looking
         # empty the moment someone browsed past the current month.
-        (0,"UNIV 1301","Edge Activity Log",today+timedelta(days=14),"confirmed",False),
+        (0,"UNIV 1301","Common Read Reflection",today+timedelta(days=14),"confirmed",False),
         (1,"MATH 1324","Homework: Systems of Equations",today+timedelta(days=16),"confirmed",False),
         (2,"HIST 1301","Midterm Exam",today+timedelta(days=21),"confirmed",False),
         (3,"BIOL 1305","Genetics Lab Report",today+timedelta(days=24),"confirmed",False),
-        (0,"UNIV 1301","Ethnography Project Proposal",today+timedelta(days=35),"confirmed",False),
+        (0,"UNIV 1301","Becoming a Miner Group Project — Checkpoint 1",today+timedelta(days=35),"confirmed",False),
         (1,"MATH 1324","Exam 2",today+timedelta(days=42),"confirmed",False),
         (2,"HIST 1301","Reading Response 4",today+timedelta(days=45),"confirmed",False),
         (3,"BIOL 1305","Final Project Draft",today+timedelta(days=56),"confirmed",False),
-        (0,"UNIV 1301","Ethnography Project Final",today+timedelta(days=63),"confirmed",False),
+        (0,"UNIV 1301","Becoming a Miner Group Project — Final Video",today+timedelta(days=63),"confirmed",False),
         (1,"MATH 1324","Final Exam",today+timedelta(days=70),"confirmed",False),
     ]
     completed_ids=[]
@@ -127,7 +127,13 @@ def _seed_demo(cur, sid):
                 (sid,today+timedelta(days=4)))
 
     weights={
-        "UNIV 1301":[("Attendance",10),("Edge Activities",20),("Reflections",30),("Ethnography Project",40)],
+        # Matches the Fall 2026 UNIV 1301 syllabus's "Major Assignments &
+        # Points" table (1000 points total), converted to percentages —
+        # the old 4-category breakdown here was from a prior semester's
+        # syllabus and no longer matched the current course.
+        "UNIV 1301":[("Attendance",10),("Common Read Participation",10),("Entrepreneurial Mindset Activities",10),
+                     ("Becoming a Miner Group Project",30),("Clifton Strengths",2.5),("Survivor Series",10),
+                     ("Career Activity",10),("Peer Leader Group Meeting",5),("Choices 360",2.5),("ESE Event",10)],
         "MATH 1324":[("Homework",25),("Quizzes",15),("Midterm Exams",35),("Final Exam",25)],
         "HIST 1301":[("Reading Responses",20),("Primary Source Analysis",25),("Midterm",25),("Final Project",30)],
         # BIOL 1305 was missing here — since the course dropdown is sorted
@@ -174,7 +180,7 @@ def _seed_demo(cur, sid):
 
     messages=json.dumps([
         {"role":"user","content":"What should I focus on this week?"},
-        {"role":"assistant","content":"You have a busy stretch coming up. Start with your UNIV 1301 reflection, then your MATH homework, and leave time to review for the biology quiz."}
+        {"role":"assistant","content":"You have a busy stretch coming up. Start with your UNIV 1301 Clifton Strengths assessment, then your MATH homework, and leave time to review for the biology quiz."}
     ])
     cur.execute("INSERT INTO conversations(student_id,title,messages,updated_at) VALUES(%s,%s,%s,NOW())",
                 (sid,"Planning my week",messages))
