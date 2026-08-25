@@ -130,13 +130,6 @@ def _seed_demo(cur, sid):
         "UNIV 1301":[("Attendance",10),("Edge Activities",20),("Reflections",30),("Ethnography Project",40)],
         "MATH 1324":[("Homework",25),("Quizzes",15),("Midterm Exams",35),("Final Exam",25)],
         "HIST 1301":[("Reading Responses",20),("Primary Source Analysis",25),("Midterm",25),("Final Project",30)],
-        # BIOL 1305 was missing here — since the course dropdown is sorted
-        # alphabetically (see grades.py's known_courses), BIOL 1305 sorts
-        # first and is the course demo visitors land on by default. Without
-        # weights seeded, picking it showed only the bare "pick a course"
-        # step instead of the full grading-breakdown experience every other
-        # seeded course gets, making the demo look broken/unfinished.
-        "BIOL 1305":[("Lab Work",20),("Homework",20),("Quizzes",20),("Exams",40)],
     }
     for course, rows in weights.items():
         for i,(cat,w) in enumerate(rows):
