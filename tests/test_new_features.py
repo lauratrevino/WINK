@@ -14,7 +14,7 @@ def register(client, email="student@utep.edu"):
         "email": email, "password": "password123",
         "first_name": "Ada", "last_name": "Lovelace",
         "classification": "Senior", "major": "Computer Science", "university": "University of Texas at El Paso",
-        "terms_agree": "on", "research_agree": "on",
+        "terms_agree": "on", "research_agree": "on", "age_confirm": "on",
     })
     mark_email_verified(email)
     return resp
@@ -236,7 +236,7 @@ class TestCommonQuestions:
                 "email": email, "password": "password123",
                 "first_name": "S", "last_name": str(i),
                 "classification": "Senior", "major": "Computer Science", "university": "University of Texas at El Paso",
-                "terms_agree": "on", "research_agree": "on",
+                "terms_agree": "on", "research_agree": "on", "age_confirm": "on",
             })
         with app.app_context():
             log_event(1, "question_asked", {"q": "What is the late work policy?"})

@@ -13,7 +13,7 @@ def register(client, email="student@utep.edu", password="password123",
         "email": email, "password": password, "first_name": first_name,
         "last_name": last_name, "classification": classification,
         "major": major, "university": university,
-        "terms_agree": "on", "research_agree": "on",
+        "terms_agree": "on", "research_agree": "on", "age_confirm": "on",
     }, follow_redirects=False)
     mark_email_verified(email)
     return resp
