@@ -216,39 +216,39 @@
     .ai-submit-btn { width: 100%; padding: 11px; }
     .ai-submit-btn:disabled { opacity: 0.6; cursor: default; }
 
-    .semester-view-card { max-width: 1180px; }
+    .semester-view-card { max-width: 1400px; }
 
     .sv-months-wrap {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-      gap: 30px;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
     }
     .sv-month-label {
-      font-size: 17px; font-weight: 800; color: #002855; text-align: center;
-      margin: 0 0 10px;
+      font-size: 14px; font-weight: 800; color: #002855; text-align: center;
+      margin: 0 0 6px;
     }
     .sv-weekdays {
-      display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px;
-      margin-bottom: 4px;
+      display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px;
+      margin-bottom: 3px;
     }
     .sv-weekday {
-      font-size: 12px; font-weight: 800; color: #9ca3af; text-align: center;
+      font-size: 10px; font-weight: 800; color: #9ca3af; text-align: center;
       text-transform: uppercase; letter-spacing: .02em;
     }
     .sv-grid {
-      display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px;
+      display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px;
     }
     .sv-day {
-      aspect-ratio: 1; border-radius: 8px; background: #f8f9ff;
+      aspect-ratio: 1; border-radius: 7px; background: #f8f9ff;
       display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
-      padding: 5px 2px 3px; cursor: pointer; position: relative;
+      padding: 4px 2px 2px; cursor: pointer; position: relative;
     }
     .sv-day:hover { background: #eef2fb; }
     .sv-day:focus-visible { outline: 2px solid #FF8200; outline-offset: 1px; }
     .sv-day-empty { visibility: hidden; cursor: default; }
-    .sv-day-num { font-size: 14px; font-weight: 700; color: #002855; line-height: 1; }
+    .sv-day-num { font-size: 12px; font-weight: 700; color: #002855; line-height: 1; }
     .sv-today { box-shadow: 0 0 0 2px #FF8200 inset; }
     .sv-today .sv-day-num { color: #FF8200; }
-    .sv-dots { display: flex; gap: 3px; flex-wrap: wrap; justify-content: center; margin-top: 4px; }
-    .sv-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
-    .sv-more { font-size: 10px; font-weight: 800; color: #6b7a99; line-height: 1; margin-top: 2px; }
+    .sv-dots { display: flex; gap: 2px; flex-wrap: wrap; justify-content: center; margin-top: 3px; }
+    .sv-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .sv-more { font-size: 9px; font-weight: 800; color: #6b7a99; line-height: 1; margin-top: 1px; }
