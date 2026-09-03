@@ -69,8 +69,6 @@ def _seed_demo(cur, sid):
     # no matching slug in DOC_TYPES, so it maps to "other" rather than
     # inventing a category the rest of the app doesn't recognize.
     docs = [
-        ("UNIV 1301", "10196", "UNIV1301_Syllabus.txt", "syllabus",
-         "UNIV 1301 Seminar in Critical Inquiry — Fall 2026, \"Designing Your College Experience with an Entrepreneurial Mindset.\" Major Assignments & Points (1000 total): Attendance 100, Common Read Participation 100, Entrepreneurial Mindset Activities 100, Becoming a Miner Group Project 300, Clifton Strengths 25, Survivor Series 100, Career Activity 100, Peer Leader Group Meeting 50, Choices 360 25, ESE Event 100. Office hours MWF 7:30-9:20am and 10:30am-12:20pm. Students should use tutoring and advising resources when needed."),
         ("UNIV 1301", "10196", "UNIV1301FallSyllabus2026.docx", "syllabus",
          """UNIV 1301: Seminar in Critical Inquiry
 "Designing Your College Experience with an Entrepreneurial Mindset"
@@ -352,30 +350,35 @@ Tue Dec. 15 | Grades Due | Tue Dec. 15 – Grades Due"""),
         with open(os.path.join(demo_dir, f"demo_{sid}_{name}"), "w", encoding="utf-8") as f:
             f.write(content)
 
+    # doc_ids indices now that the old UNIV 1301 .txt file is gone:
+    # 0 = UNIV 1301 syllabus (.docx), 1 = UNIV 1301 calendar (.docx),
+    # 2 = MATH 1324, 3 = HIST 1301, 4 = BIOL 1305. UNIV 1301 deadlines
+    # are linked to the calendar doc (index 1) since that's the document
+    # they're logically drawn from.
     deadlines = [
-        (0,"UNIV 1301","Clifton Strengths Assessment",today+timedelta(days=1),"confirmed",False),
-        (1,"MATH 1324","Homework: Functions",today+timedelta(days=2),"confirmed",False),
-        (2,"HIST 1301","Primary Source Analysis",today+timedelta(days=2),"confirmed",False),
-        (3,"BIOL 1305","Chapter 4 Quiz",today+timedelta(days=3),"corrected",False),
-        (0,"UNIV 1301","Survivor Series Activity",today+timedelta(days=5),"confirmed",False),
-        (1,"MATH 1324","Exam 1",today+timedelta(days=6),"confirmed",False),
-        (2,"HIST 1301","Reading Response 3",today-timedelta(days=3),"confirmed",True),
-        (3,"BIOL 1305","Cell Lab Worksheet",today-timedelta(days=5),"confirmed",True),
+        (1,"UNIV 1301","Clifton Strengths Assessment",today+timedelta(days=1),"confirmed",False),
+        (2,"MATH 1324","Homework: Functions",today+timedelta(days=2),"confirmed",False),
+        (3,"HIST 1301","Primary Source Analysis",today+timedelta(days=2),"confirmed",False),
+        (4,"BIOL 1305","Chapter 4 Quiz",today+timedelta(days=3),"corrected",False),
+        (1,"UNIV 1301","Survivor Series Activity",today+timedelta(days=5),"confirmed",False),
+        (2,"MATH 1324","Exam 1",today+timedelta(days=6),"confirmed",False),
+        (3,"HIST 1301","Reading Response 3",today-timedelta(days=3),"confirmed",True),
+        (4,"BIOL 1305","Cell Lab Worksheet",today-timedelta(days=5),"confirmed",True),
         # Spread further out across the following couple of months — a real
         # semester's deadlines aren't clustered in the first two weeks, and
         # a demo that only ever seeds ~11 days of assignments left the
         # calendar (and the "Study Plan — Next 4 Weeks" feature) looking
         # empty the moment someone browsed past the current month.
-        (0,"UNIV 1301","Common Read Reflection",today+timedelta(days=14),"confirmed",False),
-        (1,"MATH 1324","Homework: Systems of Equations",today+timedelta(days=16),"confirmed",False),
-        (2,"HIST 1301","Midterm Exam",today+timedelta(days=21),"confirmed",False),
-        (3,"BIOL 1305","Genetics Lab Report",today+timedelta(days=24),"confirmed",False),
-        (0,"UNIV 1301","Becoming a Miner Group Project — Checkpoint 1",today+timedelta(days=35),"confirmed",False),
-        (1,"MATH 1324","Exam 2",today+timedelta(days=42),"confirmed",False),
-        (2,"HIST 1301","Reading Response 4",today+timedelta(days=45),"confirmed",False),
-        (3,"BIOL 1305","Final Project Draft",today+timedelta(days=56),"confirmed",False),
-        (0,"UNIV 1301","Becoming a Miner Group Project — Final Video",today+timedelta(days=63),"confirmed",False),
-        (1,"MATH 1324","Final Exam",today+timedelta(days=70),"confirmed",False),
+        (1,"UNIV 1301","Common Read Reflection",today+timedelta(days=14),"confirmed",False),
+        (2,"MATH 1324","Homework: Systems of Equations",today+timedelta(days=16),"confirmed",False),
+        (3,"HIST 1301","Midterm Exam",today+timedelta(days=21),"confirmed",False),
+        (4,"BIOL 1305","Genetics Lab Report",today+timedelta(days=24),"confirmed",False),
+        (1,"UNIV 1301","Becoming a Miner Group Project — Checkpoint 1",today+timedelta(days=35),"confirmed",False),
+        (2,"MATH 1324","Exam 2",today+timedelta(days=42),"confirmed",False),
+        (3,"HIST 1301","Reading Response 4",today+timedelta(days=45),"confirmed",False),
+        (4,"BIOL 1305","Final Project Draft",today+timedelta(days=56),"confirmed",False),
+        (1,"UNIV 1301","Becoming a Miner Group Project — Final Video",today+timedelta(days=63),"confirmed",False),
+        (2,"MATH 1324","Final Exam",today+timedelta(days=70),"confirmed",False),
     ]
     completed_ids=[]
     for di,course,title,due,status,completed in deadlines:
