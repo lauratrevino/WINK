@@ -215,7 +215,7 @@ def start_demo():
         _seed_demo(cur,sid)
     session.clear(); session.permanent=False
     session["sid"]=sid; session["is_demo"]=True
-    return redirect(url_for("dashboard.dashboard"))
+    return redirect(url_for("documents.documents_page"))
 
 
 @bp.route("/purge-expired-demos", methods=["POST"])

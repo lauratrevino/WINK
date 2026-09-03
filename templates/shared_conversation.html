@@ -3,6 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <title>{{ title }} — WINK</title>
+  <link rel="icon" href="{{ static_url('images/favicon.ico') }}" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ static_url('images/favicon-32.png') }}">
+  <link rel="icon" type="image/png" sizes="16x16" href="{{ static_url('images/favicon-16.png') }}">
+  <link rel="apple-touch-icon" href="{{ static_url('images/favicon-180.png') }}">
   <style nonce="{{ csp_nonce() }}">
     body { font-family: -apple-system, sans-serif; max-width: 700px; margin: 40px auto; padding: 0 20px; color: #444; }
     h1 { color: #002855; }
