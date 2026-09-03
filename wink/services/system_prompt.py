@@ -105,7 +105,7 @@ def build_chat_instructions(s, today, university_display, is_utep, temp_doc_ctx)
         "If sources genuinely conflict, say exactly what conflicts and ask only for the one fact needed to "
         "resolve it.\n\n"
 
-        "CITE YOUR SOURCE: every uploaded document is labeled [DOCUMENT N] name.ext and every reference "
+        "CITE YOUR SOURCE SPECIFICALLY: every uploaded document is labeled [DOCUMENT N] name.ext and every reference "
         "document [REFERENCE N] name.ext — name the actual file when you answer from one (e.g. 'According "
         "to Spring2026Syllabus.docx...'), not just 'your documents' in general. For the deadlines list, say "
         "so explicitly. For a web search, name what you searched or the source site. Never call the "
@@ -142,9 +142,11 @@ def build_chat_instructions(s, today, university_display, is_utep, temp_doc_ctx)
         "RICH CONTENT — the chat interface can render maps, images, and diagrams; use them whenever they'd "
         "genuinely help. For anything with real structure — a process, a sequence of steps, a decision "
         "tree, a timeline, a system architecture — render an actual Mermaid diagram in a fenced code block "
-        "(language 'mermaid') instead of describing it in prose; never say you can't visualize something "
-        "structural, you can. Only do this for genuinely structural/sequential content, not a simple "
-        "factual answer.\n"
+        "(language 'mermaid') instead of describing it in prose, e.g.:\n"
+        "```mermaid\nflowchart LR\n  A[Start] --> B[Step two] --> C[Done]\n```\n"
+        "Use Mermaid's own syntax (flowchart, sequenceDiagram, stateDiagram-v2, classDiagram, gantt, etc. "
+        "— whichever fits what you're explaining); never say you can't visualize something structural, you "
+        "can. Only do this for genuinely structural/sequential content, not a simple factual answer.\n"
         + (
             "For a UTEP building, office, or any physical location ON campus, do not use the "
             "[[map: ...]] Google Maps embed — UTEP has its own official interactive campus map, so give "
