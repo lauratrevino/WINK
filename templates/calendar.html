@@ -413,6 +413,19 @@
       </div>`;
     }
 
+    function currentSemesterEndMonth() {
+      // Approximates the current semester's last month so the Semester
+      // View always runs through the end of term, even if no deadlines
+      // fall that late yet: Fall (Aug-Dec) ends in December, Spring
+      // (Jan-May) ends in May, Summer (Jun-Jul) ends in August.
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = now.getMonth(); // 0-indexed
+      if (m >= 7) return { year: y, month: 11 };
+      if (m <= 4) return { year: y, month: 4 };
+      return { year: y, month: 7 };
+    }
+
     function renderSemesterView() {
       const title = document.getElementById('semester-view-title');
       title.textContent = selectedCourse ? `Semester View — ${selectedCourse}` : 'Semester View';
@@ -432,7 +445,13 @@
 
       const dates = items.map(it => it.due_date).sort();
       const [startYear, startMonth1] = dates[0].split('-').map(Number);
-      const [endYear, endMonth1] = dates[dates.length - 1].split('-').map(Number);
+      const [lastYear, lastMonth1] = dates[dates.length - 1].split('-').map(Number);
+      const semesterEnd = currentSemesterEndMonth();
+      const latestFromItems = lastYear * 12 + (lastMonth1 - 1);
+      const semesterEndValue = semesterEnd.year * 12 + semesterEnd.month;
+      const endValue = Math.max(latestFromItems, semesterEndValue);
+      const endYear = Math.floor(endValue / 12);
+      const endMonth1 = (endValue % 12) + 1;
       const months = monthsInRange(startYear, startMonth1 - 1, endYear, endMonth1 - 1);
 
       body.innerHTML = `<div class="sv-months-wrap">${
