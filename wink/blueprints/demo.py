@@ -235,10 +235,14 @@ Becoming a Miner Group Project | 300
 DISCRETIONARY ITEMS | DISCRETIONARY ITEMS
 Clifton Strengths | 25
 Survivor Series | 100
-Career Activity | 100
-Peer Leader Group Meeting | 50
+Career Activity | 25
+Peer Leader Group Meeting | 20
+Syllabus Quiz | 10
+Syllabus Addendum | 10
+UTEP Edge | 100
 Choices 360 | 25
-ESE Event | 100
+Course Evaluations | 10
+ESE Event | 75
 TOTAL | 1000
 Your College Story Matters!
 What if you had the chance to go back in time and give your high school self a real, unfiltered look at what starting college is actually like? Would you warn yourself about the things no one tells you? Share the best parts of being a freshman? Show off the campus resources that helped you survive your first semester? Show the fun things to do? What would you say?
@@ -399,7 +403,9 @@ Tue Dec. 15 | Grades Due | Tue Dec. 15 – Grades Due"""),
         # syllabus and no longer matched the current course.
         "UNIV 1301":[("Attendance",10),("Common Read Participation",10),("Entrepreneurial Mindset Activities",10),
                      ("Becoming a Miner Group Project",30),("Clifton Strengths",2.5),("Survivor Series",10),
-                     ("Career Activity",10),("Peer Leader Group Meeting",5),("Choices 360",2.5),("ESE Event",10)],
+                     ("Career Activity",2.5),("Peer Leader Group Meeting",2),("Syllabus Quiz",1),
+                     ("Syllabus Addendum",1),("UTEP Edge",10),("Choices 360",2.5),
+                     ("Course Evaluations",1),("ESE Event",7.5)],
         "MATH 1324":[("Homework",25),("Quizzes",15),("Midterm Exams",35),("Final Exam",25)],
         "HIST 1301":[("Reading Responses",20),("Primary Source Analysis",25),("Midterm",25),("Final Project",30)],
         # BIOL 1305 was missing here — since the course dropdown is sorted
