@@ -298,13 +298,17 @@ def chat():
                     # answer, no matter what the system prompt says not to do —
                     # this is a transport problem, not a wording problem, and no
                     # prompt instruction can fix it. Instead, drain the stream
-                    # silently, then from the assembled final message keep only
-                    # the text block(s) that come after the LAST tool-related
-                    # block — that's the actual finished answer. Everything
-                    # before it was narration or intermediate search commentary.
-                    for _ in stream.text_stream:
-                        pass
+                    # silently (keeping the raw text as a fallback below), then
+                    # from the assembled final message keep only the text
+                    # block(s) that come after the LAST tool-related block —
+                    # that's the actual finished answer. Everything before it
+                    # was narration or intermediate search commentary.
+                    raw_text_accum = []
+                    for delta in stream.text_stream:
+                        raw_text_accum.append(delta)
+                    raw_text = "".join(raw_text_accum)
                     web_search_provenance = ""
+                    final_answer = ""
                     try:
                         final_message = stream.get_final_message()
                         usage = final_message.usage
@@ -323,9 +327,6 @@ def chat():
                             for i, block in enumerate(all_blocks)
                             if getattr(block, "type", None) == "text" and i > last_tool_idx
                         )
-                        if final_answer:
-                            full_reply.append(final_answer)
-                            yield final_answer
                         # Captures what web_search actually returned —
                         # the queries issued and the title/URL of every
                         # result — since none of that was preserved
@@ -356,6 +357,17 @@ def chat():
                         web_search_provenance = "\n".join(provenance_lines)
                     except Exception as e:
                         log_error("chat.stream_usage", e)
+                    # Prefer the filtered final_answer (it correctly excludes
+                    # any pre-tool-call narration text) — but if it came back
+                    # empty, either because the model never used a tool at all
+                    # and get_final_message()/content didn't populate as
+                    # expected, or because get_final_message() isn't available
+                    # at all, fall back to the raw drained text so a real reply
+                    # is never silently dropped to nothing.
+                    reply_text = final_answer or raw_text
+                    if reply_text:
+                        full_reply.append(reply_text)
+                        yield reply_text
             except anthropic.RateLimitError as e:
                 log_error("chat.stream", e, category="AI_RATE_LIMIT")
                 yield "\n\nWINK is getting a lot of questions right now. Please wait a moment and try again."
