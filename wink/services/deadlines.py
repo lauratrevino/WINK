@@ -421,7 +421,12 @@ def build_deadlines_context(sid):
              f"ALL of the student's uploaded documents ({len(rows)} total). This list is "
              "COMPLETE and NOT truncated, unlike the raw document text below — always use "
              "this list (not the raw text) when asked for a calendar, schedule, or 'what's "
-             f"due' summary.\n{'='*60}"]
+             f"due' summary. Each entry below has a DATE ONLY — there is no time-of-day "
+             "field in this data at all. If asked what time something is due, or tempted to "
+             "state one, say the date you have and that a specific time isn't listed — never "
+             "invent, infer, or pattern-match a time (e.g. '5:00 p.m.', 'end of day') from "
+             "another course or from a general assumption; that is a fabricated detail, not "
+             f"a fact.\n{'='*60}"]
     if unconfirmed:
         lines.append(
             f"NOTE: {len(unconfirmed)} of these are AI-extracted and not yet confirmed by the "

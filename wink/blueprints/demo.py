@@ -359,12 +359,26 @@ Tue Dec. 15 | Grades Due | Tue Dec. 15 – Grades Due"""),
     # 2 = MATH 1324, 3 = HIST 1301, 4 = BIOL 1305. UNIV 1301 deadlines
     # are linked to the calendar doc (index 1) since that's the document
     # they're logically drawn from.
+    #
+    # UNIV 1301's dates below are the ACTUAL dates stated in the seeded
+    # calendar document text (UNIV_1301_Fall2026_CalendarMWF.docx), not
+    # offsets from "today" — that document hardcodes real Fall 2026
+    # semester dates ("Sunday, Nov. 8th", etc.) and states deadlines are
+    # Sundays at 5:00 p.m., so the structured deadlines below have to
+    # literally match that text or the chat ends up fed two contradicting
+    # sources (a real date in the document vs. an arbitrary placeholder
+    # date here) and tries to reconcile them — which is what produced the
+    # earlier fabricated "Sundays at 5:00 p.m." due-tomorrow answer. The
+    # trade-off: because these are real fixed 2026 dates rather than
+    # relative ones, they'll only look "upcoming" for as long as today's
+    # date is still before Fall 2026's semester dates — MATH/HIST/BIOL
+    # don't have a real dated document seeded, so those stay relative.
     deadlines = [
-        (1,"UNIV 1301","Clifton Strengths Assessment",today+timedelta(days=1),"confirmed",False),
+        (1,"UNIV 1301","Team Organization & First Group Project Slides",date(2026,9,20),"confirmed",False),
         (2,"MATH 1324","Homework: Functions",today+timedelta(days=2),"confirmed",False),
         (3,"HIST 1301","Primary Source Analysis",today+timedelta(days=2),"confirmed",False),
         (4,"BIOL 1305","Chapter 4 Quiz",today+timedelta(days=3),"corrected",False),
-        (1,"UNIV 1301","Survivor Series Activity",today+timedelta(days=5),"confirmed",False),
+        (1,"UNIV 1301","Entrepreneurial Mindset 2 (EM2) Survey",date(2026,9,27),"confirmed",False),
         (2,"MATH 1324","Exam 1",today+timedelta(days=6),"confirmed",False),
         (3,"HIST 1301","Reading Response 3",today-timedelta(days=3),"confirmed",True),
         (4,"BIOL 1305","Cell Lab Worksheet",today-timedelta(days=5),"confirmed",True),
@@ -373,16 +387,18 @@ Tue Dec. 15 | Grades Due | Tue Dec. 15 – Grades Due"""),
         # a demo that only ever seeds ~11 days of assignments left the
         # calendar (and the "Study Plan — Next 4 Weeks" feature) looking
         # empty the moment someone browsed past the current month.
-        (1,"UNIV 1301","Common Read Reflection",today+timedelta(days=14),"confirmed",False),
+        (1,"UNIV 1301","Survivor Series — All Sections Due",date(2026,10,11),"confirmed",False),
         (2,"MATH 1324","Homework: Systems of Equations",today+timedelta(days=16),"confirmed",False),
         (3,"HIST 1301","Midterm Exam",today+timedelta(days=21),"confirmed",False),
         (4,"BIOL 1305","Genetics Lab Report",today+timedelta(days=24),"confirmed",False),
-        (1,"UNIV 1301","Becoming a Miner Group Project — Checkpoint 1",today+timedelta(days=35),"confirmed",False),
+        (1,"UNIV 1301","Belonging Slides & Book Club Essay",date(2026,10,25),"confirmed",False),
         (2,"MATH 1324","Exam 2",today+timedelta(days=42),"confirmed",False),
         (3,"HIST 1301","Reading Response 4",today+timedelta(days=45),"confirmed",False),
         (4,"BIOL 1305","Final Project Draft",today+timedelta(days=56),"confirmed",False),
-        (1,"UNIV 1301","Becoming a Miner Group Project — Final Video",today+timedelta(days=63),"confirmed",False),
+        (1,"UNIV 1301","Choices 360 & EM Post-Survey",date(2026,11,1),"confirmed",False),
         (2,"MATH 1324","Final Exam",today+timedelta(days=70),"confirmed",False),
+        (1,"UNIV 1301","Clifton Strengths Assessment",date(2026,11,8),"confirmed",False),
+        (1,"UNIV 1301","Becoming a Miner Group Project — Final Turn-In",date(2026,11,8),"confirmed",False),
     ]
     completed_ids=[]
     for di,course,title,due,status,completed in deadlines:

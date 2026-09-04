@@ -288,13 +288,44 @@ def chat():
                     messages=messages,
                     tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": config.WEB_SEARCH_MAX_USES}]
                 ) as stream:
-                    for text in stream.text_stream:
-                        full_reply.append(text)
-                        yield text
+                    # IMPORTANT: do NOT stream stream.text_stream live. When the
+                    # model uses web_search, Anthropic returns the model's own
+                    # narration text ("Let me search for that...", "The search
+                    # results don't show...") as real interleaved text blocks
+                    # between search calls — those land in text_stream exactly
+                    # like the real answer does. Streaming that live means the
+                    # student sees WINK's search process instead of a finished
+                    # answer, no matter what the system prompt says not to do —
+                    # this is a transport problem, not a wording problem, and no
+                    # prompt instruction can fix it. Instead, drain the stream
+                    # silently, then from the assembled final message keep only
+                    # the text block(s) that come after the LAST tool-related
+                    # block — that's the actual finished answer. Everything
+                    # before it was narration or intermediate search commentary.
+                    for _ in stream.text_stream:
+                        pass
                     web_search_provenance = ""
                     try:
                         final_message = stream.get_final_message()
                         usage = final_message.usage
+                        all_blocks = getattr(final_message, "content", []) or []
+                        # Find the last tool-related block, then keep only the
+                        # text block(s) after it — that's the real, finished
+                        # answer. If the model never searched at all, there's
+                        # no tool block, and every text block is kept (the
+                        # ordinary, no-search case is unaffected by this).
+                        last_tool_idx = -1
+                        for i, block in enumerate(all_blocks):
+                            if getattr(block, "type", None) in ("server_tool_use", "web_search_tool_result"):
+                                last_tool_idx = i
+                        final_answer = "".join(
+                            getattr(block, "text", "") or ""
+                            for i, block in enumerate(all_blocks)
+                            if getattr(block, "type", None) == "text" and i > last_tool_idx
+                        )
+                        if final_answer:
+                            full_reply.append(final_answer)
+                            yield final_answer
                         # Captures what web_search actually returned —
                         # the queries issued and the title/URL of every
                         # result — since none of that was preserved
@@ -309,15 +340,15 @@ def chat():
                         # fetched page text via this API, only what the
                         # model was shown as search result snippets.
                         provenance_lines = []
-                        for block in getattr(final_message, "content", []) or []:
+                        for block in all_blocks:
                             if getattr(block, "type", None) == "server_tool_use" and getattr(block, "name", None) == "web_search":
                                 query = (block.input or {}).get("query", "")
                                 if query:
                                     provenance_lines.append(f"[web search query] {query}")
                             elif getattr(block, "type", None) == "web_search_tool_result":
-                                content = getattr(block, "content", None)
-                                if isinstance(content, list):
-                                    for result in content:
+                                result_content = getattr(block, "content", None)
+                                if isinstance(result_content, list):
+                                    for result in result_content:
                                         title = getattr(result, "title", "")
                                         url = getattr(result, "url", "")
                                         if url:
