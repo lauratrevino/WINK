@@ -165,6 +165,16 @@
     }
 
     function pad(n) { return String(n).padStart(2, '0'); }
+    // Uses the browser's LOCAL date components (getFullYear/getMonth/getDate),
+    // never new Date().toISOString() — toISOString() converts to UTC first,
+    // which silently shows tomorrow's date (and highlights the wrong day as
+    // "today") for any student west of UTC once it's already past midnight
+    // UTC but still today locally — true for El Paso/Mountain time for
+    // several hours every single evening.
+    function localTodayStr() {
+      const n = new Date();
+      return `${n.getFullYear()}-${pad(n.getMonth() + 1)}-${pad(n.getDate())}`;
+    }
 
     function applyPendingBackgrounds(root) {
       root.querySelectorAll('[data-bg]').forEach(el => {
@@ -297,7 +307,7 @@
       const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
       const daysInPrevMonth = new Date(viewYear, viewMonth, 0).getDate();
 
-      const todayStr = new Date().toISOString().slice(0, 10);
+      const todayStr = localTodayStr();
       const cells = [];
 
       for (let i = 0; i < startDow; i++) {
@@ -378,7 +388,7 @@
       const startDow = firstOfMonth.getDay();
       const daysInMonth = new Date(year, month + 1, 0).getDate();
       const monthLabel = firstOfMonth.toLocaleDateString('default', { month: 'long', year: 'numeric' });
-      const todayStr = new Date().toISOString().slice(0, 10);
+      const todayStr = localTodayStr();
 
       const cells = [];
       for (let i = 0; i < startDow; i++) cells.push(null);

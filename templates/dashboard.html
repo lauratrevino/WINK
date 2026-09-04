@@ -2915,7 +2915,12 @@
         if (!res.ok) { body.innerHTML = '<div style="color:#6b7a99;font-size:13px;">Couldn\'t load your study plan.</div>'; return; }
         const data = await res.json();
         const weeks = data.weeks || [];
-        const today = new Date().toISOString().slice(0, 10);
+        // Local date components, not new Date().toISOString() — that
+        // converts to UTC first, which shows tomorrow's date for hours
+        // every evening in Mountain time (and anywhere west of UTC).
+        const now = new Date();
+        const pad2 = n => String(n).padStart(2, '0');
+        const today = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
         body.innerHTML = weeks.map((w, i) => {
           const label = i === 0 ? 'This week' : `Week of ${w.week_start.slice(5)}`;
           const items = w.deadlines.map(d =>
