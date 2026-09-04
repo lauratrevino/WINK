@@ -435,7 +435,9 @@ def build_doc_context(docs, question=None, sid=None):
         for i, d in enumerate(docs):
             content = (d.get("content") or "").strip()
             ctx += f"[DOCUMENT {i+1}] {d['orig_name']}\n"
-            ctx += f"Course: {d['course']} | Size: {round(d.get('size_bytes',0)/1024,1)} KB\n\n"
+            crn = (d.get("crn") or "").strip()
+            course_label = f"{d['course']} (CRN {crn})" if crn else d['course']
+            ctx += f"Course: {course_label} | Size: {round(d.get('size_bytes',0)/1024,1)} KB\n\n"
             ctx += content if content else "[No text could be extracted from this file]"
             ctx += f"\n\n{'-'*40}\n\n"
         ctx += f"{'='*60}\n"
@@ -448,6 +450,9 @@ def build_doc_context(docs, question=None, sid=None):
             chunk_embeddings = [c["embedding"] for c in chunk_rows]
             top = rank_chunks(question, chunk_texts, config.RETRIEVAL_TOP_N_STUDENT_DOCS,
                               chunk_embeddings=chunk_embeddings)
+            def _labeled(d):
+                crn = (d.get("crn") or "").strip()
+                return f"{d['orig_name']} ({d['course']}, CRN {crn})" if crn else f"{d['orig_name']} ({d['course']})"
             ctx = intro
             ctx += (f"The student has uploaded more material ({len(docs)} files) than fits in one "
                     f"prompt, so below are the excerpts most relevant to their CURRENT question — "
@@ -457,7 +462,7 @@ def build_doc_context(docs, question=None, sid=None):
                     f"text (e.g. 'summarize the whole syllabus'), say you're working from the most "
                     f"relevant excerpts for what they've asked so far and offer to look at a "
                     f"specific section or document if they want more of it.\n"
-                    f"Uploaded files: " + ", ".join(d["orig_name"] for d in docs) + "\n")
+                    f"Uploaded files: " + ", ".join(_labeled(d) for d in docs) + "\n")
             ctx += f"{'='*60}\n\n"
             ctx += "\n\n---\n\n".join(top)
             ctx += f"\n\n{'='*60}\n"
@@ -475,7 +480,9 @@ def build_doc_context(docs, question=None, sid=None):
     for i, d in enumerate(docs):
         content = (d.get("content") or "").strip()
         header = f"[DOCUMENT {i+1}] {d['orig_name']}\n"
-        header += f"Course: {d['course']} | Size: {round(d.get('size_bytes',0)/1024,1)} KB\n"
+        crn = (d.get("crn") or "").strip()
+        course_label = f"{d['course']} (CRN {crn})" if crn else d['course']
+        header += f"Course: {course_label} | Size: {round(d.get('size_bytes',0)/1024,1)} KB\n"
         header += f"Content ({len(content)} chars):\n"
         if len(content) > per_doc_budget:
             content = content[:per_doc_budget] + "\n[Shortened here to fit — ask about this document specifically for more of it.]"
