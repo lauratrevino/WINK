@@ -10,6 +10,7 @@ from .. import config
 from ..errors import log_error
 from ..extensions import csrf, db_cursor
 from ..security import rate_limited
+from ..services.deadlines import extract_deadlines
 
 bp = Blueprint("demo", __name__)
 DEMO_TTL_HOURS = 6
@@ -360,51 +361,80 @@ Tue Dec. 15 | Grades Due | Tue Dec. 15 – Grades Due"""),
     # are linked to the calendar doc (index 1) since that's the document
     # they're logically drawn from.
     #
-    # UNIV 1301's dates below are the ACTUAL dates stated in the seeded
-    # calendar document text (UNIV_1301_Fall2026_CalendarMWF.docx), not
-    # offsets from "today" — that document hardcodes real Fall 2026
-    # semester dates ("Sunday, Nov. 8th", etc.) and states deadlines are
-    # Sundays at 5:00 p.m., so the structured deadlines below have to
-    # literally match that text or the chat ends up fed two contradicting
-    # sources (a real date in the document vs. an arbitrary placeholder
-    # date here) and tries to reconcile them — which is what produced the
-    # earlier fabricated "Sundays at 5:00 p.m." due-tomorrow answer. The
-    # trade-off: because these are real fixed 2026 dates rather than
-    # relative ones, they'll only look "upcoming" for as long as today's
-    # date is still before Fall 2026's semester dates — MATH/HIST/BIOL
-    # don't have a real dated document seeded, so those stay relative.
+    # UNIV 1301's deadlines are AUTO-EXTRACTED from that calendar
+    # document's own text below, using the exact same extract_deadlines()
+    # pipeline a real student's uploaded syllabus goes through — not
+    # hand-typed dates. This is deliberate: hand-typing a separate dates
+    # list that has to be kept in sync with the document's own text is
+    # exactly what caused an earlier bug (the structured deadline said
+    # "due tomorrow", the document said "Sundays at 5:00 p.m." for a real
+    # November date, and the chat tried to reconcile the two and
+    # fabricated an answer). Extracting straight from the document means
+    # there is only ONE source of truth — swap in a new semester's
+    # calendar document and re-seed, and the deadlines follow it
+    # automatically, without anyone having to remember to also update a
+    # second hand-typed list. If extraction returns nothing (e.g. no
+    # ANTHROPIC_API_KEY configured, such as in CI), a small fixed
+    # fallback set covering the same document keeps the demo usable
+    # rather than seeding an empty UNIV 1301 calendar.
+    univ_calendar_content = docs[1][4]
+    univ_extracted = extract_deadlines(univ_calendar_content, today=today.isoformat())
+    if univ_extracted:
+        univ_deadlines = []
+        for item in univ_extracted:
+            try:
+                due = datetime.strptime(item["due_date"], "%Y-%m-%d").date()
+            except (KeyError, ValueError):
+                continue
+            # completed is left False regardless of whether due has already
+            # passed — the student marks their own work done, WINK doesn't
+            # assume it. A past-due item that's still not completed is a
+            # real, useful signal (something missed), not something to
+            # paper over by auto-completing it once the date goes by.
+            univ_deadlines.append((
+                1, "UNIV 1301", item.get("title") or "Untitled", due, "confirmed",
+                False, item.get("source_snippet") or "",
+            ))
+    else:
+        log_error("demo.seed_deadline_extraction",
+                   Exception("extract_deadlines returned no items for the UNIV 1301 "
+                             "calendar document during demo seeding — falling back to "
+                             "the fixed backup set."))
+        univ_deadlines = [
+            (1,"UNIV 1301","Team Organization & First Group Project Slides",date(2026,9,20),"confirmed",False,""),
+            (1,"UNIV 1301","Entrepreneurial Mindset 2 (EM2) Survey",date(2026,9,27),"confirmed",False,""),
+            (1,"UNIV 1301","Survivor Series — All Sections Due",date(2026,10,11),"confirmed",False,""),
+            (1,"UNIV 1301","Belonging Slides & Book Club Essay",date(2026,10,25),"confirmed",False,""),
+            (1,"UNIV 1301","Choices 360 & EM Post-Survey",date(2026,11,1),"confirmed",False,""),
+            (1,"UNIV 1301","Clifton Strengths Assessment",date(2026,11,8),"confirmed",False,""),
+            (1,"UNIV 1301","Becoming a Miner Group Project — Final Turn-In",date(2026,11,8),"confirmed",False,""),
+        ]
+
     deadlines = [
-        (1,"UNIV 1301","Team Organization & First Group Project Slides",date(2026,9,20),"confirmed",False),
-        (2,"MATH 1324","Homework: Functions",today+timedelta(days=2),"confirmed",False),
-        (3,"HIST 1301","Primary Source Analysis",today+timedelta(days=2),"confirmed",False),
-        (4,"BIOL 1305","Chapter 4 Quiz",today+timedelta(days=3),"corrected",False),
-        (1,"UNIV 1301","Entrepreneurial Mindset 2 (EM2) Survey",date(2026,9,27),"confirmed",False),
-        (2,"MATH 1324","Exam 1",today+timedelta(days=6),"confirmed",False),
-        (3,"HIST 1301","Reading Response 3",today-timedelta(days=3),"confirmed",True),
-        (4,"BIOL 1305","Cell Lab Worksheet",today-timedelta(days=5),"confirmed",True),
+        (2,"MATH 1324","Homework: Functions",today+timedelta(days=2),"confirmed",False,""),
+        (3,"HIST 1301","Primary Source Analysis",today+timedelta(days=2),"confirmed",False,""),
+        (4,"BIOL 1305","Chapter 4 Quiz",today+timedelta(days=3),"corrected",False,""),
+        (2,"MATH 1324","Exam 1",today+timedelta(days=6),"confirmed",False,""),
+        (3,"HIST 1301","Reading Response 3",today-timedelta(days=3),"confirmed",True,""),
+        (4,"BIOL 1305","Cell Lab Worksheet",today-timedelta(days=5),"confirmed",True,""),
         # Spread further out across the following couple of months — a real
         # semester's deadlines aren't clustered in the first two weeks, and
         # a demo that only ever seeds ~11 days of assignments left the
         # calendar (and the "Study Plan — Next 4 Weeks" feature) looking
         # empty the moment someone browsed past the current month.
-        (1,"UNIV 1301","Survivor Series — All Sections Due",date(2026,10,11),"confirmed",False),
-        (2,"MATH 1324","Homework: Systems of Equations",today+timedelta(days=16),"confirmed",False),
-        (3,"HIST 1301","Midterm Exam",today+timedelta(days=21),"confirmed",False),
-        (4,"BIOL 1305","Genetics Lab Report",today+timedelta(days=24),"confirmed",False),
-        (1,"UNIV 1301","Belonging Slides & Book Club Essay",date(2026,10,25),"confirmed",False),
-        (2,"MATH 1324","Exam 2",today+timedelta(days=42),"confirmed",False),
-        (3,"HIST 1301","Reading Response 4",today+timedelta(days=45),"confirmed",False),
-        (4,"BIOL 1305","Final Project Draft",today+timedelta(days=56),"confirmed",False),
-        (1,"UNIV 1301","Choices 360 & EM Post-Survey",date(2026,11,1),"confirmed",False),
-        (2,"MATH 1324","Final Exam",today+timedelta(days=70),"confirmed",False),
-        (1,"UNIV 1301","Clifton Strengths Assessment",date(2026,11,8),"confirmed",False),
-        (1,"UNIV 1301","Becoming a Miner Group Project — Final Turn-In",date(2026,11,8),"confirmed",False),
-    ]
+        (2,"MATH 1324","Homework: Systems of Equations",today+timedelta(days=16),"confirmed",False,""),
+        (3,"HIST 1301","Midterm Exam",today+timedelta(days=21),"confirmed",False,""),
+        (4,"BIOL 1305","Genetics Lab Report",today+timedelta(days=24),"confirmed",False,""),
+        (2,"MATH 1324","Exam 2",today+timedelta(days=42),"confirmed",False,""),
+        (3,"HIST 1301","Reading Response 4",today+timedelta(days=45),"confirmed",False,""),
+        (4,"BIOL 1305","Final Project Draft",today+timedelta(days=56),"confirmed",False,""),
+        (2,"MATH 1324","Final Exam",today+timedelta(days=70),"confirmed",False,""),
+    ] + univ_deadlines
     completed_ids=[]
-    for di,course,title,due,status,completed in deadlines:
+    for di,course,title,due,status,completed,source_snippet in deadlines:
         cur.execute("""INSERT INTO deadlines(student_id,document_id,course,title,due_date,status,source_snippet,completed)
                        VALUES(%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
-                    (sid,doc_ids[di],course,title,due,status,"Sample demo course material",completed))
+                    (sid,doc_ids[di],course,title,due,status,source_snippet or "Sample demo course material",completed))
         did=cur.fetchone()["id"]
         if completed: completed_ids.append((did,due))
 
