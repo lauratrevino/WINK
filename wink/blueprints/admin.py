@@ -274,6 +274,39 @@ def toggle_student_active():
         return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
 
 
+@bp.route("/manually-verify-student", methods=["POST"])
+@admin_required
+def manually_verify_student():
+    """Safety-net fallback for when verification email genuinely can't reach
+    a student (SMTP/SES misconfigured or delayed, a school spam filter, a
+    typo'd address they've since fixed another way) — lets an admin unblock
+    a real student's own account without impersonating them or bypassing
+    anything else (password, ownership of the account, etc. are untouched).
+    Distinct from account-level admin actions like suspend/anonymize above:
+    this only ever flips email_verified, nothing else about the account."""
+    try:
+        s = g.student
+        if not config.DB_URL: return jsonify({"error": "No database"}), 500
+        data = request.get_json() or {}
+        target_id = data.get("student_id")
+        if not target_id:
+            return jsonify({"error": "Missing student_id"}), 400
+        with db_cursor(commit=True) as cur:
+            cur.execute("SELECT id, email_verified FROM students WHERE id=%s", (target_id,))
+            target = cur.fetchone()
+            if not target:
+                return jsonify({"error": "Student not found"}), 404
+            if target["email_verified"]:
+                return jsonify({"success": True, "already_verified": True})
+            cur.execute("UPDATE students SET email_verified=TRUE, verification_token=NULL WHERE id=%s", (target_id,))
+        log_event(target_id, "email_verified", {"method": "admin_manual", "admin_id": s["id"]})
+        log_event(s["id"], "student_manually_verified", {"target_id": target_id})
+        return jsonify({"success": True})
+    except Exception as e:
+        log_error("admin.manually_verify_student", e)
+        return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
+
+
 @bp.route("/anonymize-student", methods=["POST"])
 @admin_required
 def anonymize_student():

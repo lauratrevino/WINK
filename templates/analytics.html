@@ -2747,6 +2747,11 @@
           anonymizeStudent(parseInt(btn.dataset.id, 10));
         });
       });
+      tbody.querySelectorAll('.student-verify-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          manuallyVerifyStudent(parseInt(btn.dataset.id, 10));
+        });
+      });
       tbody.querySelectorAll('.student-delete-btn').forEach(btn => {
         btn.addEventListener('click', () => {
           deleteStudent(parseInt(btn.dataset.id, 10), btn.dataset.email);
@@ -2763,16 +2768,49 @@
                 <button class="tab-btn student-anonymize-btn" style="padding:4px 10px;font-size:11px;margin-left:6px;" data-id="${s.id}">Anonymize</button>
                 <button class="tab-btn student-delete-btn" style="padding:4px 10px;font-size:11px;margin-left:6px;color:#b91c1c;border-color:#f3c6c6;" data-id="${s.id}" data-email="${escapeHtml(s.email)}">Delete</button>`;
       }
+      // Safety-net for when verification email genuinely doesn't reach a
+      // student (SMTP/SES issues, a school spam filter, etc.) — lets an
+      // admin unblock their own real account without touching anything
+      // else about it. Only shown pre-verification; once verified there's
+      // nothing left to do here, so the button disappears on its own.
+      const verifyBtn = s.email_verified ? '' :
+        `<button class="tab-btn student-verify-btn" style="padding:4px 10px;font-size:11px;margin-left:6px;" data-id="${s.id}">Verify Email</button>`;
       if (s.is_active) {
         return `<span class="badge badge-active">Active</span>
                 <button class="tab-btn student-toggle-btn" style="padding:4px 10px;font-size:11px;margin-left:6px;" data-id="${s.id}" data-active="true">Suspend</button>
+                ${verifyBtn}
                 <button class="tab-btn student-anonymize-btn" style="padding:4px 10px;font-size:11px;margin-left:6px;" data-id="${s.id}">Anonymize</button>
                 <button class="tab-btn student-delete-btn" style="padding:4px 10px;font-size:11px;margin-left:6px;color:#b91c1c;border-color:#f3c6c6;" data-id="${s.id}" data-email="${escapeHtml(s.email)}">Delete</button>`;
       }
       return `<span class="badge" style="background:#fef2f2;color:#b91c1c;">Suspended</span>
               <button class="tab-btn student-toggle-btn" style="padding:4px 10px;font-size:11px;margin-left:6px;" data-id="${s.id}" data-active="false">Reactivate</button>
+              ${verifyBtn}
               <button class="tab-btn student-anonymize-btn" style="padding:4px 10px;font-size:11px;margin-left:6px;" data-id="${s.id}">Anonymize</button>
               <button class="tab-btn student-delete-btn" style="padding:4px 10px;font-size:11px;margin-left:6px;color:#b91c1c;border-color:#f3c6c6;" data-id="${s.id}" data-email="${escapeHtml(s.email)}">Delete</button>`;
+    }
+
+    async function manuallyVerifyStudent(studentId) {
+      const ok = await winkConfirm({
+        title: 'Manually verify this student\'s email?',
+        message: "Use this only if they genuinely didn't receive the verification email " +
+          "(and you've confirmed it's really their address). This unblocks chat, uploads, " +
+          "and practice questions for their account immediately, without them clicking a link.",
+        confirmLabel: 'Verify'
+      });
+      if (!ok) return;
+      try {
+        const res = await fetch('/manually-verify-student', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ student_id: studentId })
+        });
+        const data = await res.json();
+        if (!data.success) { winkToast(data.error || 'Something went wrong.', true); return; }
+        winkToast(data.already_verified ? 'Already verified.' : 'Email verified.');
+        loadData();
+      } catch (e) {
+        winkToast('Something went wrong — please try again.', true);
+      }
     }
 
     async function anonymizeStudent(studentId) {

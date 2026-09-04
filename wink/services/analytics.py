@@ -219,7 +219,7 @@ def get_student_summaries(cur):
                COALESCE(NULLIF(s.university,''), 'Not set') as university,
                COALESCE(s.first_generation, FALSE) as first_generation,
                to_char(s.created_at, 'Mon DD YYYY') as joined,
-               s.is_active, s.account_deleted_at, s.anonymized_at,
+               s.is_active, s.account_deleted_at, s.anonymized_at, s.email_verified,
                COALESCE(ec.sessions, 0) as sessions,
                COALESCE(ec.questions, 0) as questions,
                COALESCE(ec.uploads, 0) as uploads,
