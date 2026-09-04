@@ -473,6 +473,20 @@ def init_db():
             )
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_demo_sessions_ended_at ON demo_sessions(ended_at)")
+        # Kept in sync with migration f4b8c1e9a273_add_student_id_to_demo_sessions
+        # — that migration ADD COLUMNs this onto an existing table, but on a
+        # genuinely fresh database where init_db()'s bootstrap runs without
+        # Alembic ever having been applied, CREATE TABLE IF NOT EXISTS above
+        # would otherwise permanently create demo_sessions WITHOUT this
+        # column and never get another chance to add it. This is what
+        # actually caused a real production bug: delete_demo_student()'s
+        # INSERT names a student_id column that didn't exist, which failed
+        # and poisoned the transaction, then the very next statement in the
+        # same transaction (the UPDATE right after it) failed too with
+        # "current transaction is aborted" — surfacing to the student as a
+        # 500 error the moment they started a second demo session.
+        cur.execute("ALTER TABLE demo_sessions ADD COLUMN IF NOT EXISTS student_id INTEGER REFERENCES students(id) ON DELETE SET NULL")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_demo_sessions_student_id ON demo_sessions(student_id)")
 
         cur.execute("""
             CREATE TABLE IF NOT EXISTS cron_runs (

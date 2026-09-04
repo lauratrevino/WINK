@@ -17,10 +17,24 @@ DEMO_TTL_HOURS = 6
 
 
 def _log_demo_session_ended(cur, student_id, reason):
+    # A SAVEPOINT here, not just a bare try/except, matters for a reason
+    # that already caused a real bug: if any statement below fails against
+    # Postgres, the whole transaction is poisoned (Postgres refuses every
+    # further command until a rollback) even though this function's own
+    # `except Exception: pass` looks like it safely swallowed the error.
+    # The caller's NEXT statement in the same transaction (delete_demo_student's
+    # UPDATE right after this call, or _purge_expired's UPDATE in its loop)
+    # would then fail too, with an unrelated-looking "current transaction is
+    # aborted" error — which is exactly what happened when demo_sessions was
+    # missing a column this INSERT expected. Rolling back to a savepoint
+    # undoes only this function's own statements, leaving whatever the
+    # caller already did earlier in the same transaction intact.
+    cur.execute("SAVEPOINT log_demo_session_ended")
     try:
         cur.execute("SELECT created_at FROM students WHERE id=%s", (student_id,))
         row = cur.fetchone()
         if not row:
+            cur.execute("RELEASE SAVEPOINT log_demo_session_ended")
             return
         started_at = row["created_at"]
         cur.execute("SELECT COUNT(*) as n FROM events WHERE student_id=%s AND event_type='question_asked'",
@@ -30,8 +44,10 @@ def _log_demo_session_ended(cur, student_id, reason):
         cur.execute("""INSERT INTO demo_sessions(started_at, ended_at, duration_seconds, questions_asked, ended_reason, student_id)
                        VALUES (%s, NOW(), %s, %s, %s, %s)""",
                     (started_at, duration_seconds, questions_asked, reason, student_id))
-    except Exception:
-        pass
+        cur.execute("RELEASE SAVEPOINT log_demo_session_ended")
+    except Exception as e:
+        cur.execute("ROLLBACK TO SAVEPOINT log_demo_session_ended")
+        log_error("demo.log_session_ended", e, student_id=student_id)
 
 
 def _purge_expired(cur):
