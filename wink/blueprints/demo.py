@@ -10,7 +10,6 @@ from .. import config
 from ..errors import log_error
 from ..extensions import csrf, db_cursor
 from ..security import rate_limited
-from ..services.deadlines import extract_deadlines
 
 bp = Blueprint("demo", __name__)
 DEMO_TTL_HOURS = 6
@@ -377,54 +376,26 @@ Tue Dec. 15 | Grades Due | Tue Dec. 15 – Grades Due"""),
     # are linked to the calendar doc (index 1) since that's the document
     # they're logically drawn from.
     #
-    # UNIV 1301's deadlines are AUTO-EXTRACTED from that calendar
-    # document's own text below, using the exact same extract_deadlines()
-    # pipeline a real student's uploaded syllabus goes through — not
-    # hand-typed dates. This is deliberate: hand-typing a separate dates
-    # list that has to be kept in sync with the document's own text is
-    # exactly what caused an earlier bug (the structured deadline said
-    # "due tomorrow", the document said "Sundays at 5:00 p.m." for a real
-    # November date, and the chat tried to reconcile the two and
-    # fabricated an answer). Extracting straight from the document means
-    # there is only ONE source of truth — swap in a new semester's
-    # calendar document and re-seed, and the deadlines follow it
-    # automatically, without anyone having to remember to also update a
-    # second hand-typed list. If extraction returns nothing (e.g. no
-    # ANTHROPIC_API_KEY configured, such as in CI), a small fixed
-    # fallback set covering the same document keeps the demo usable
-    # rather than seeding an empty UNIV 1301 calendar.
-    univ_calendar_content = docs[1][4]
-    univ_extracted = extract_deadlines(univ_calendar_content, today=today.isoformat())
-    if univ_extracted:
-        univ_deadlines = []
-        for item in univ_extracted:
-            try:
-                due = datetime.strptime(item["due_date"], "%Y-%m-%d").date()
-            except (KeyError, ValueError):
-                continue
-            # completed is left False regardless of whether due has already
-            # passed — the student marks their own work done, WINK doesn't
-            # assume it. A past-due item that's still not completed is a
-            # real, useful signal (something missed), not something to
-            # paper over by auto-completing it once the date goes by.
-            univ_deadlines.append((
-                1, "UNIV 1301", item.get("title") or "Untitled", due, "confirmed",
-                False, item.get("source_snippet") or "",
-            ))
-    else:
-        log_error("demo.seed_deadline_extraction",
-                   Exception("extract_deadlines returned no items for the UNIV 1301 "
-                             "calendar document during demo seeding — falling back to "
-                             "the fixed backup set."))
-        univ_deadlines = [
-            (1,"UNIV 1301","Team Organization & First Group Project Slides",date(2026,9,20),"confirmed",False,""),
-            (1,"UNIV 1301","Entrepreneurial Mindset 2 (EM2) Survey",date(2026,9,27),"confirmed",False,""),
-            (1,"UNIV 1301","Survivor Series — All Sections Due",date(2026,10,11),"confirmed",False,""),
-            (1,"UNIV 1301","Belonging Slides & Book Club Essay",date(2026,10,25),"confirmed",False,""),
-            (1,"UNIV 1301","Choices 360 & EM Post-Survey",date(2026,11,1),"confirmed",False,""),
-            (1,"UNIV 1301","Clifton Strengths Assessment",date(2026,11,8),"confirmed",False,""),
-            (1,"UNIV 1301","Becoming a Miner Group Project — Final Turn-In",date(2026,11,8),"confirmed",False,""),
-        ]
+    # UNIV 1301's deadlines used to be extracted live via extract_deadlines()
+    # on every demo start, on the theory that reading the dates straight out
+    # of the calendar document keeps a single source of truth (see git log
+    # for the earlier version of this comment). But the calendar text seeded
+    # above is fixed, hardcoded content, identical for every demo session —
+    # so that live LLM call always produced the same output while adding a
+    # multi-second synchronous API round trip to the critical path of every
+    # /demo/start request (the visible delay between clicking Continue and
+    # landing on the documents page). Hardcoding the result once removes
+    # that delay. If a future edit changes the seeded calendar content above,
+    # this list needs to be updated to match by hand.
+    univ_deadlines = [
+        (1,"UNIV 1301","Team Organization & First Group Project Slides",date(2026,9,20),"confirmed",False,""),
+        (1,"UNIV 1301","Entrepreneurial Mindset 2 (EM2) Survey",date(2026,9,27),"confirmed",False,""),
+        (1,"UNIV 1301","Survivor Series — All Sections Due",date(2026,10,11),"confirmed",False,""),
+        (1,"UNIV 1301","Belonging Slides & Book Club Essay",date(2026,10,25),"confirmed",False,""),
+        (1,"UNIV 1301","Choices 360 & EM Post-Survey",date(2026,11,1),"confirmed",False,""),
+        (1,"UNIV 1301","Clifton Strengths Assessment",date(2026,11,8),"confirmed",False,""),
+        (1,"UNIV 1301","Becoming a Miner Group Project — Final Turn-In",date(2026,11,8),"confirmed",False,""),
+    ]
 
     deadlines = [
         (2,"MATH 1324","Homework: Functions",today+timedelta(days=2),"confirmed",False,""),
