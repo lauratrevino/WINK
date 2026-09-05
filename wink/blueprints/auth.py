@@ -428,7 +428,7 @@ def delete_account():
     where deletion "succeeded" from the account's perspective but the
     anonymization it promised silently didn't happen.
 
-    This is a small research pilot (fewer than 10 students) with a
+    This is a small research pilot (up to 50 students) with a
     deliberately simple policy: deleting your account removes your ability
     to log in and identifies you as "Participant-xxxx" going forward, but
     the (now-anonymized) activity data itself is retained for the research
