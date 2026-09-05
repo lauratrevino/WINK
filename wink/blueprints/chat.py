@@ -151,6 +151,25 @@ def chat():
             return jsonify({"error": "Invalid request format."}), 400
         if messages and not (isinstance(messages[-1], dict) and isinstance(messages[-1].get("content"), str)):
             return jsonify({"error": "Invalid message format."}), 400
+        # The check above only covered the newest message — everything
+        # earlier in this client-supplied history was previously passed
+        # through unchecked (wrong role, non-string content, or huge
+        # individual/combined size), so validate the whole list before
+        # any of it reaches the Anthropic call below.
+        if len(messages) > config.MAX_CHAT_HISTORY_MESSAGES:
+            return jsonify({"error": "Too many messages in history."}), 400
+        total_chars = 0
+        for m in messages:
+            if not isinstance(m, dict) or m.get("role") not in ("user", "assistant"):
+                return jsonify({"error": "Invalid message format."}), 400
+            content = m.get("content")
+            if not isinstance(content, str):
+                return jsonify({"error": "Invalid message format."}), 400
+            if len(content) > config.MAX_USER_MESSAGE_CHARS:
+                return jsonify({"error": f"A message in the history is too long (max {config.MAX_USER_MESSAGE_CHARS} characters)."}), 400
+            total_chars += len(content)
+        if total_chars > config.MAX_CHAT_HISTORY_MESSAGES * config.MAX_USER_MESSAGE_CHARS:
+            return jsonify({"error": "Combined message history is too long."}), 400
         user_msg = messages[-1]["content"] if messages else ""
         if isinstance(user_msg, str) and len(user_msg) > config.MAX_USER_MESSAGE_CHARS:
             return jsonify({"error": f"That message is too long (max {config.MAX_USER_MESSAGE_CHARS} characters). Please shorten it and try again."}), 400

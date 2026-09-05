@@ -79,5 +79,18 @@ def save_grading_weights_route():
     weights = data.get("weights")
     if not course or not isinstance(weights, list):
         return jsonify({"error": "course and weights are required"}), 400
+    total = 0.0
+    for w in weights:
+        if not isinstance(w, dict):
+            return jsonify({"error": "Invalid weight entry."}), 400
+        try:
+            value = float(w.get("weight"))
+        except (TypeError, ValueError):
+            return jsonify({"error": "Each weight must be a number."}), 400
+        if value <= 0 or value > 100:
+            return jsonify({"error": "Each weight must be greater than 0 and no more than 100."}), 400
+        total += value
+    if total > 100.5:  # small tolerance for rounding in student-entered values
+        return jsonify({"error": "Weights add up to more than 100%. Please adjust before saving."}), 400
     store_grading_weights(s["id"], course, weights)
     return jsonify({"ok": True})

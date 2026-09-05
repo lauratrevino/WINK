@@ -27,7 +27,11 @@ MAX_REPROCESS_WORKERS = 5
 @login_required
 def deadlines():
     s = g.student
-    days = min(int(request.args.get("days", 14)), 90)
+    try:
+        days = int(request.args.get("days", 14))
+    except (TypeError, ValueError):
+        return jsonify({"error": "days must be an integer"}), 400
+    days = min(days, 90)
     return jsonify({"deadlines": get_upcoming_deadlines(s["id"], days)})
 
 
