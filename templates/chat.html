@@ -51,7 +51,7 @@
         <button class="prompt-btn" onclick="setPrompt('I feel overwhelmed! Where do I start?')">😮‍💨 I feel overwhelmed! Where do I start?</button>
         <button class="prompt-btn" onclick="setPrompt('How can I keep up with all of these assignments??')">📚 How can I keep up with all these assignments??</button>
         <button class="prompt-btn" onclick="setPrompt('My financial aid has been delayed and I\'m broke.')">💸 My financial aid has been delayed and I'm broke.</button>
-        <button class="prompt-btn" onclick="setPrompt('How can using WINK improve my grades?')">📈 How can using WINK improve my grades?</button>
+        <button class="prompt-btn" onclick="setPrompt('How can I use the Systems Development Life Cycle to plan my group project?')">📈 How can I use the Systems Development Life Cycle to plan my group project?</button>
         <button class="prompt-btn" onclick="setPrompt('I\'m homesick....')">🏠 I'm homesick....</button>
       </div>
 
@@ -562,19 +562,26 @@
       if (!convId && convId !== 0) return;
       const fb = document.createElement('div');
       fb.className = 'msg-feedback';
+      const row = document.createElement('div');
+      row.className = 'feedback-buttons-row';
       const up = document.createElement('button');
       up.type = 'button'; up.className = 'feedback-btn'; up.setAttribute('aria-label', 'Good answer'); up.textContent = '👍';
       up.addEventListener('click', function() { submitFeedback(convId, msgIndex, 'up', up); });
       const down = document.createElement('button');
       down.type = 'button'; down.className = 'feedback-btn'; down.setAttribute('aria-label', 'Not helpful'); down.textContent = '👎';
       down.addEventListener('click', function() { submitFeedback(convId, msgIndex, 'down', down); });
-      fb.appendChild(up);
-      fb.appendChild(down);
+      row.appendChild(up);
+      row.appendChild(down);
+      const label = document.createElement('div');
+      label.className = 'feedback-label';
+      label.textContent = 'Please rate the answer';
+      fb.appendChild(row);
+      fb.appendChild(label);
       container.appendChild(fb);
     }
 
     async function submitFeedback(convId, msgIndex, rating, btnEl) {
-      const group = btnEl.parentElement;
+      const group = btnEl.closest('.msg-feedback');
       try {
         const resp = await fetch('/rate-answer', {
           method: 'POST',
