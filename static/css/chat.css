@@ -221,7 +221,10 @@
     .msg-bubble p { margin-bottom: 8px; }
     .wink-embed { margin: 8px 0; border-radius: 10px; overflow: hidden; }
     .wink-map { width: 100%; max-width: 420px; height: 230px; border: 1px solid #dde3f0; }
-    .wink-diagram { max-width: 100%; overflow-x: auto; padding: 12px; background: #fff; border: 1px solid #dde3f0; border-radius: 10px; }
+    .wink-diagram {
+      max-width: 100%; max-height: 480px; overflow: auto; padding: 12px;
+      background: #fff; border: 1px solid #dde3f0; border-radius: 10px;
+    }
     .wink-diagram svg { max-width: 100%; height: auto; }
     .wink-map iframe { width: 100%; height: 100%; border: 0; display: block; }
     .wink-image { max-width: 340px; }

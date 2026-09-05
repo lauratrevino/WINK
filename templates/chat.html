@@ -145,6 +145,15 @@
   <script src="{{ static_url('js/wink-ui.js') }}"></script>
 <script nonce="{{ csp_nonce() }}">
 
+    // The nonce this exact script tag was rendered with (Jinja's
+    // csp_nonce() above) — same value the response's CSP header used for
+    // BOTH script-src-elem and style-src-elem (see _set_csp_nonce() /
+    // set_security_headers() in wink/__init__.py). Captured now, while
+    // document.currentScript is still valid, so it can be reused later
+    // inside async callbacks (resolveDiagramMarkers() below) where
+    // document.currentScript would no longer point here.
+    const CSP_NONCE = document.currentScript ? document.currentScript.nonce : '';
+
     // Handles broken images from markdown embeds (see formatMessage()'s
     // wink-md-image class below) — 'error' events don't bubble, so this
     // has to be attached with capture:true on an ancestor that exists from
@@ -520,9 +529,29 @@
         mermaidInitDone = true;
       }
       for (const el of pending) {
-        const source = el.dataset.mermaid;
+        // Strip any %%{init: ...}%% directive the diagram source might
+        // contain — mermaid gives a per-diagram directive priority over
+        // the theme set in mermaid.initialize() below, so a diagram that
+        // happens to specify (or was copied from a tutorial that
+        // specifies) {'theme':'dark'} would render with a black
+        // background regardless of this app's own light theme.
+        const source = (el.dataset.mermaid || '').replace(/%%\{[\s\S]*?\}%%/g, '');
         try {
-          const { svg } = await mermaid.render('wink-mermaid-' + el.id, source);
+          const { svg: rawSvg } = await mermaid.render('wink-mermaid-' + el.id, source);
+          // mermaid embeds its own <style> block inside the SVG to size
+          // and color everything (task bars, grid lines, section
+          // backgrounds, text) — without it, those elements fall back to
+          // raw SVG defaults: an unstyled rect defaults to a BLACK fill,
+          // and text with no font-size rule renders at a large default
+          // size. This page's CSP requires style-src-elem to carry a
+          // matching nonce (see wink/__init__.py), and mermaid has no way
+          // to know that nonce, so its <style> tag was being silently
+          // dropped by the browser — producing exactly that oversized,
+          // black-box rendering instead of a normal diagram. Stamping the
+          // page's own nonce onto it lets the browser allow it.
+          const svg = CSP_NONCE
+            ? rawSvg.replace(/<style(\s[^>]*)?>/g, (m, attrs) => `<style nonce="${CSP_NONCE}"${attrs || ''}>`)
+            : rawSvg;
           el.innerHTML = svg;
           el.classList.remove('wink-diagram-pending');
           el.classList.add('wink-diagram');
