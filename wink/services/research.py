@@ -190,9 +190,8 @@ def get_full_sample(limit=100000):
     analysis and research purposes that need the full corpus, not just the
     subset a faculty member has manually reviewed for accuracy. This is the
     only place the full answer text is stored outside a student's own live
-    conversation history (see the comment on log_event("answer_given", ...)
-    in blueprints/chat.py — a redundant third copy in the events table was
-    removed; this table is the canonical research copy).
+    conversation history; the events table (used for behavioral analytics
+    elsewhere) never duplicates it.
 
     limit defaults high rather than unbounded, as a safety ceiling against
     an unexpectedly large export rather than a real cap — a research pilot's

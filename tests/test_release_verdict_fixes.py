@@ -1,6 +1,5 @@
-"""Regression tests for the release-verdict fixes:
-- deterministic weekday/relative-date labeling (the confirmed live-pilot
-  date-interpretation defect)
+"""Regression tests covering:
+- deterministic weekday/relative-date labeling
 - negative `days=` on /deadlines
 - grading-weight validation (NaN, duplicate/empty category, count cap,
   tolerance, empty-list clearing)
@@ -83,10 +82,10 @@ class TestRelativeDayLabel:
 
 class TestDateReferenceBlock:
     def test_sept_7_2026_is_labeled_monday(self):
-        # The exact case from the confirmed live-pilot defect: WINK called
-        # Sept 7, 2026 "Sunday" and, separately, called it "tomorrow" when
-        # the server date was Sept 5. Sept 7, 2026 is actually a Monday,
-        # and relative to Sept 5 it's two days out, not one.
+        # Sept 7, 2026 is a Monday, and relative to Sept 5 it's two days
+        # out, not one — this guards against exactly the kind of
+        # weekday/relative-day mislabeling that motivates computing these
+        # labels in application code rather than leaving them to the model.
         from wink.timeutil import build_date_reference_block
         from zoneinfo import ZoneInfo
         now = datetime(2026, 9, 5, 9, 0, tzinfo=ZoneInfo("America/Denver"))
@@ -343,3 +342,57 @@ class TestOtherUniversity:
                         ("student@utep.edu",))
             row = cur.fetchone(); cur.close()
         assert row["university_other_name"] is None
+
+
+class TestRateLimitKeyedByIpAndEmail:
+    """A pure per-IP rate-limit key meant one attacker spraying attempts
+    (any emails) from a shared IP — dorm wifi, a campus lab, a NAT — could
+    exhaust the whole IP's budget and lock out a different real student
+    behind the same IP, even one logging in correctly with their own
+    account. Keying by IP+email instead gives each account its own bucket."""
+
+    def test_failed_logins_for_one_email_dont_block_another_email_same_ip(self, client):
+        register(client, email="victim@utep.edu")
+        # Exhaust the login rate limit against a DIFFERENT email, from the
+        # same test client (same source IP as far as the server can tell).
+        for _ in range(10):
+            client.post("/login", data={"email": "someone-else@utep.edu", "password": "wrong"})
+        # The real account, same IP, must still be able to log in —
+        # a pure per-IP key would have blocked this with a 429-equivalent
+        # "Too many attempts" error page instead.
+        resp = client.post("/login", data={"email": "victim@utep.edu", "password": "password123"})
+        assert b"Too many attempts" not in resp.data
+
+    def test_repeated_failed_logins_for_the_same_email_still_rate_limited(self, client):
+        register(client, email="target@utep.edu")
+        responses = [client.post("/login", data={"email": "target@utep.edu", "password": "wrong"})
+                     for _ in range(11)]
+        assert any(b"Too many attempts" in r.data for r in responses)
+
+    def test_registration_spam_for_different_emails_same_ip_not_cross_blocked(self, client):
+        for i in range(8):
+            client.post("/register", data={
+                "email": f"spam{i}@utep.edu", "password": "password123",
+                "first_name": "A", "last_name": "B", "classification": "Senior",
+                "major": "Computer Science", "university": "University of Texas at El Paso",
+                "terms_agree": "on", "research_agree": "on", "age_confirm": "on",
+            })
+        resp = client.post("/register", data={
+            "email": "notspam@utep.edu", "password": "password123",
+            "first_name": "A", "last_name": "B", "classification": "Senior",
+            "major": "Computer Science", "university": "University of Texas at El Paso",
+            "terms_agree": "on", "research_agree": "on", "age_confirm": "on",
+        })
+        assert b"Too many attempts" not in resp.data
+
+    def test_registration_flood_from_one_ip_still_capped_even_across_many_emails(self, client):
+        # The per-(IP, email) key alone would let this through forever —
+        # a fresh email each time is a fresh bucket. The coarser per-IP
+        # ceiling is what actually stops it.
+        responses = [client.post("/register", data={
+            "email": f"flood{i}@utep.edu", "password": "password123",
+            "first_name": "A", "last_name": "B", "classification": "Senior",
+            "major": "Computer Science", "university": "University of Texas at El Paso",
+            "terms_agree": "on", "research_agree": "on", "age_confirm": "on",
+        }) for i in range(51)]
+        assert any(b"Too many attempts from this network" in r.data for r in responses)

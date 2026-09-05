@@ -35,9 +35,10 @@ def extract_grading_weights(content, student_id=None):
         raw = "".join(b.text for b in resp.content if getattr(b, "type", None) == "text").strip()
         raw = strip_json_fence(raw)
         # parse_json_array salvages a complete-so-far array from a
-        # truncated/malformed response instead of returning nothing at all
-        # on any single parse error — see extract_deadlines()'s history for
-        # why an all-or-nothing json.loads() here is worth avoiding.
+        # truncated/malformed response instead of returning nothing at
+        # all on any single parse error — an all-or-nothing json.loads()
+        # here would throw away every already-parsed category just
+        # because the model's response got cut off partway through.
         items = parse_json_array(raw)
         out = []
         for it in items if isinstance(items, list) else []:

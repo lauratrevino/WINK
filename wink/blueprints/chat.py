@@ -142,12 +142,10 @@ def chat():
             }), 429
         data = request.get_json() or {}
         messages = data.get("messages", [])
-        # Malformed input here previously fell through to the generic
-        # except-Exception handler further down and returned a 500 —
-        # safe (no crash, no stack trace leaked), but the wrong status
-        # code: a client sending garbage is a bad request (400), not a
-        # server error (500), and 500s are what error-tracking/alerting
-        # typically treats as "something is actually broken here."
+        # A client sending garbage here is a bad request (400), not a
+        # server error (500) — 500s are what error-tracking/alerting
+        # treats as "something is actually broken," which malformed
+        # input isn't.
         if not isinstance(messages, list):
             return jsonify({"error": "Invalid request format."}), 400
         # Validate the WHOLE history in one pass — every message's role,
@@ -250,7 +248,7 @@ def chat():
             temp_doc_ctx = ""
 
         # Enforce the combined ceiling — each piece above already has its
-        # own individual cap, but nothing previously bounded what they
+        # own individual cap, but that alone doesn't bound what they
         # add up to together. Trim least-specific-to-the-question
         # material first (global reference material, then the temp
         # attachment), keeping the student's own uploaded documents

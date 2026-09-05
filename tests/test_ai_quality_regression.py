@@ -1,25 +1,22 @@
 """AI-quality regression tests — golden-dataset retrieval checks.
 
-HONEST SCOPE NOTE (this is issue #22 from the August 2026 audit, and this
-file does not close it): the audit asked for a comprehensive suite
-measuring answer correctness, grounding, hallucination rate, citation
-accuracy, retrieval recall/precision, refusal behavior, prompt-injection
-resistance, and contradictory-document handling. Answer correctness,
-grounding, and hallucination rate can only be measured against real model
-outputs — that needs a live ANTHROPIC_API_KEY and a human- or model-graded
-rubric, neither of which exists in this test environment or this test
-suite today. Building that is a real, separate project, not something to
-half-do here.
+HONEST SCOPE NOTE: a comprehensive AI-quality suite would measure answer
+correctness, grounding, hallucination rate, citation accuracy, retrieval
+recall/precision, refusal behavior, prompt-injection resistance, and
+contradictory-document handling. Answer correctness, grounding, and
+hallucination rate can only be measured against real model outputs —
+that needs a live ANTHROPIC_API_KEY and a human- or model-graded rubric,
+neither of which this test suite has today. Building that is a real,
+separate project, not something to half-do here.
 
 What THIS file actually is: a starting golden dataset for the one layer
 that CAN be tested deterministically without a live model call —
 retrieval (does the right passage surface for a given question?) — plus
-regression coverage for the rule-based citation-verification check added
-alongside issue #23. Treat this as a floor to build on, not the
-comprehensive suite the audit describes. See test_retrieval.py's
-TestRetrievalRanking for the two golden cases that already existed before
-this file; the ones here extend that same approach across more
-questions and both fixture document types (docx and pdf).
+regression coverage for the rule-based citation-verification check.
+Treat this as a floor to build on, not a comprehensive AI-quality suite.
+See test_retrieval.py's TestRetrievalRanking for two related golden
+cases; the ones here extend that same approach across more questions
+and both fixture document types (docx and pdf).
 """
 import os
 

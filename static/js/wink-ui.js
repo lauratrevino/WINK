@@ -1,10 +1,9 @@
-// Shared UI helpers used across multiple pages. Previously each page kept
-// its own copy of these pasted inline — escapeHtml alone existed as five
-// slightly different versions across nine templates. Consolidated here so
-// there's exactly one implementation to read, fix, or extend. Any page
-// using these must load this file (and, for winkToast/winkConfirm, must
-// already style .wink-toast / .wink-modal-overlay in its own CSS — this
-// file only supplies behavior, not appearance).
+// Shared UI helpers used across multiple pages — one implementation to
+// read, fix, or extend, rather than each page keeping its own inline
+// copy. Any page using these must load this file (and, for
+// winkToast/winkConfirm, must already style .wink-toast /
+// .wink-modal-overlay in its own CSS — this file only supplies
+// behavior, not appearance).
 
 function escapeHtml(text) {
   return String(text == null ? '' : text)

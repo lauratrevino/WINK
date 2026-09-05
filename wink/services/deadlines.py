@@ -81,12 +81,9 @@ def extract_deadlines(content, today=None, student_id=None):
                     "source_snippet": str(it.get("source_snippet", "")).strip()[:200],
                 })
         # A full-semester weekly schedule (topics/themes/focus entries plus
-        # actual deliverables) commonly runs well past 30 items — the old cap
-        # here was silently dropping later-semester entries once a syllabus
-        # had more than 30 total dated items, which independently explained
-        # some of the scattered "missing" deliverables alongside the
-        # narrower-scope prompt issue above. 200 comfortably covers a
-        # semester's worth of entries while still bounding worst-case size.
+        # actual deliverables) commonly runs well past 30 items, so the
+        # cap here is set generously: 200 comfortably covers a semester's
+        # worth of entries while still bounding worst-case size.
         return out[:200]
     except Exception as e:
         log_error("services.deadlines.extract_deadlines", e)

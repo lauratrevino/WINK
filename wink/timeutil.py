@@ -26,12 +26,8 @@ def resolve_student_timezone(student):
     reminder emails). `student` is a dict-like row from the students
     table (or None).
 
-    Falls back to config.APP_TIMEZONE (Mountain Time) when the student
-    has no timezone on file — which covers three real cases at once: an
-    account that selected "Other" as their university with nothing more
-    specific to go on, an account created before this column existed,
-    and the (should-be-impossible, but checked anyway) case of a stored
-    value that isn't actually a valid IANA zone."""
+    Falls back to config.APP_TIMEZONE (Mountain Time) whenever the
+    student has no valid timezone on file."""
     from . import config  # deferred to avoid a circular import at module load time
     tz = (student or {}).get("timezone") if student else None
     return tz if is_valid_timezone(tz) else config.APP_TIMEZONE
@@ -40,12 +36,9 @@ def resolve_student_timezone(student):
 def relative_day_label(target_date, today_date):
     """Deterministic 'today' / 'tomorrow' / 'in N days' / 'N days ago'
     label for target_date relative to today_date — both plain date
-    objects. Exists so callers never ask the AI model to work this out
-    itself: a live pilot test showed the model mislabeling a correct,
-    database-sourced due date (calling a Monday "Sunday" and calling a
-    date two days out "tomorrow") even though the correct date and
-    weekday were already given to it in the prompt. Pure date-diff
-    arithmetic in application code cannot make that mistake."""
+    objects. Language models are unreliable at weekday and relative-date
+    arithmetic even when given the correct current date in the prompt,
+    so this computes the label directly instead of asking one to."""
     delta = (target_date - today_date).days
     if delta == 0:
         return "today"

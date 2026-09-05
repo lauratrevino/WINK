@@ -1,11 +1,7 @@
 """Canonical health-check logic for the admin-only health page and the
-public /health uptime endpoint.
-
-This used to be two separate, disconnected implementations (one inline
-in blueprints/misc.py, one here) that silently diverged and collided on
-the same URL. They've been merged into this single source of truth —
-every check lives here; misc.py and admin.py both call run_health_checks()
-and just handle their own HTTP-layer concerns (auth, rendering, JSON
+public /health uptime endpoint — one source of truth that both
+blueprints/misc.py and admin.py call into via run_health_checks(),
+each handling only its own HTTP-layer concerns (auth, rendering, JSON
 shape) on top of it.
 
 Each check returns a (status, detail) tuple where status is 'ok', 'warn',

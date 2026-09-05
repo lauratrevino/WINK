@@ -20,10 +20,10 @@ class AuthCheckUnavailable(Exception):
     determined because of a transient infrastructure problem (the DB
     connection pool momentarily exhausted, a dropped connection, etc) —
     NOT because the session is actually invalid. Callers must not treat
-    this the same as "not logged in": doing so previously meant a
-    legitimately authenticated request got a 401 purely because of brief
-    pool contention under load, telling a real, logged-in student they
-    weren't logged in when the truth is just "we couldn't check yet."
+    this the same as "not logged in": a legitimately authenticated
+    request would otherwise get a 401 purely from brief pool contention
+    under load, telling a real, logged-in student they weren't logged in
+    when the truth is just "couldn't check yet."
     """
     pass
 

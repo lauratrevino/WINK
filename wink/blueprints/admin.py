@@ -385,10 +385,8 @@ def delete_student():
 @admin_required
 def health_data():
     """JSON companion to /health-page — same underlying checks, admin-only
-    like the human page (this used to call a separate, disconnected
-    health-check implementation that had silently drifted from the one
-    powering /health-page; both now share one source of truth in
-    services/health.py)."""
+    like the human page, both sharing one source of truth in
+    services/health.py."""
     try:
         checks = run_health_checks()
         return jsonify({

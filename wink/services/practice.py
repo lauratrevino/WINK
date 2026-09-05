@@ -215,17 +215,15 @@ def store_practice_questions(student_id, course, questions, qtype="review", tz=N
     try:
         # The next_review_date column defaults to Postgres's CURRENT_DATE,
         # which is the server's own (UTC) clock — not the student's own
-        # timezone. get_due_questions() below correctly filters against
-        # that student's own local "today", so relying on that UTC
-        # default here meant a freshly created question's next_review_date
-        # could land a calendar day ahead of the student's actual current
-        # date for a large part of every day, making it silently NOT show
-        # up as due for review until the day after it was created — the
-        # same class of bug already fixed in extract_deadlines() and the
-        # progress-page activity charts. `tz` should be the student's own
-        # resolved timezone (see resolve_student_timezone() in
-        # wink/timeutil.py) — this falls back to config.APP_TIMEZONE only
-        # for callers that haven't been updated to pass one yet.
+        # timezone. get_due_questions() correctly filters against that
+        # student's own local "today", so relying on the UTC default here
+        # would mean a freshly created question's next_review_date could
+        # land a calendar day ahead of the student's actual current date
+        # for a large part of every day, making it silently not show up
+        # as due for review until the day after it was created. `tz`
+        # should be the student's own resolved timezone (see
+        # resolve_student_timezone() in wink/timeutil.py) — this falls
+        # back to config.APP_TIMEZONE for callers that don't pass one.
         local_today = datetime.now(ZoneInfo(tz or config.APP_TIMEZONE)).date()
         with db_cursor(commit=True) as cur:
             stored = []

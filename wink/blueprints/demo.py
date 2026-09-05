@@ -59,9 +59,8 @@ def _purge_expired(cur):
     re-matching on the next run (demo_expires_at alone would just keep
     re-selecting the same rows forever) and also removes it from
     'Active Right Now' in the demo usage stats. Returns the number of
-    sessions actually ended, so callers don't need (and can't get out of
-    sync with) a separate count query — see purge_expired_demos_cron's
-    history for what happens when the two counts disagree."""
+    sessions actually ended, so callers don't need a separate count query
+    that could get out of sync with what was actually processed."""
     cur.execute("SELECT id FROM students WHERE is_demo=TRUE AND is_active=TRUE AND demo_expires_at < NOW()")
     expired = [r["id"] for r in cur.fetchall()]
     for sid in expired:
@@ -381,17 +380,15 @@ Tue Dec. 15 | Grades Due | Tue Dec. 15 – Grades Due"""),
     # are linked to the calendar doc (index 1) since that's the document
     # they're logically drawn from.
     #
-    # UNIV 1301's deadlines used to be extracted live via extract_deadlines()
-    # on every demo start, on the theory that reading the dates straight out
-    # of the calendar document keeps a single source of truth (see git log
-    # for the earlier version of this comment). But the calendar text seeded
-    # above is fixed, hardcoded content, identical for every demo session —
-    # so that live LLM call always produced the same output while adding a
-    # multi-second synchronous API round trip to the critical path of every
-    # /demo/start request (the visible delay between clicking Continue and
-    # landing on the documents page). Hardcoding the result once removes
-    # that delay. If a future edit changes the seeded calendar content above,
-    # this list needs to be updated to match by hand.
+    # UNIV 1301's deadlines are hardcoded here rather than extracted live
+    # via extract_deadlines() from the seeded calendar text: that text is
+    # fixed and identical for every demo session, so a live extraction
+    # call would always produce the same output while adding a
+    # multi-second synchronous API round trip to the critical path of
+    # every /demo/start request (the visible delay between clicking
+    # Continue and landing on the documents page). If a future edit
+    # changes the seeded calendar content above, this list needs to be
+    # updated to match by hand.
     univ_deadlines = [
         (1,"UNIV 1301","Team Organization & First Group Project Slides",date(2026,9,20),"confirmed",False,""),
         (1,"UNIV 1301","Entrepreneurial Mindset 2 (EM2) Survey",date(2026,9,27),"confirmed",False,""),
@@ -436,9 +433,7 @@ Tue Dec. 15 | Grades Due | Tue Dec. 15 – Grades Due"""),
 
     weights={
         # Matches the Fall 2026 UNIV 1301 syllabus's "Major Assignments &
-        # Points" table (1000 points total), converted to percentages —
-        # the old 4-category breakdown here was from a prior semester's
-        # syllabus and no longer matched the current course.
+        # Points" table (1000 points total), converted to percentages.
         "UNIV 1301":[("Attendance",10),("Common Read Participation",10),("Entrepreneurial Mindset Activities",10),
                      ("Becoming a Miner Group Project",30),("Clifton Strengths",2.5),("Survivor Series",10),
                      ("Career Activity",2.5),("Peer Leader Group Meeting",2),("Syllabus Quiz",1),
@@ -500,14 +495,14 @@ Tue Dec. 15 | Grades Due | Tue Dec. 15 – Grades Due"""),
 def start_demo():
     if not config.DB_URL:
         return "Demo mode requires the database.", 503
-    # 5/hour previously — tightened to reduce the worst-case AI-cost
-    # exposure from a single IP (5 sessions x the 25-call shared budget
-    # in chat.py = up to 125 calls/hour before this change). Note this
-    # is a meaningful reduction, not a complete fix — IP-based limits
-    # are inherently weak against VPNs/proxies/distributed requests; a
-    # sufficiently motivated abuser can still route around this. 3/hour
-    # is still generous for a real visitor restarting a demo they
-    # messed up, while cutting the single-IP worst case by 40%.
+    # Capped per source IP: each demo session carries up to a 25-call AI
+    # budget (see chat.py), so an unbounded number of sessions from one
+    # address is a real cost-exposure surface. This is a meaningful
+    # limit, not a complete fix — IP-based limits are inherently weak
+    # against VPNs/proxies/distributed requests, so a motivated abuser
+    # can still route around it — but 3/hour is generous for a real
+    # visitor restarting a demo they messed up while keeping the
+    # single-IP worst case bounded.
     wait = rate_limited(f"demo-start:{__import__('flask').request.remote_addr}", max_calls=3, window_seconds=3600)
     if wait:
         return "Too many demo sessions started from this connection. Please try again later.", 429
@@ -533,13 +528,10 @@ def start_demo():
 @cron_job("purge_expired_demos")
 def purge_expired_demos_cron(run_id):
     """Independently, reliably cleans up expired demo accounts on a
-    schedule — previously this only happened opportunistically, when
-    someone else started a NEW demo (_purge_expired() was called as a
-    side effect of start_demo() above) or when an expired demo's own
-    session happened to be accessed again. If neither of those things
-    happened — a quiet period with no new demo visitors — an expired
-    demo account could sit in the database indefinitely with no
-    guaranteed cleanup. Meant to be called by an external scheduler,
+    schedule, rather than relying only on the opportunistic cleanup that
+    happens as a side effect of a new demo starting (_purge_expired()
+    called from start_demo() above) or of an expired demo's own session
+    being accessed again. Meant to be called by an external scheduler,
     same pattern as /send-deadline-reminders, /send-weekly-digest, and
     /purge-deleted-conversations — same header-based auth, same run
     logging, both centralized in services/cron.py."""

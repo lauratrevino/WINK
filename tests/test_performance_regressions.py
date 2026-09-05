@@ -29,12 +29,12 @@ def register(client, email="perf@utep.edu"):
 
 
 class TestRetrievalCandidateBounding:
-    """Covers audit issues #2/#4: get_student_chunks()/get_global_chunks()
-    used to load EVERY chunk for a student (or university) into Python
-    with no LIMIT. This directly inserts far more chunk rows than any
-    realistic upload would produce and asserts the hard cap actually
-    holds — the thing a manual smoke test with a normal-sized upload
-    would never exercise."""
+    """get_student_chunks()/get_global_chunks() bound how many chunk
+    rows they'll ever pull into Python for one retrieval-triggered
+    message, regardless of how many actually exist. This directly
+    inserts far more chunk rows than any realistic upload would produce
+    and asserts the hard cap actually holds — the thing a manual smoke
+    test with a normal-sized upload would never exercise."""
 
     def test_student_chunk_retrieval_never_exceeds_the_hard_cap(self, client, app):
         from wink.extensions import get_db
@@ -238,11 +238,13 @@ class TestGlobalDocsLazyLoading:
         assert "No general reference documents" in ctx
 
 
-
-    """Covers audit issue #1: nothing previously bounded the WORK done
-    during extraction, only its eventual output size. Lowers the budget
-    constant to something the test suite can actually hit in well under a
-    second, rather than waiting out the real 45-second production value."""
+class TestExtractionResourceBounding:
+    """The page/entry/size caps on document extraction (MAX_PDF_PAGES,
+    zip-bomb checks, the 60,000-char output cap) bound the RESULT of
+    extraction, but not the WORK done to get there. These tests lower
+    the wall-clock budget constant to something the suite can hit in
+    well under a second, rather than waiting out the real 45-second
+    production value."""
 
     def test_pdf_extraction_stops_early_once_budget_exceeded(self, monkeypatch):
         from wink.services import documents as documents_module
@@ -272,7 +274,7 @@ class TestGlobalDocsLazyLoading:
 
 
 class TestOcrResourceBounding:
-    """Covers audit issue #1's image-decompression-bomb angle: a small
+    """A defense against PIL "decompression bomb" images: a small
     file on disk can decode into a bitmap large enough to make OCR
     (or just opening the image) slow — independent of the 16MB
     request-size cap, which bounds the file, not the decoded pixel
@@ -306,10 +308,10 @@ class TestOcrResourceBounding:
 
 
 class TestPreStreamContextParallelization:
-    """Covers audit issue #3: the chat pipeline used to build the
-    document, deadline, and global-reference contexts one after another.
-    Also exercises issue #23's citation verification end to end, since
-    both run inside the same request. The Anthropic client is faked out
+    """The chat pipeline builds the document, deadline, and
+    global-reference contexts in parallel before streaming a response.
+    This also exercises citation verification end to end, since both
+    run inside the same request. The Anthropic client is faked out
     (rather than skipped) specifically so this test actually reaches and
     exercises the parallelized context-building block and the
     known_filenames assembly that feeds citation verification — a bare
@@ -418,10 +420,11 @@ class TestPreStreamContextParallelization:
 
 
 class TestCitationVerification:
-    """Covers audit issue #23: citation highlighting was a text match on
-    the model's own output with no check that a named file was ever
-    actually shown to the model. These are pure unit tests against the
-    detection function itself — no DB or AI call needed."""
+    """Citation highlighting is a text match on the model's own output —
+    these tests verify the detection function correctly flags a named
+    file that was never actually shown to the model, distinct from a
+    real citation. Pure unit tests against the detection function
+    itself — no DB or AI call needed."""
 
     def test_real_filename_is_not_flagged(self):
         from wink.blueprints.chat import _find_unverified_citations

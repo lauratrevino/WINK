@@ -17,17 +17,14 @@ try:
     from flask_wtf import CSRFProtect
     csrf = CSRFProtect()
 except ImportError as e:
-    # Previously fell back to a no-op CSRFProtect stand-in and kept running
-    # with CSRF protection silently disabled — fine for surfacing the
-    # problem in logs, but the wrong default for anything handling real
-    # student accounts: a missing dependency should never quietly downgrade
-    # security posture in production. Fail closed instead: refuse to boot
-    # at all until the dependency is actually present, the same way a
-    # missing SECRET_KEY or DB_URL would be treated as fatal elsewhere in
-    # this app. flask-wtf is pinned in requirements.txt, so this should
-    # only ever fire from a broken/incomplete build image — trigger a
-    # clean rebuild (not just a restart) so pip actually reinstalls from
-    # the current requirements.txt.
+    # A missing dependency should never quietly downgrade security posture
+    # in production, so this fails closed: refuse to boot at all rather
+    # than run with CSRF protection disabled, the same way a missing
+    # SECRET_KEY or DB_URL is treated as fatal elsewhere in this app.
+    # flask-wtf is pinned in requirements.txt, so this should only ever
+    # fire from a broken/incomplete build image — trigger a clean rebuild
+    # (not just a restart) so pip actually reinstalls from the current
+    # requirements.txt.
     logger.critical(
         "flask-wtf is not installed in this environment, even though "
         "it's listed in requirements.txt. Refusing to start rather than "
@@ -158,9 +155,8 @@ def db_cursor(commit=False):
     """Yields a cursor on the current request's shared connection (the
     same one get_db() returns — reused across the whole request via
     Flask's `g`), always closing the cursor on the way out, including on
-    an exception. Replaces the `conn = get_db(); cur = conn.cursor()` /
-    `cur.close()` pair that used to be retyped at every call site, and
-    removes the chance of a call site forgetting the close.
+    an exception, so no call site has to remember `conn.cursor()` /
+    `cur.close()` on its own.
 
     Pass commit=True for anything that writes; the connection commits
     once the block finishes without raising. On an exception, the block
@@ -198,12 +194,11 @@ def init_db():
     in migrations/.
 
     Going forward, do NOT add new schema changes as new lines in this
-    function — that was fine for a while, but it's exactly what let a
-    real ordering bug hide here for a long time (an index on a column
-    that isn't added until 80 lines later — worked on every database
-    that already had the column, would have failed outright on a
-    genuinely fresh one; caught and fixed via the Alembic baseline
-    verification in migrations/versions/a0205eeb64e6_..._baseline_...py).
+    function — statement order here matters (a later `ADD COLUMN` can be
+    referenced by an earlier `CREATE INDEX`, which only works because
+    every database that's actually run this already has the column from
+    a prior deploy; a genuinely fresh database would hit the columns and
+    indexes in file order and could fail outright).
 
     Any NEW schema change from here on should be a new Alembic migration
     (`alembic revision -m "..."`, write upgrade()/downgrade(), then
@@ -237,17 +232,16 @@ def init_db():
         cur.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS research_consent_at TIMESTAMP")
         cur.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS research_consent_version TEXT")
         cur.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS account_deleted_at TIMESTAMP")
-        # first_generation was originally added only via Alembic migration
-        # c3f7a1d92b4e (see migrations/versions/) — mirrored here too so a
-        # fresh database relying on init_db() alone (a new test DB, a fresh
-        # local dev setup) doesn't break on registration with
-        # "column first_generation does not exist." Both paths are
+        # first_generation is also defined by an Alembic migration; mirrored
+        # here too so a fresh database relying on init_db() alone (a new
+        # test DB, a fresh local dev setup) doesn't break on registration
+        # with "column first_generation does not exist." Both paths are
         # idempotent, so running both is safe.
         cur.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS first_generation BOOLEAN NOT NULL DEFAULT FALSE")
-        # Same drift as first_generation above — timezone was only ever
-        # added via Alembic migration e2a9f31c7d05. Nullable, no default,
-        # matching that migration exactly: NULL means "we don't know this
-        # student's real timezone yet," resolved to config.APP_TIMEZONE by
+        # Same as first_generation above — timezone is also defined by an
+        # Alembic migration, mirrored here for the same reason. Nullable,
+        # no default: NULL means "we don't know this student's real
+        # timezone yet," resolved to config.APP_TIMEZONE by
         # resolve_student_timezone() in wink/timeutil.py rather than baked
         # into the schema.
         cur.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS timezone TEXT")
@@ -341,9 +335,9 @@ def init_db():
         cur.execute("CREATE INDEX IF NOT EXISTS idx_document_chunks_student_id ON document_chunks(student_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_document_chunks_university ON document_chunks(university)")
         # Backs the keyword pre-filter in get_student_chunks()/get_global_chunks()
-        # (services/documents.py) — see migration 7c2f19a6d3e1 for the full
-        # rationale (retrieval used to load every chunk into Python with no
-        # candidate reduction at the database level first).
+        # (services/documents.py), which narrows candidate chunks at the
+        # database level before ranking, rather than loading every chunk
+        # for a student/university into Python first.
         cur.execute(
             "CREATE INDEX IF NOT EXISTS idx_document_chunks_content_fts "
             "ON document_chunks USING GIN (to_tsvector('english', content))"
@@ -401,15 +395,22 @@ def init_db():
         cur.execute("CREATE INDEX IF NOT EXISTS idx_answer_logs_student_id ON answer_logs(student_id)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_answer_logs_created_at ON answer_logs(created_at)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_answer_logs_rating ON answer_logs(faculty_rating)")
-        # Verbatim snapshot of what the AI actually saw for this answer
-        # (the exact retrieved document context, not just document IDs) —
-        # see migrations/versions/6535ed24cbc8_... for the full reasoning.
+        # A verbatim snapshot of the document context actually sent to the
+        # AI for this answer, not just a reference to document IDs — if a
+        # source document is later edited or deleted, "document 73
+        # supported this answer" becomes unverifiable on its own, since
+        # document 73's content may no longer be what it was. This column
+        # makes what the AI actually saw reconstructable independent of
+        # what happens to the source documents afterward.
         cur.execute("ALTER TABLE answer_logs ADD COLUMN IF NOT EXISTS retrieved_context TEXT DEFAULT ''")
-        # Filenames the model named in its answer that don't correspond to
-        # any document actually shown to it (student uploads or global
-        # reference material) — see migration 9d4b7f2a1c88 for the full
-        # reasoning. Empty string means either no filenames were mentioned,
-        # or every one mentioned was real.
+        # Whether each filename the model named in its answer actually
+        # corresponds to a document shown to it (the student's own
+        # uploads or the university's global reference material), as
+        # opposed to one it invented. This doesn't verify passage-level
+        # grounding — that needs a real citation system tying claims to
+        # specific retrieved chunks — but it does catch a model citing a
+        # document that was never in front of it at all. Empty string
+        # means either no filenames were mentioned, or every one was real.
         cur.execute("ALTER TABLE answer_logs ADD COLUMN IF NOT EXISTS unverified_citations TEXT DEFAULT ''")
 
         cur.execute("""
@@ -428,15 +429,10 @@ def init_db():
 
         cur.execute("ALTER TABLE deadlines ADD COLUMN IF NOT EXISTS is_personal BOOLEAN NOT NULL DEFAULT FALSE")
         cur.execute("ALTER TABLE deadlines ADD COLUMN IF NOT EXISTS series_id TEXT")
-        # Moved here from much earlier in this function — it was
-        # previously creating this index before this column existed on a
-        # genuinely fresh database (only ever masked because every real
-        # database in use already had the column from an earlier point in
-        # this file's history; caught via Alembic baseline verification).
         # series_id lookups are already scoped by student_id (which is
-        # indexed), so this mostly helps the "apply to whole series" UPDATE
-        # once a student is already narrowed down — cheap to add, no
-        # meaningful write-side cost.
+        # indexed), so this mostly helps the "apply to whole series"
+        # UPDATE once a student is already narrowed down — cheap to add,
+        # no meaningful write-side cost.
         cur.execute("CREATE INDEX IF NOT EXISTS idx_deadlines_series_id ON deadlines(series_id)")
         cur.execute("ALTER TABLE deadlines ADD COLUMN IF NOT EXISTS color TEXT")
         cur.execute("ALTER TABLE deadlines ADD COLUMN IF NOT EXISTS completed BOOLEAN NOT NULL DEFAULT FALSE")
@@ -473,18 +469,14 @@ def init_db():
             )
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_demo_sessions_ended_at ON demo_sessions(ended_at)")
-        # Kept in sync with migration f4b8c1e9a273_add_student_id_to_demo_sessions
-        # — that migration ADD COLUMNs this onto an existing table, but on a
-        # genuinely fresh database where init_db()'s bootstrap runs without
-        # Alembic ever having been applied, CREATE TABLE IF NOT EXISTS above
-        # would otherwise permanently create demo_sessions WITHOUT this
-        # column and never get another chance to add it. This is what
-        # actually caused a real production bug: delete_demo_student()'s
-        # INSERT names a student_id column that didn't exist, which failed
-        # and poisoned the transaction, then the very next statement in the
-        # same transaction (the UPDATE right after it) failed too with
-        # "current transaction is aborted" — surfacing to the student as a
-        # 500 error the moment they started a second demo session.
+        # Added here as well as in an Alembic migration: on a genuinely
+        # fresh database where init_db()'s bootstrap runs without Alembic
+        # ever having been applied, CREATE TABLE IF NOT EXISTS above would
+        # otherwise permanently create demo_sessions without this column
+        # and never get another chance to add it — which would break
+        # delete_demo_student()'s INSERT (referencing a column that
+        # doesn't exist) and, by extension, the UPDATE right after it in
+        # the same transaction.
         cur.execute("ALTER TABLE demo_sessions ADD COLUMN IF NOT EXISTS student_id INTEGER REFERENCES students(id) ON DELETE SET NULL")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_demo_sessions_student_id ON demo_sessions(student_id)")
 

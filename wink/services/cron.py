@@ -29,10 +29,8 @@ def cron_job(job_name, skip_check=None):
     """Decorator for a scheduled-job route. Handles the auth check, the
     cron_runs bookkeeping (insert on start, update with stats on success,
     record last_error on failure), and turns any exception the wrapped
-    view raises into a logged failure with a 500 response — previously
-    every one of these four endpoints (send_deadline_reminders,
-    send_weekly_digest, purge_deleted_conversations,
-    purge_expired_demos) reimplemented this same block by hand.
+    view raises into a logged failure with a 500 response, so each
+    scheduled endpoint only implements its own actual work.
 
     The wrapped view receives `run_id` as a keyword argument and should
     return a dict. Recognized keys `number_processed`, `number_sent`, and

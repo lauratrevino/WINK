@@ -116,13 +116,12 @@ def save_grading_weights_route():
         except (TypeError, ValueError):
             return jsonify({"error": "Each weight must be a number."}), 400
         # isfinite rejects NaN and +/-Infinity outright — plain `<= 0` /
-        # `> 100` comparisons are always False against NaN, so NaN was
-        # previously passing this check, being summed into `total` (which
-        # then becomes NaN itself and fails the `> ` total check too), and
-        # reaching store_grading_weights(), which silently dropped it
-        # (its own `weight > 0` check is also False for NaN) — the net
-        # effect was a 200 "ok" response after deleting the student's
-        # existing weights and inserting nothing in their place.
+        # `> 100` comparisons are always False against NaN, so leaving
+        # this out would let a NaN weight through, corrupt `total` (which
+        # also becomes NaN), and end up silently dropped by
+        # store_grading_weights() (its own `weight > 0` check is also
+        # False for NaN) — a 200 "ok" response after deleting the
+        # student's existing weights and inserting nothing in their place.
         if not math.isfinite(value) or value <= 0 or value > 100:
             return jsonify({"error": "Each weight must be a number greater than 0 and no more than 100."}), 400
         total += value

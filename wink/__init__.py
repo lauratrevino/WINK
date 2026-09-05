@@ -42,13 +42,9 @@ def create_app():
 
     def static_url(filename):
         # Appends the file's own last-modified time as a `?v=` query param,
-        # so the URL itself changes the moment a CSS/JS file is edited —
-        # instead of relying on the browser to notice within the 24h
-        # Cache-Control window below. Without this, updating grades.css (or
-        # any other static file) doesn't reach anyone whose browser already
-        # cached the old copy until that cache naturally expires, which is
-        # exactly what made the demo's grades page look stuck on an old
-        # layout while the server-rendered HTML was already current.
+        # so the URL itself changes the moment a CSS/JS file is edited,
+        # instead of waiting on the browser's 24h Cache-Control window to
+        # notice a static file has changed.
         path = os.path.join(config.BASE_DIR, "static", filename)
         try:
             version = int(os.path.getmtime(path))

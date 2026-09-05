@@ -76,14 +76,14 @@ CHAT_MAX_TOKENS = 1024
 MAX_DOC_CONTEXT_CHARS = 40000
 MAX_GLOBAL_DOC_CONTEXT_CHARS = 20000
 # A ceiling on the COMBINED size of student documents + global reference
-# material + a temporarily attached file for one message — each of the
-# three above is independently capped, but nothing previously bounded
-# what they add up to together (up to 80,000 chars combined before this).
-# Below the sum of all three individual caps on purpose, so it actually
-# does something: if the combined total would exceed this, global
-# reference material and the temp attachment get trimmed first (least
-# specific to the actual question), keeping the student's own uploaded
-# documents intact, since that's the most directly relevant material.
+# material + a temporarily attached file for one message. Each of the
+# three is independently capped, but that alone doesn't bound their sum —
+# this is deliberately below the sum of the three individual caps, so it
+# actually constrains something: if the combined total would exceed it,
+# global reference material and the temp attachment get trimmed first
+# (least specific to the actual question), keeping the student's own
+# uploaded documents intact, since that's the most directly relevant
+# material.
 MAX_TOTAL_CONTEXT_CHARS = 60000
 DEADLINE_EXTRACTION_MAX_CHARS = 60000
 MAX_TEMP_DOC_CHARS = 20000
@@ -100,11 +100,11 @@ MAX_STORED_MESSAGES_PER_CONVERSATION = 400
 WEB_SEARCH_MAX_USES = 3
 MAX_USER_MESSAGE_CHARS = 6000
 # An independent, lower ceiling on the COMBINED size of one request's
-# client-supplied chat history — deliberately NOT
-# MAX_CHAT_HISTORY_MESSAGES * MAX_USER_MESSAGE_CHARS, which every message
-# is already bounded by individually, making that product an unreachable
-# check (see the audit note in blueprints/chat.py). This value is the
-# actual, separate ceiling that check now enforces.
+# client-supplied chat history. Deliberately not
+# MAX_CHAT_HISTORY_MESSAGES * MAX_USER_MESSAGE_CHARS — every message is
+# already bounded by MAX_USER_MESSAGE_CHARS individually, so that product
+# is the maximum possible total and can never actually be exceeded; this
+# is the real, separate ceiling that chat.py's validation enforces.
 MAX_CHAT_HISTORY_TOTAL_CHARS = 24000
 
 
@@ -119,13 +119,13 @@ RETRIEVAL_TOP_N_STUDENT_DOCS = 25
 RETRIEVAL_TOP_N_GLOBAL_DOCS = 12
 # Hard ceiling on how many chunk ROWS get_student_chunks()/get_global_chunks()
 # will ever pull into Python for one retrieval-triggered message, regardless
-# of how many chunks actually exist for that student/university. Previously
-# unbounded (see migration 7c2f19a6d3e1) — with the student document cap (20
-# docs) and per-document extraction cap (~60,000 chars), that could mean
-# thousands of chunks and their embeddings loaded per question. When the
-# question-aware keyword pre-filter below narrows the candidate set below
-# this, the cap never actually triggers; it's the backstop for when it
-# doesn't (a very generic question, or no question at all).
+# of how many chunks actually exist for that student/university. With the
+# student document cap (20 docs) and per-document extraction cap
+# (~60,000 chars), an unbounded pull could mean thousands of chunks and
+# their embeddings loaded per question. When the question-aware keyword
+# pre-filter narrows the candidate set below this, the cap never actually
+# triggers; it's the backstop for when it doesn't (a very generic
+# question, or no question at all).
 RETRIEVAL_MAX_CANDIDATE_CHUNKS = 300
 
 VOYAGE_API_KEY = os.environ.get("VOYAGE_API_KEY", "")

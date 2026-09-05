@@ -20,11 +20,11 @@ except ImportError:
 
 # Per-file wall-clock budget for text extraction. The existing page/entry/
 # size caps (MAX_PDF_PAGES, zip-bomb checks, the 60,000-char output cap)
-# bound the RESULT of extraction, but nothing previously bounded the WORK
-# done to get there — a file can be well within every one of those caps
-# and still be deliberately constructed (e.g. a PDF whose pages are mostly
-# dense vector art, or an image sized to make OCR slow) to burn far more
-# CPU time than its eventual output size would suggest. This is a
+# bound the RESULT of extraction, but not the WORK done to get there — a
+# file can be well within every one of those caps and still be
+# deliberately constructed (e.g. a PDF whose pages are mostly dense
+# vector art, or an image sized to make OCR slow) to burn far more CPU
+# time than its eventual output size would suggest. This is a
 # cooperative, best-effort budget: checked between iterations of the
 # page/row/slide loops below, so it can't interrupt a single call that's
 # already blocking inside a C extension (a single huge PDF page's
@@ -242,15 +242,14 @@ def extract_text(filepath, orig_name):
 
 def invalidate_student_docs_cache(sid):
     """No-op, kept so every existing call site (documents.py routes) keeps
-    working unchanged. get_docs() no longer caches — see the note there for
-    why: this cache used to be a plain in-memory dict, which is only safe
-    with a single worker process. This app runs multiple gunicorn workers
-    (see Dockerfile's --workers), and each worker has its own separate
-    copy of that dict — invalidating one worker's copy after an upload
-    never touched any other worker's copy, so a request that happened to
-    land on a different worker could keep serving an old or missing
-    document list indefinitely. That's a correctness bug, not just a
-    performance one, so the cache was removed rather than patched."""
+    working unchanged. get_docs() doesn't cache — a per-process in-memory
+    dict isn't safe here, since this app runs multiple gunicorn workers
+    (see Dockerfile's --workers), each with its own separate copy of any
+    such cache. Invalidating one worker's copy after an upload wouldn't
+    touch any other worker's copy, so a request landing on a different
+    worker could keep serving an old or missing document list
+    indefinitely — a correctness bug, not just a performance one, which
+    is why get_docs() always reads from the database instead."""
     pass
 
 
@@ -300,9 +299,10 @@ def store_document_chunks(document_id, student_id, university, course, orig_name
     embeddings = embed_texts(chunks, input_type="document")
     try:
         with db_cursor(commit=True) as cur:
-            # One batched INSERT instead of one round-trip per chunk — a single
-            # large document can chunk into 50+ pieces, and every one of those
-            # was a separate network round-trip to the database before this.
+            # One batched INSERT instead of one round-trip per chunk — a
+            # large document can chunk into 50+ pieces, and inserting each
+            # separately would mean that many individual network
+            # round-trips to the database instead of one.
             rows = [
                 (document_id, student_id, university or "", i, chunk,
                  json.dumps(embeddings[i]) if embeddings and embeddings[i] is not None else None)
@@ -341,16 +341,16 @@ def get_student_chunks(sid, question=None):
     """Returns candidate chunks for a student, narrowed at the database
     level before anything reaches Python.
 
-    Previously this pulled EVERY chunk (and every embedding) belonging to
-    the student with no LIMIT — with the 20-document cap and ~60,000-char
-    per-document extraction cap, that could mean thousands of chunks and
-    their embeddings loaded into application memory for a single retrieval-
-    triggered question. When `question` is given, this does a cheap
-    server-side keyword pre-filter (ts_rank against the GIN index from
-    migration 7c2f19a6d3e1) so only chunks that share vocabulary with the
-    question are candidates for the real TF-IDF/neural reranking in
-    services/retrieval.py. RETRIEVAL_MAX_CANDIDATE_CHUNKS is a hard
-    backstop regardless — including for the no-question fallback path.
+    With the 20-document cap and ~60,000-char per-document extraction
+    cap, a student can still have thousands of chunks — loading all of
+    them and their embeddings into application memory for a single
+    retrieval-triggered question would be expensive for no benefit. When
+    `question` is given, this does a cheap server-side keyword pre-filter
+    (ts_rank against a GIN full-text index) so only chunks that share
+    vocabulary with the question are candidates for the real TF-IDF/
+    neural reranking in services/retrieval.py. RETRIEVAL_MAX_CANDIDATE_CHUNKS
+    is a hard backstop regardless — including for the no-question
+    fallback path.
     """
     if not config.DB_URL:
         return []
@@ -511,16 +511,13 @@ def get_global_docs(university=None):
     EVERY matching global reference document, with no LIMIT — safe to
     call when the caller already knows the result set is small (e.g. an
     admin-facing management page), but NOT safe to call unconditionally
-    on a per-chat-message hot path. build_global_doc_context() below used
-    to do exactly that on every single chat message regardless of how
-    many global documents existed or whether their content would even be
-    used — see get_global_docs_total_chars()/get_global_doc_names() for
-    the cheap alternatives it uses instead now. This is the same
-    architectural problem as the one fixed in get_student_chunks()/
-    get_global_chunks() (migration 7c2f19a6d3e1), one layer up: unbounded
-    reference material accumulated by admins over a research pilot's
-    lifetime, reloaded in full on every message for every student at
-    that university, rather than only when actually needed."""
+    on a per-chat-message hot path, where unbounded reference material
+    accumulated by admins over a research pilot's lifetime would be
+    reloaded in full on every message for every student at that
+    university, rather than only when actually needed. See
+    get_global_docs_total_chars()/get_global_doc_names() for the cheap
+    alternatives build_global_doc_context() below actually uses on that
+    path."""
     if not config.DB_URL:
         return []
     try:
@@ -591,12 +588,10 @@ def get_global_doc_names(university=None):
 def build_global_doc_context(university=None, question=None):
     """Builds the general-reference-material context for a chat message.
 
-    Deliberately does NOT take a pre-fetched docs list as a parameter
-    anymore (it used to) — that meant every caller had to call the
-    expensive get_global_docs() first regardless of whether this function
-    would even use the content, since the OLD version's total_chars
-    check itself required the content to already be in memory to sum its
-    length. Checking the cheap aggregate (get_global_docs_total_chars)
+    Deliberately does not take a pre-fetched docs list as a parameter —
+    that would force every caller to call the expensive get_global_docs()
+    first regardless of whether this function ends up using the content
+    at all. Checking the cheap aggregate (get_global_docs_total_chars)
     FIRST lets this skip the expensive full fetch entirely on the
     (common, once a research pilot accumulates any real amount of
     reference material) path where retrieval is going to be used anyway.
@@ -626,10 +621,8 @@ def build_global_doc_context(university=None, question=None):
         return ctx
 
     if question:
-        # The retrieval path never needed full document content at all —
-        # only the chunk table, which get_global_chunks() already bounds
-        # (migration 7c2f19a6d3e1). This is the branch that previously
-        # paid for a full get_global_docs() fetch it never used.
+        # The retrieval path never needs full document content — only
+        # the chunk table, which get_global_chunks() already bounds.
         chunk_rows = get_global_chunks(university, question=question)
         if chunk_rows:
             chunk_texts = [c["content"] for c in chunk_rows]

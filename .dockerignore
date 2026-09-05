@@ -10,4 +10,3 @@ uploads
 venv/
 .venv/
 *.egg-info/
-MY_PROGRESS_BUILD_NOTES.txt
