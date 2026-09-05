@@ -42,9 +42,26 @@ def register():
                                preferred_languages=config.PREFERRED_LANGUAGES)
     try:
         if request.method == "POST":
-            if rate_limited(f"register:{request.remote_addr}", max_calls=8, window_seconds=300):
-                return err("Too many attempts — please wait a few minutes and try again.")
             email = request.form.get("email", "").strip().lower()
+            # Two independent caps, not one — each protects against a
+            # different abuse pattern:
+            # 1. A coarse per-IP ceiling, generous enough that no real
+            #    student ever hits it, but low enough to stop one attacker
+            #    flooding registrations with a fresh fake email every time
+            #    (each one would dodge the per-email cap below on its own,
+            #    since it's a brand-new key with no prior attempts).
+            # 2. Keyed by IP+email, not IP alone — a pure per-IP cap meant
+            #    one attacker submitting many different emails from a
+            #    shared IP (dorm wifi, a campus lab, a NAT) could exhaust
+            #    the whole IP's budget and lock out every other real
+            #    student behind it, even ones registering for the first
+            #    time with their own email. Keying by the pair means each
+            #    email gets its own bucket, so someone else's repeated
+            #    attempts never touch yours.
+            if rate_limited(f"register-ip:{request.remote_addr}", max_calls=50, window_seconds=3600):
+                return err("Too many attempts from this network — please wait a while and try again.")
+            if rate_limited(f"register:{request.remote_addr}:{email}", max_calls=8, window_seconds=300):
+                return err("Too many attempts — please wait a few minutes and try again.")
             pw = request.form.get("password", "").strip()
             fn = request.form.get("first_name", "").strip()[:100]
             ln = request.form.get("last_name", "").strip()[:100]
@@ -190,7 +207,12 @@ def login():
         if request.method == "POST":
             email = request.form.get("email", "").strip().lower()
             pw = request.form.get("password", "").strip()
-            if rate_limited(f"login:{request.remote_addr}", max_calls=10, window_seconds=60):
+            # IP+email, not IP alone — see register()'s comment above for
+            # why: a pure per-IP cap let one attacker spraying login
+            # attempts (any emails) from a shared IP lock out every other
+            # real student behind that same IP, even ones logging in
+            # correctly with their own account.
+            if rate_limited(f"login:{request.remote_addr}:{email}", max_calls=10, window_seconds=60):
                 return render_template("landing.html", error="Too many attempts — please wait a minute and try again.")
             if not config.DB_URL:
                 return render_template("landing.html", error="Database not configured.")
@@ -319,7 +341,11 @@ def forgot_password():
     try:
         if not email:
             return render_template("landing.html", forgot=True, error="Please enter your email.")
-        if rate_limited(f"forgot:{request.remote_addr}", max_calls=5, window_seconds=300):
+        # IP+email, not IP alone — same reasoning as login()/register()
+        # above: keeps one attacker's repeated requests for other emails
+        # from also throttling a different real student's own password
+        # reset, just because they happen to share an IP.
+        if rate_limited(f"forgot:{request.remote_addr}:{email}", max_calls=5, window_seconds=300):
             return render_template("landing.html", forgot=True, error="Too many requests — please wait a few minutes and try again.")
         if not config.DB_URL:
             return render_template("landing.html", forgot=True, error="Database not configured.")
