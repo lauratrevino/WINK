@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+<<<<<<< HEAD
 # Triggers WINK's 3-day-out deadline reminder emails
 # (POST /send-deadline-reminders). The endpoint itself only emails each
 # deadline once (it sets `reminded=TRUE` after a successful send), so
@@ -8,3 +9,7 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 source ./_cron_common.sh
 run_cron_endpoint "/send-deadline-reminders"
+=======
+curl -sf -X POST https://mywink.ai/send-deadline-reminders \
+  -H "X-WINK-Cron-Secret: $CRON_SECRET"
+>>>>>>> ac18344fb8630f393524757ded5c48eb5a4619b6
