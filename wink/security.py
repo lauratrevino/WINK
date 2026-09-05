@@ -179,6 +179,19 @@ def _rate_limited_memory(key, max_calls, window_seconds):
         if len(bucket) >= max_calls:
             return round(window_seconds - (now - bucket[0]), 1)
         bucket.append(now)
+        # This fallback only runs when the DB path is unavailable (see
+        # rate_limited() below), so it's meant to be occasional, not the
+        # steady-state path — but every distinct key (often including a
+        # student or IP) creates a permanent entry in _rate_buckets that
+        # nothing ever removes, even once its deque empties back out.
+        # Prune empty entries opportunistically (not on every call, to
+        # keep the lock held time this adds negligible) so a long-running
+        # process under sustained DB unavailability doesn't accumulate one
+        # dict entry per distinct key forever.
+        if random.random() < 0.01:
+            empty_keys = [k for k, v in _rate_buckets.items() if not v]
+            for k in empty_keys:
+                del _rate_buckets[k]
         return 0
 
 

@@ -1,5 +1,4 @@
 import concurrent.futures
-import secrets
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -16,6 +15,7 @@ from ..services.deadlines import (PERSONAL_ITEM_CATEGORIES, PERSONAL_ITEM_COLORS
                                    get_all_deadlines, get_upcoming_deadlines, insert_deadlines, set_deadline_completed,
                                    set_deadline_status, update_personal_item)
 from ..services.documents import get_docs
+from ..services.cron import cron_job
 from ..services.email import send_email
 
 bp = Blueprint("calendar", __name__)
@@ -31,6 +31,8 @@ def deadlines():
         days = int(request.args.get("days", 14))
     except (TypeError, ValueError):
         return jsonify({"error": "days must be an integer"}), 400
+    if days < 0:
+        return jsonify({"error": "days must not be negative"}), 400
     days = min(days, 90)
     return jsonify({"deadlines": get_upcoming_deadlines(s["id"], days)})
 
@@ -247,155 +249,107 @@ def reprocess_deadlines():
 
 
 @bp.route("/send-deadline-reminders", methods=["POST"])
-@csrf.exempt  
-def send_deadline_reminders():
-    provided = request.headers.get("X-WINK-Cron-Secret", "")
-    if not provided:
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            provided = auth_header[len("Bearer "):]
-    if not config.CRON_SECRET or not secrets.compare_digest(provided, config.CRON_SECRET):
-        return jsonify({"error": "Not authorized"}), 403
-    if not config.DB_URL:
-        return jsonify({"error": "No database"}), 500
+@csrf.exempt
+@cron_job("send_deadline_reminders")
+def send_deadline_reminders(run_id):
+    with db_cursor() as cur:
+        cur.execute("""SELECT d.id, d.title, d.due_date, d.course, s.id as sid, s.email, s.first_name
+                       FROM deadlines d JOIN students s ON s.id = d.student_id
+                       WHERE d.reminded = FALSE
+                       AND d.due_date BETWEEN (NOW() AT TIME ZONE %s)::date
+                                       AND (NOW() AT TIME ZONE %s)::date + 3
+                       AND s.is_active IS TRUE
+                       AND s.account_deleted_at IS NULL
+                       ORDER BY s.id, d.due_date""", (config.APP_TIMEZONE, config.APP_TIMEZONE))
+        rows = [dict(r) for r in cur.fetchall()]
 
-    with db_cursor(commit=True) as cur:
-        cur.execute("INSERT INTO cron_runs(job_name) VALUES('send_deadline_reminders') RETURNING id")
-        run_id = cur.fetchone()["id"]
+    by_student = {}
+    for r in rows:
+        by_student.setdefault(r["sid"], {"email": r["email"], "first_name": r["first_name"], "items": []})
+        by_student[r["sid"]]["items"].append(r)
 
-    try:
-        with db_cursor() as cur:
-            cur.execute("""SELECT d.id, d.title, d.due_date, d.course, s.id as sid, s.email, s.first_name
-                           FROM deadlines d JOIN students s ON s.id = d.student_id
-                           WHERE d.reminded = FALSE
-                           AND d.due_date BETWEEN (NOW() AT TIME ZONE %s)::date
-                                           AND (NOW() AT TIME ZONE %s)::date + 3
-                           AND s.is_active IS TRUE
-                           AND s.account_deleted_at IS NULL
-                           ORDER BY s.id, d.due_date""", (config.APP_TIMEZONE, config.APP_TIMEZONE))
-            rows = [dict(r) for r in cur.fetchall()]
+    sent_count = 0
+    failed_count = 0
+    reminded_ids = []
+    for sid, info in by_student.items():
+        lines = [f"  • {it['title']} ({it['course']}) — due {it['due_date'].strftime('%A, %b %d')}"
+                 for it in info["items"]]
+        body = (f"Hi {info['first_name']},\n\nHere's what's coming up in the next few days:\n\n"
+                + "\n".join(lines) + "\n\n— WINK")
+        if send_email(info["email"], "Upcoming deadlines — WINK", body):
+            sent_count += 1
+            reminded_ids.extend(it["id"] for it in info["items"])
+        else:
+            failed_count += 1
 
-        by_student = {}
-        for r in rows:
-            by_student.setdefault(r["sid"], {"email": r["email"], "first_name": r["first_name"], "items": []})
-            by_student[r["sid"]]["items"].append(r)
-
-        sent_count = 0
-        failed_count = 0
-        reminded_ids = []
-        for sid, info in by_student.items():
-            lines = [f"  • {it['title']} ({it['course']}) — due {it['due_date'].strftime('%A, %b %d')}"
-                     for it in info["items"]]
-            body = (f"Hi {info['first_name']},\n\nHere's what's coming up in the next few days:\n\n"
-                    + "\n".join(lines) + "\n\n— WINK")
-            if send_email(info["email"], "Upcoming deadlines — WINK", body):
-                sent_count += 1
-                reminded_ids.extend(it["id"] for it in info["items"])
-            else:
-                failed_count += 1
-
-        if reminded_ids:
-            with db_cursor(commit=True) as cur:
-                cur.execute("UPDATE deadlines SET reminded=TRUE WHERE id = ANY(%s)", (reminded_ids,))
-
+    if reminded_ids:
         with db_cursor(commit=True) as cur:
-            cur.execute("""UPDATE cron_runs SET completed_at=NOW(), number_processed=%s,
-                           number_sent=%s, number_failed=%s WHERE id=%s""",
-                        (len(by_student), sent_count, failed_count, run_id))
+            cur.execute("UPDATE deadlines SET reminded=TRUE WHERE id = ANY(%s)", (reminded_ids,))
 
-        return jsonify({"students_notified": sent_count, "deadlines_covered": len(rows)})
-    except Exception as e:
-        log_error("calendar.send_deadline_reminders", e)
-        try:
-            with db_cursor(commit=True) as cur:
-                cur.execute("UPDATE cron_runs SET completed_at=NOW(), last_error=%s WHERE id=%s",
-                            (str(e)[:500], run_id))
-        except Exception:
-            pass
-        return jsonify({"error": "Something went wrong on our end."}), 500
+    return {
+        "number_processed": len(by_student), "number_sent": sent_count, "number_failed": failed_count,
+        "students_notified": sent_count, "deadlines_covered": len(rows),
+    }
+
+
+def _weekly_digest_already_ran():
+    with db_cursor() as cur:
+        cur.execute("""SELECT COUNT(*) as n FROM cron_runs
+                       WHERE job_name='send_weekly_digest' AND completed_at IS NOT NULL
+                       AND last_error IS NULL AND completed_at > NOW() - INTERVAL '6 days'""")
+        already_ran = cur.fetchone()["n"] > 0
+    return "Weekly digest already sent within the last 6 days." if already_ran else None
 
 
 @bp.route("/send-weekly-digest", methods=["POST"])
 @csrf.exempt
-def send_weekly_digest():
+@cron_job("send_weekly_digest", skip_check=_weekly_digest_already_ran)
+def send_weekly_digest(run_id):
     """A once-a-week 'here's what's due this week' email, separate from the
     closer 3-day reminder above — meant to run once, at the start of the
     week (e.g. Monday morning). Unlike the 3-day reminder, this doesn't mark
     individual deadlines as handled (there's no equivalent of `reminded` to
     set — the same deadline is expected to appear here once, then again in
     the closer reminder as it approaches). Because of that, this route
-    guards against accidentally running twice in the same week itself,
+    guards against accidentally running twice in the same week itself
+    (see _weekly_digest_already_ran, passed to @cron_job as skip_check),
     rather than relying on per-deadline state."""
-    provided = request.headers.get("X-WINK-Cron-Secret", "")
-    if not provided:
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            provided = auth_header[len("Bearer "):]
-    if not config.CRON_SECRET or not secrets.compare_digest(provided, config.CRON_SECRET):
-        return jsonify({"error": "Not authorized"}), 403
-    if not config.DB_URL:
-        return jsonify({"error": "No database"}), 500
+    # Monday-to-Sunday window for "this week," in the app's configured
+    # timezone rather than the DB server's — same reasoning as every
+    # other date comparison in this file.
+    local_today = datetime.now(ZoneInfo(config.APP_TIMEZONE)).date()
+    week_start = local_today - timedelta(days=local_today.weekday())  # Monday
+    week_end = week_start + timedelta(days=6)  # Sunday
 
     with db_cursor() as cur:
-        cur.execute("""SELECT COUNT(*) as n FROM cron_runs
-                       WHERE job_name='send_weekly_digest' AND completed_at IS NOT NULL
-                       AND last_error IS NULL AND completed_at > NOW() - INTERVAL '6 days'""")
-        already_ran = cur.fetchone()["n"] > 0
-    if already_ran:
-        return jsonify({"skipped": True, "reason": "Weekly digest already sent within the last 6 days."})
+        cur.execute("""SELECT d.id, d.title, d.due_date, d.course, s.id as sid, s.email, s.first_name
+                       FROM deadlines d JOIN students s ON s.id = d.student_id
+                       WHERE d.due_date BETWEEN %s AND %s
+                       AND s.is_active IS TRUE
+                       AND s.account_deleted_at IS NULL
+                       ORDER BY s.id, d.due_date""", (week_start, week_end))
+        rows = [dict(r) for r in cur.fetchall()]
 
-    with db_cursor(commit=True) as cur:
-        cur.execute("INSERT INTO cron_runs(job_name) VALUES('send_weekly_digest') RETURNING id")
-        run_id = cur.fetchone()["id"]
+    by_student = {}
+    for r in rows:
+        by_student.setdefault(r["sid"], {"email": r["email"], "first_name": r["first_name"], "items": []})
+        by_student[r["sid"]]["items"].append(r)
 
-    try:
-        # Monday-to-Sunday window for "this week," in the app's configured
-        # timezone rather than the DB server's — same reasoning as every
-        # other date comparison in this file.
-        local_today = datetime.now(ZoneInfo(config.APP_TIMEZONE)).date()
-        week_start = local_today - timedelta(days=local_today.weekday())  # Monday
-        week_end = week_start + timedelta(days=6)  # Sunday
+    sent_count = 0
+    failed_count = 0
+    for sid, info in by_student.items():
+        lines = [f"  • {it['title']} ({it['course']}) — due {it['due_date'].strftime('%A, %b %d')}"
+                 for it in info["items"]]
+        body = (f"Hi {info['first_name']},\n\nHere's what's on your plate this week "
+                f"({week_start.strftime('%b %d')}–{week_end.strftime('%b %d')}):\n\n"
+                + "\n".join(lines) +
+                "\n\nYou'll also get a closer reminder as each one approaches.\n\n— WINK")
+        if send_email(info["email"], "Your week ahead — WINK", body):
+            sent_count += 1
+        else:
+            failed_count += 1
 
-        with db_cursor() as cur:
-            cur.execute("""SELECT d.id, d.title, d.due_date, d.course, s.id as sid, s.email, s.first_name
-                           FROM deadlines d JOIN students s ON s.id = d.student_id
-                           WHERE d.due_date BETWEEN %s AND %s
-                           AND s.is_active IS TRUE
-                           AND s.account_deleted_at IS NULL
-                           ORDER BY s.id, d.due_date""", (week_start, week_end))
-            rows = [dict(r) for r in cur.fetchall()]
-
-        by_student = {}
-        for r in rows:
-            by_student.setdefault(r["sid"], {"email": r["email"], "first_name": r["first_name"], "items": []})
-            by_student[r["sid"]]["items"].append(r)
-
-        sent_count = 0
-        failed_count = 0
-        for sid, info in by_student.items():
-            lines = [f"  • {it['title']} ({it['course']}) — due {it['due_date'].strftime('%A, %b %d')}"
-                     for it in info["items"]]
-            body = (f"Hi {info['first_name']},\n\nHere's what's on your plate this week "
-                    f"({week_start.strftime('%b %d')}–{week_end.strftime('%b %d')}):\n\n"
-                    + "\n".join(lines) +
-                    "\n\nYou'll also get a closer reminder as each one approaches.\n\n— WINK")
-            if send_email(info["email"], "Your week ahead — WINK", body):
-                sent_count += 1
-            else:
-                failed_count += 1
-
-        with db_cursor(commit=True) as cur:
-            cur.execute("""UPDATE cron_runs SET completed_at=NOW(), number_processed=%s,
-                           number_sent=%s, number_failed=%s WHERE id=%s""",
-                        (len(by_student), sent_count, failed_count, run_id))
-
-        return jsonify({"students_notified": sent_count, "deadlines_covered": len(rows)})
-    except Exception as e:
-        log_error("calendar.send_weekly_digest", e)
-        try:
-            with db_cursor(commit=True) as cur:
-                cur.execute("UPDATE cron_runs SET completed_at=NOW(), last_error=%s WHERE id=%s",
-                            (str(e)[:500], run_id))
-        except Exception:
-            pass
-        return jsonify({"error": "Something went wrong on our end."}), 500
+    return {
+        "number_processed": len(by_student), "number_sent": sent_count, "number_failed": failed_count,
+        "students_notified": sent_count, "deadlines_covered": len(rows),
+    }

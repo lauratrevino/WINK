@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
@@ -35,3 +35,46 @@ def resolve_student_timezone(student):
     from . import config  # deferred to avoid a circular import at module load time
     tz = (student or {}).get("timezone") if student else None
     return tz if is_valid_timezone(tz) else config.APP_TIMEZONE
+
+
+def relative_day_label(target_date, today_date):
+    """Deterministic 'today' / 'tomorrow' / 'in N days' / 'N days ago'
+    label for target_date relative to today_date — both plain date
+    objects. Exists so callers never ask the AI model to work this out
+    itself: a live pilot test showed the model mislabeling a correct,
+    database-sourced due date (calling a Monday "Sunday" and calling a
+    date two days out "tomorrow") even though the correct date and
+    weekday were already given to it in the prompt. Pure date-diff
+    arithmetic in application code cannot make that mistake."""
+    delta = (target_date - today_date).days
+    if delta == 0:
+        return "today"
+    if delta == 1:
+        return "tomorrow"
+    if delta == -1:
+        return "yesterday"
+    if delta > 1:
+        return f"in {delta} days"
+    return f"{abs(delta)} days ago"
+
+
+def build_date_reference_block(now):
+    """A deterministic weekday/relative-date lookup table for the next 14
+    days, computed here in application code rather than left for the AI
+    model to compute at answer time. `now` is an aware datetime already
+    resolved to the student's local timezone (see
+    resolve_student_timezone). Meant to be included verbatim in the chat
+    system prompt so the model can look up any weekday or relative-date
+    label instead of calculating one — see relative_day_label's docstring
+    for why that calculation is not safe to leave to the model."""
+    today = now.date()
+    lines = [
+        "DATE REFERENCE (already computed — read a weekday or relative-day "
+        "label from this table instead of calculating one yourself; this "
+        "table is guaranteed correct, your own date arithmetic is not):",
+    ]
+    for i in range(14):
+        d = today + timedelta(days=i)
+        label = relative_day_label(d, today)
+        lines.append(f"- {d.strftime('%Y-%m-%d')} = {d.strftime('%A')} ({label})")
+    return "\n".join(lines)

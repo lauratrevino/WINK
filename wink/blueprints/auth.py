@@ -51,6 +51,12 @@ def register():
             cl = request.form.get("classification", "").strip()
             major = request.form.get("major", "").strip()
             university = request.form.get("university", "").strip()[:200]
+            # Only meaningful (and only stored) when university == "Other" —
+            # the free-text answer to "what school or organization?" that
+            # the picklist itself has no room for. See universities_list.py
+            # for why "Other" is a real, selectable option in the first
+            # place (not every WINK user is a student at a listed school).
+            other_university_name = request.form.get("other_university_name", "").strip()[:200] or None
             preferred_language = request.form.get("preferred_language", "").strip()
             # Captured client-side via Intl.DateTimeFormat() (see
             # register.html) — the browser's own reading of the student's
@@ -78,6 +84,10 @@ def register():
                 return err("Please choose a valid classification and major.")
             if university not in config.UNIVERSITIES:
                 return err("Please choose your university from the list.")
+            if university == "Other" and not other_university_name:
+                return err("Please tell us what school or organization you're with.")
+            if university != "Other":
+                other_university_name = None  # only meaningful for "Other" — ignore if sent otherwise
             if not config.EMAIL_RE.match(email):
                 return err("Please enter a valid email address.")
             if len(pw) < 8:
@@ -88,10 +98,10 @@ def register():
                 cur.execute("SELECT id FROM students WHERE email=%s", (email,))
                 if cur.fetchone():
                     return err("Account already exists — please log in.")
-                cur.execute("""INSERT INTO students(email,password_hash,first_name,last_name,classification,major,university,preferred_language,
+                cur.execute("""INSERT INTO students(email,password_hash,first_name,last_name,classification,major,university,university_other_name,preferred_language,
                                terms_accepted_at,terms_version,research_consent,research_consent_at,research_consent_version,first_generation,timezone)
-                               VALUES(%s,%s,%s,%s,%s,%s,%s,%s,NOW(),%s,%s,NOW(),%s,%s,%s) RETURNING id""",
-                            (email, generate_password_hash(pw), fn, ln, cl, major, university, preferred_language,
+                               VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW(),%s,%s,NOW(),%s,%s,%s) RETURNING id""",
+                            (email, generate_password_hash(pw), fn, ln, cl, major, university, other_university_name, preferred_language,
                              config.TERMS_VERSION, research_agree, config.TERMS_VERSION, first_generation, student_timezone))
                 new_id = cur.fetchone()["id"]
                 verify_token = secrets.token_urlsafe(32)

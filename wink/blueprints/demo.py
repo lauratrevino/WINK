@@ -10,6 +10,7 @@ from .. import config
 from ..errors import log_error
 from ..extensions import csrf, db_cursor
 from ..security import rate_limited
+from ..services.cron import cron_job
 
 bp = Blueprint("demo", __name__)
 DEMO_TTL_HOURS = 6
@@ -57,12 +58,16 @@ def _purge_expired(cur):
     one-line summary. is_active=FALSE is what actually stops this from
     re-matching on the next run (demo_expires_at alone would just keep
     re-selecting the same rows forever) and also removes it from
-    'Active Right Now' in the demo usage stats."""
+    'Active Right Now' in the demo usage stats. Returns the number of
+    sessions actually ended, so callers don't need (and can't get out of
+    sync with) a separate count query — see purge_expired_demos_cron's
+    history for what happens when the two counts disagree."""
     cur.execute("SELECT id FROM students WHERE is_demo=TRUE AND is_active=TRUE AND demo_expires_at < NOW()")
     expired = [r["id"] for r in cur.fetchall()]
     for sid in expired:
         _log_demo_session_ended(cur, sid, "expired")
         cur.execute("UPDATE students SET is_active=FALSE WHERE id=%s", (sid,))
+    return len(expired)
 
 
 def delete_demo_student(student_id, reason="logout"):
@@ -525,7 +530,8 @@ def start_demo():
 
 @bp.route("/purge-expired-demos", methods=["POST"])
 @csrf.exempt
-def purge_expired_demos_cron():
+@cron_job("purge_expired_demos")
+def purge_expired_demos_cron(run_id):
     """Independently, reliably cleans up expired demo accounts on a
     schedule — previously this only happened opportunistically, when
     someone else started a NEW demo (_purge_expired() was called as a
@@ -536,38 +542,7 @@ def purge_expired_demos_cron():
     guaranteed cleanup. Meant to be called by an external scheduler,
     same pattern as /send-deadline-reminders, /send-weekly-digest, and
     /purge-deleted-conversations — same header-based auth, same run
-    logging via cron_runs."""
-    provided = request.headers.get("X-WINK-Cron-Secret", "")
-    if not provided:
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            provided = auth_header[len("Bearer "):]
-    if not config.CRON_SECRET or not secrets.compare_digest(provided, config.CRON_SECRET):
-        return jsonify({"error": "Not authorized"}), 403
-    if not config.DB_URL:
-        return jsonify({"error": "No database"}), 500
-
+    logging, both centralized in services/cron.py."""
     with db_cursor(commit=True) as cur:
-        cur.execute("INSERT INTO cron_runs(job_name) VALUES('purge_expired_demos') RETURNING id")
-        run_id = cur.fetchone()["id"]
-
-    try:
-        with db_cursor(commit=True) as cur:
-            cur.execute("SELECT id FROM students WHERE is_demo=TRUE AND demo_expires_at < NOW()")
-            expired_count = len(cur.fetchall())
-            _purge_expired(cur)
-
-        with db_cursor(commit=True) as cur:
-            cur.execute("UPDATE cron_runs SET completed_at=NOW(), number_processed=%s WHERE id=%s",
-                        (expired_count, run_id))
-
-        return jsonify({"purged": expired_count})
-    except Exception as e:
-        log_error("demo.purge_expired_demos_cron", e)
-        try:
-            with db_cursor(commit=True) as cur:
-                cur.execute("UPDATE cron_runs SET completed_at=NOW(), last_error=%s WHERE id=%s",
-                            (str(e)[:500], run_id))
-        except Exception:
-            pass
-        return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
+        expired_count = _purge_expired(cur)
+    return {"number_processed": expired_count, "purged": expired_count}

@@ -2635,6 +2635,11 @@
             </select>
           </div>
 
+          <div class="form-group" id="other_university_group" style="display:none;">
+            <label for="other_university_name">What school or organization? (since you chose "Other")<span class="required-marker" aria-hidden="true">*</span><span class="sr-only"> (required when Other is chosen)</span></label>
+            <input type="text" id="other_university_name" name="other_university_name" placeholder="e.g. Coronado High School, El Paso Community College" maxlength="200" autocomplete="organization">
+          </div>
+
           <h2 class="form-section-label">Account</h2>
           <div class="form-group">
             <label for="email">Email Address<span class="required-marker" aria-hidden="true">*</span><span class="sr-only"> (required)</span></label>
@@ -2835,6 +2840,22 @@
       } catch (e) {
         field.value = '';
       }
+    })();
+
+    (function setupOtherUniversityToggle() {
+      const select = document.getElementById('university');
+      const group = document.getElementById('other_university_group');
+      const input = document.getElementById('other_university_name');
+      if (!select || !group || !input) return;
+
+      function sync() {
+        const isOther = select.value === 'Other';
+        group.style.display = isOther ? '' : 'none';
+        input.required = isOther;
+        if (!isOther) input.value = '';
+      }
+      select.addEventListener('change', sync);
+      sync(); // in case the browser restored a previous value on reload
     })();
 
     (function setupTermsGate() {

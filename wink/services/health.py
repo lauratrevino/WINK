@@ -31,7 +31,7 @@ CRITICAL_CHECKS = {"database"}
 
 
 def _check_cron_job(job_name, label):
-    """Shared logic for the three named scheduled jobs below — each reports
+    """Shared logic for the four named scheduled jobs below — each reports
     its own most recent run separately, rather than folding them into one
     generic 'last cron run' check that could hide a job silently going
     stale simply because a different job happened to run more recently."""

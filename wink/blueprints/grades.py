@@ -1,3 +1,4 @@
+import math
 
 from flask import Blueprint, g, jsonify, render_template, request
 
@@ -10,6 +11,17 @@ from ..services.documents import get_docs
 from ..services.grades import extract_grading_weights, get_grading_weights, store_grading_weights
 
 bp = Blueprint("grades", __name__)
+
+# Categories above this count are rejected outright rather than silently
+# truncated — matches the cap extract_grading_weights() already applies to
+# AI-extracted weights (services/grades.py), so a manually-built list can't
+# exceed what an extracted one ever could.
+MAX_GRADING_CATEGORIES = 20
+# Total-weight tolerance: real syllabi occasionally round to e.g.
+# 33.33/33.33/33.34 = 100.0 exactly, but 0.01 absorbs only genuine
+# floating-point rounding, not a mistyped total — the max is 100%, not
+# 100.5%, and the error message says so.
+GRADING_TOTAL_TOLERANCE = 0.01
 
 
 @bp.route("/grades-page")
@@ -79,18 +91,42 @@ def save_grading_weights_route():
     weights = data.get("weights")
     if not course or not isinstance(weights, list):
         return jsonify({"error": "course and weights are required"}), 400
+    # An empty list is valid input, not an omission — it means "clear this
+    # course's grading weights," which the calculator UI relies on (e.g.
+    # switching a course back to no breakdown). Nothing below this needs
+    # to run for that case.
+    if not weights:
+        store_grading_weights(s["id"], course, [])
+        return jsonify({"ok": True, "cleared": True})
+    if len(weights) > MAX_GRADING_CATEGORIES:
+        return jsonify({"error": f"No more than {MAX_GRADING_CATEGORIES} grading categories are supported."}), 400
     total = 0.0
+    seen_categories = set()
     for w in weights:
         if not isinstance(w, dict):
             return jsonify({"error": "Invalid weight entry."}), 400
+        category = str(w.get("category", "")).strip()
+        if not category:
+            return jsonify({"error": "Each category needs a name."}), 400
+        if category[:100].lower() in seen_categories:
+            return jsonify({"error": f"'{category[:100]}' is listed more than once."}), 400
+        seen_categories.add(category[:100].lower())
         try:
             value = float(w.get("weight"))
         except (TypeError, ValueError):
             return jsonify({"error": "Each weight must be a number."}), 400
-        if value <= 0 or value > 100:
-            return jsonify({"error": "Each weight must be greater than 0 and no more than 100."}), 400
+        # isfinite rejects NaN and +/-Infinity outright — plain `<= 0` /
+        # `> 100` comparisons are always False against NaN, so NaN was
+        # previously passing this check, being summed into `total` (which
+        # then becomes NaN itself and fails the `> ` total check too), and
+        # reaching store_grading_weights(), which silently dropped it
+        # (its own `weight > 0` check is also False for NaN) — the net
+        # effect was a 200 "ok" response after deleting the student's
+        # existing weights and inserting nothing in their place.
+        if not math.isfinite(value) or value <= 0 or value > 100:
+            return jsonify({"error": "Each weight must be a number greater than 0 and no more than 100."}), 400
         total += value
-    if total > 100.5:  # small tolerance for rounding in student-entered values
+    if total > 100 + GRADING_TOTAL_TOLERANCE:
         return jsonify({"error": "Weights add up to more than 100%. Please adjust before saving."}), 400
     store_grading_weights(s["id"], course, weights)
     return jsonify({"ok": True})

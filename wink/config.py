@@ -99,6 +99,13 @@ MAX_CHAT_HISTORY_MESSAGES = 12
 MAX_STORED_MESSAGES_PER_CONVERSATION = 400
 WEB_SEARCH_MAX_USES = 3
 MAX_USER_MESSAGE_CHARS = 6000
+# An independent, lower ceiling on the COMBINED size of one request's
+# client-supplied chat history — deliberately NOT
+# MAX_CHAT_HISTORY_MESSAGES * MAX_USER_MESSAGE_CHARS, which every message
+# is already bounded by individually, making that product an unreachable
+# check (see the audit note in blueprints/chat.py). This value is the
+# actual, separate ceiling that check now enforces.
+MAX_CHAT_HISTORY_TOTAL_CHARS = 24000
 
 
 DB_POOL_MIN = int(os.environ.get("DB_POOL_MIN", "1"))

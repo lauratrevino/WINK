@@ -57,6 +57,10 @@ def update_profile():
         classification = (data.get("classification") or "").strip()
         major = (data.get("major") or "").strip()
         university = (data.get("university") or "").strip()[:200]
+        # Only meaningful (and only stored) when university == "Other" —
+        # same free-text field captured at registration; see auth.py's
+        # register() for why this exists.
+        other_university_name = (data.get("other_university_name") or "").strip()[:200] or None
         preferred_language = data.get("preferred_language")
         if not all([first_name, last_name, classification, major, university]):
             return jsonify({"error": "All fields are required."}), 400
@@ -64,6 +68,10 @@ def update_profile():
             return jsonify({"error": "Please choose a valid classification and major."}), 400
         if university not in config.UNIVERSITIES:
             return jsonify({"error": "Please choose your university from the list."}), 400
+        if university == "Other" and not other_university_name:
+            return jsonify({"error": "Please tell us what school or organization you're with."}), 400
+        if university != "Other":
+            other_university_name = None  # only meaningful for "Other" — ignore if sent otherwise
         if preferred_language is not None and preferred_language and preferred_language not in config.PREFERRED_LANGUAGES:
             return jsonify({"error": "Please choose a supported language."}), 400
         if not config.DB_URL:
@@ -73,13 +81,13 @@ def update_profile():
             old_university = (cur.fetchone() or {}).get("university") or ""
             if preferred_language is not None:
                 cur.execute("""UPDATE students SET first_name=%s, last_name=%s,
-                               classification=%s, major=%s, university=%s, preferred_language=%s
+                               classification=%s, major=%s, university=%s, university_other_name=%s, preferred_language=%s
                                WHERE id=%s""",
-                            (first_name, last_name, classification, major, university, preferred_language, s["id"]))
+                            (first_name, last_name, classification, major, university, other_university_name, preferred_language, s["id"]))
             else:
                 cur.execute("""UPDATE students SET first_name=%s, last_name=%s,
-                               classification=%s, major=%s, university=%s WHERE id=%s""",
-                            (first_name, last_name, classification, major, university, s["id"]))
+                               classification=%s, major=%s, university=%s, university_other_name=%s WHERE id=%s""",
+                            (first_name, last_name, classification, major, university, other_university_name, s["id"]))
             if old_university.strip().lower() != university.strip().lower():
                 # Remove deadlines that came from the OLD university's global
                 # reference documents — they no longer apply now that the

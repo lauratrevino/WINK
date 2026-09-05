@@ -22,8 +22,9 @@ from ..services.practice import (generate_practice_questions, generate_practice_
                                   generate_study_plan, get_due_questions, grade_quiz_answer,
                                   record_attempt, store_practice_questions)
 from ..services.research import log_answer, record_student_feedback
+from ..services.cron import cron_job
 from ..services.system_prompt import build_chat_instructions
-from ..timeutil import utcnow_naive, resolve_student_timezone
+from ..timeutil import utcnow_naive, resolve_student_timezone, build_date_reference_block
 
 bp = Blueprint("chat", __name__)
 
@@ -149,13 +150,10 @@ def chat():
         # typically treats as "something is actually broken here."
         if not isinstance(messages, list):
             return jsonify({"error": "Invalid request format."}), 400
-        if messages and not (isinstance(messages[-1], dict) and isinstance(messages[-1].get("content"), str)):
-            return jsonify({"error": "Invalid message format."}), 400
-        # The check above only covered the newest message — everything
-        # earlier in this client-supplied history was previously passed
-        # through unchecked (wrong role, non-string content, or huge
-        # individual/combined size), so validate the whole list before
-        # any of it reaches the Anthropic call below.
+        # Validate the WHOLE history in one pass — every message's role,
+        # content type, and individual size, the last one included — so
+        # nothing is checked twice and nothing earlier in the history
+        # slips through unchecked.
         if len(messages) > config.MAX_CHAT_HISTORY_MESSAGES:
             return jsonify({"error": "Too many messages in history."}), 400
         total_chars = 0
@@ -168,11 +166,12 @@ def chat():
             if len(content) > config.MAX_USER_MESSAGE_CHARS:
                 return jsonify({"error": f"A message in the history is too long (max {config.MAX_USER_MESSAGE_CHARS} characters)."}), 400
             total_chars += len(content)
-        if total_chars > config.MAX_CHAT_HISTORY_MESSAGES * config.MAX_USER_MESSAGE_CHARS:
+        # An independent, lower ceiling than MAX_CHAT_HISTORY_MESSAGES *
+        # MAX_USER_MESSAGE_CHARS — see the constant's definition in
+        # config.py for why that product is never actually reachable here.
+        if total_chars > config.MAX_CHAT_HISTORY_TOTAL_CHARS:
             return jsonify({"error": "Combined message history is too long."}), 400
         user_msg = messages[-1]["content"] if messages else ""
-        if isinstance(user_msg, str) and len(user_msg) > config.MAX_USER_MESSAGE_CHARS:
-            return jsonify({"error": f"That message is too long (max {config.MAX_USER_MESSAGE_CHARS} characters). Please shorten it and try again."}), 400
         log_event(s["id"], "question_asked", {"q": user_msg[:200]})
 
         conv_id = data.get("conversation_id")
@@ -219,8 +218,9 @@ def chat():
         # single indexed lookup, not a slow scan, so the serial cost is
         # small — nowhere near worth tripling peak per-request connection
         # usage under concurrent load.
+        now = datetime.now(ZoneInfo(resolve_student_timezone(s)))
         doc_ctx = build_doc_context(docs, question=user_msg, sid=s["id"])
-        deadline_ctx = build_deadlines_context(s["id"])
+        deadline_ctx = build_deadlines_context(s["id"], now=now)
         # build_global_doc_context() now decides internally (via a cheap
         # aggregate query) whether it needs full document content at all —
         # see its docstring in services/documents.py. get_global_doc_names()
@@ -264,25 +264,29 @@ def chat():
             if over_by > 0:
                 temp_doc_ctx = temp_doc_ctx[:max(0, len(temp_doc_ctx) - over_by)]
 
-        now = datetime.now(ZoneInfo(resolve_student_timezone(s)))
         today = now.strftime("%A, %B %d, %Y")
+        date_reference = build_date_reference_block(now)
         # "Other" is a real, selectable option in the registration dropdown
-        # (see universities_list.py) for students whose school isn't listed
-        # — but with no matching free-text field to capture what it
-        # actually is, so student_university can literally be the string
-        # "Other" rather than a real name. Passed straight through, that
-        # produced answers like "let me search for Other's campus map,"
-        # since the AI has no way to know "Other" isn't an actual
-        # institution name. Treating it the same as no university on file
-        # avoids that for every account already stored this way, not just
-        # new registrations after the form is fixed to ask what "Other" is.
-        university_display = student_university if student_university and student_university.strip().lower() != "other" else "their university"
+        # (see universities_list.py) for students whose school isn't listed.
+        # Newer accounts capture what "Other" actually means in
+        # university_other_name (see auth.py's register()); older accounts
+        # created before that field existed have it NULL. Passed straight
+        # through as the literal string "Other" with nothing more specific,
+        # that produced answers like "let me search for Other's campus
+        # map," since the AI has no way to know "Other" isn't an actual
+        # institution name — so fall back to "their university" only when
+        # there's truly nothing more specific on file.
+        if student_university and student_university.strip().lower() == "other":
+            university_display = (s.get("university_other_name") or "").strip() or "their university"
+        else:
+            university_display = student_university or "their university"
         is_utep = "utep" in student_university.lower() or "el paso" in student_university.lower()
         instructions = build_chat_instructions(
             s, today, university_display, is_utep, temp_doc_ctx,
         )
         system = [
             {"type": "text", "text": instructions},
+            {"type": "text", "text": date_reference},
             {"type": "text", "text": deadline_ctx, "cache_control": {"type": "ephemeral"}},
             {"type": "text", "text": global_ctx, "cache_control": {"type": "ephemeral"}},
             {"type": "text", "text": doc_ctx, "cache_control": {"type": "ephemeral"}},
@@ -842,42 +846,15 @@ def unshare_conversation(conv_id):
 
 @bp.route("/purge-deleted-conversations", methods=["POST"])
 @csrf.exempt
-def purge_deleted_conversations():
+@cron_job("purge_deleted_conversations")
+def purge_deleted_conversations(run_id):
     """Hard-deletes conversations that a student soft-deleted more than 3
     months ago. Meant to be called by an external scheduler, same as
-    /send-deadline-reminders — same header-based auth, same run logging."""
-    provided = request.headers.get("X-WINK-Cron-Secret", "")
-    if not provided:
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            provided = auth_header[len("Bearer "):]
-    if not config.CRON_SECRET or not secrets.compare_digest(provided, config.CRON_SECRET):
-        return jsonify({"error": "Not authorized"}), 403
-    if not config.DB_URL:
-        return jsonify({"error": "No database"}), 500
-
+    /send-deadline-reminders — same header-based auth, same run logging
+    (both centralized in services/cron.py)."""
     with db_cursor(commit=True) as cur:
-        cur.execute("INSERT INTO cron_runs(job_name) VALUES('purge_deleted_conversations') RETURNING id")
-        run_id = cur.fetchone()["id"]
-
-    try:
-        with db_cursor(commit=True) as cur:
-            cur.execute("""DELETE FROM conversations
-                           WHERE deleted_at IS NOT NULL AND deleted_at < NOW() - INTERVAL '3 months'
-                           RETURNING id""")
-            purged = cur.fetchall()
-
-        with db_cursor(commit=True) as cur:
-            cur.execute("UPDATE cron_runs SET completed_at=NOW(), number_processed=%s WHERE id=%s",
-                        (len(purged), run_id))
-
-        return jsonify({"purged": len(purged)})
-    except Exception as e:
-        log_error("chat.purge_deleted_conversations", e)
-        try:
-            with db_cursor(commit=True) as cur:
-                cur.execute("UPDATE cron_runs SET completed_at=NOW(), last_error=%s WHERE id=%s",
-                            (str(e)[:500], run_id))
-        except Exception:
-            pass
-        return jsonify({"error": "Something went wrong on our end."}), 500
+        cur.execute("""DELETE FROM conversations
+                       WHERE deleted_at IS NOT NULL AND deleted_at < NOW() - INTERVAL '3 months'
+                       RETURNING id""")
+        purged = cur.fetchall()
+    return {"number_processed": len(purged), "purged": len(purged)}

@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from .. import config
 from ..errors import log_error
 from ..extensions import db_cursor, anthropic_client
+from ..timeutil import relative_day_label
 from .analytics import log_token_usage
 from .json_utils import parse_json_array, strip_json_fence
 
@@ -408,7 +409,7 @@ def detect_deadline_conflicts(sid, window_days=5, min_items=3):
     return clusters
 
 
-def build_deadlines_context(sid):
+def build_deadlines_context(sid, now=None):
     if not config.DB_URL:
         return "\n\nNo deadline data available (no database configured)."
     rows = get_all_deadlines(sid)
@@ -416,6 +417,7 @@ def build_deadlines_context(sid):
         return ("\n\nNo deadlines have been extracted yet. This can mean the student's "
                 "documents don't contain a schedule of specific dates, or nothing has "
                 "been uploaded yet — don't invent dates that aren't in this list.")
+    today = now.date() if now is not None else None
     unconfirmed = [r for r in rows if r.get("status", "detected") == "detected"]
     lines = [f"\n\n{'='*60}\nEXTRACTED DEADLINES — every date-specific item found across "
              f"ALL of the student's uploaded documents ({len(rows)} total). This list is "
@@ -426,7 +428,9 @@ def build_deadlines_context(sid):
              "state one, say the date you have and that a specific time isn't listed — never "
              "invent, infer, or pattern-match a time (e.g. '5:00 p.m.', 'end of day') from "
              "another course or from a general assumption; that is a fabricated detail, not "
-             f"a fact.\n{'='*60}"]
+             "a fact. Each entry's weekday and relative-day label (in parentheses) is "
+             "precomputed and guaranteed correct — read it directly, never recompute or "
+             f"restate a different weekday/relative day for these dates yourself.\n{'='*60}"]
     if unconfirmed:
         lines.append(
             f"NOTE: {len(unconfirmed)} of these are AI-extracted and not yet confirmed by the "
@@ -439,7 +443,14 @@ def build_deadlines_context(sid):
         due = r["due_date"] or "date unknown"
         status = r.get("status", "detected")
         tag = "" if status in ("confirmed", "corrected") else " [unconfirmed]"
-        lines.append(f"- [{r['course']}] {r['title']} — due {due}{tag}")
+        due_label = due
+        if today is not None and r["due_date"]:
+            try:
+                d = datetime.strptime(r["due_date"], "%Y-%m-%d").date()
+                due_label = f"{d.strftime('%A')}, {due} ({relative_day_label(d, today)})"
+            except ValueError:
+                pass
+        lines.append(f"- [{r['course']}] {r['title']} — due {due_label}{tag}")
     lines.append(f"{'='*60}")
 
     conflicts = detect_deadline_conflicts(sid)

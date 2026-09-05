@@ -35,6 +35,7 @@ def research_dashboard():
 @bp.route("/research/rate-answer", methods=["POST"])
 @admin_required
 def rate_answer():
+    data = {}
     try:
         data = request.get_json(silent=True) or {}
         log_id = data.get("log_id")
