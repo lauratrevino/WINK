@@ -361,11 +361,11 @@
                 Are you a first-generation college student?<span class="required-marker" aria-hidden="true">*</span><span class="sr-only"> (required)</span>
               </legend>
               <label style="display:inline-flex; align-items:center; gap:6px; font-weight:normal; margin-right:20px;">
-                <input type="radio" id="first_generation_yes" name="first_generation" value="yes" required style="width:auto;">
+                <input type="radio" id="first_generation_yes" name="first_generation" value="yes" required aria-required="true" style="width:auto;">
                 Yes
               </label>
               <label style="display:inline-flex; align-items:center; gap:6px; font-weight:normal;">
-                <input type="radio" id="first_generation_no" name="first_generation" value="no" required style="width:auto;">
+                <input type="radio" id="first_generation_no" name="first_generation" value="no" required aria-required="true" style="width:auto;">
                 No
               </label>
             </fieldset>
@@ -373,7 +373,7 @@
 
           <div class="form-group">
             <label style="display:flex; align-items:flex-start; gap:8px; font-weight:normal;">
-              <input type="checkbox" id="age_confirm" name="age_confirm" required style="width:auto; margin-top:3px;">
+              <input type="checkbox" id="age_confirm" name="age_confirm" required aria-required="true" style="width:auto; margin-top:3px;">
               <span>I confirm that I am 18 years of age or older.<span class="required-marker" aria-hidden="true">*</span><span class="sr-only"> (required)</span></span>
             </label>
           </div>
@@ -455,12 +455,12 @@
       </div>
       <div class="terms-consents">
         <label class="consent-row">
-          <input type="checkbox" id="terms-check" name="terms_agree" form="register-form">
-          <span><strong>I have read and agree to the WINK Terms of Agreement and Privacy Policy, including the collection of my data as described in the Privacy Policy under “Information We Collect” and “Research Data.”</strong> (See above for policy link)</span>
+          <input type="checkbox" id="terms-check" name="terms_agree" form="register-form" aria-required="true">
+          <span><strong>I have read and agree to the WINK Terms of Agreement and Privacy Policy, including the collection of my data as described in the Privacy Policy under “Information We Collect” and “Research Data.”</strong> (See above for policy link)<span class="required-marker" aria-hidden="true">*</span><span class="sr-only"> (required)</span></span>
         </label>
         <label class="consent-row">
-          <input type="checkbox" id="research-check" name="research_agree" form="register-form">
-          <span><strong>I understand that, separately from Dr. Trevino's standing administrative access described above (which applies regardless of this checkbox), my WINK data will be collected and analyzed for research purposes. Research access is limited to Dr. Trevino and research team members who need it for the study, and data will be anonymized before use in research publications or presentations. I understand that Dr. Trevino is the instructor of record for this course section, that recruitment and consent for this study is handled by a teaching assistant rather than by Dr. Trevino directly, and that participating, declining, or later withdrawing has no effect on my grades, course standing, relationship with the instructor, or access to any standard university resource.</strong> (See above for policy link)</span>
+          <input type="checkbox" id="research-check" name="research_agree" form="register-form" aria-required="true">
+          <span><strong>I understand that, separately from Dr. Trevino's standing administrative access described above (which applies regardless of this checkbox), my WINK data will be collected and analyzed for research purposes. Research access is limited to Dr. Trevino and research team members who need it for the study, and data will be anonymized before use in research publications or presentations. I understand that Dr. Trevino is the instructor of record for this course section, that recruitment and consent for this study is handled by a teaching assistant rather than by Dr. Trevino directly, and that participating, declining, or later withdrawing has no effect on my grades, course standing, relationship with the instructor, or access to any standard university resource.</strong> (See above for policy link)<span class="required-marker" aria-hidden="true">*</span><span class="sr-only"> (required)</span></span>
         </label>
         <div class="terms-actions">
           <button type="button" class="terms-cancel-btn" id="terms-cancel">Cancel</button>
