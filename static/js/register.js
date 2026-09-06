@@ -32,20 +32,139 @@
       }
     })();
 
-    (function setupOtherUniversityToggle() {
-      const select = document.getElementById('university');
-      const group = document.getElementById('other_university_group');
-      const input = document.getElementById('other_university_name');
-      if (!select || !group || !input) return;
+    (function setupUniversityCombobox() {
+      const input = document.getElementById('university-input');
+      const listbox = document.getElementById('university-listbox');
+      const otherGroup = document.getElementById('other_university_group');
+      const otherInput = document.getElementById('other_university_name');
+      const data = (window.WINK_REGISTER_DATA && window.WINK_REGISTER_DATA.universities) || [];
+      if (!input || !listbox || !otherGroup || !otherInput) return;
 
-      function sync() {
-        const isOther = select.value === 'Other';
-        group.style.display = isOther ? '' : 'none';
-        input.required = isOther;
-        if (!isOther) input.value = '';
+      const MAX_RESULTS = 50;
+      let activeIndex = -1;   // index into the CURRENTLY RENDERED <li> options, not into `data`
+      let options = [];       // the <li> elements currently rendered
+
+      function syncOtherField() {
+        const isOther = input.value === 'Other';
+        otherGroup.style.display = isOther ? '' : 'none';
+        otherInput.required = isOther;
+        if (!isOther) otherInput.value = '';
       }
-      select.addEventListener('change', sync);
-      sync(); // in case the browser restored a previous value on reload
+
+      function closeListbox() {
+        listbox.hidden = true;
+        input.setAttribute('aria-expanded', 'false');
+        input.setAttribute('aria-activedescendant', '');
+        activeIndex = -1;
+        options = [];
+      }
+
+      function setActive(index) {
+        if (activeIndex >= 0 && options[activeIndex]) {
+          options[activeIndex].classList.remove('is-active');
+        }
+        activeIndex = index;
+        if (activeIndex >= 0 && options[activeIndex]) {
+          const opt = options[activeIndex];
+          opt.classList.add('is-active');
+          if (opt.scrollIntoView) opt.scrollIntoView({ block: 'nearest' });
+          input.setAttribute('aria-activedescendant', opt.id);
+        } else {
+          input.setAttribute('aria-activedescendant', '');
+        }
+      }
+
+      function selectValue(value) {
+        input.value = value;
+        syncOtherField();
+        closeListbox();
+      }
+
+      function renderOptions() {
+        const query = input.value.trim().toLowerCase();
+        listbox.textContent = ''; // clear via DOM, not innerHTML — nothing untrusted here anyway,
+                                   // but this avoids ever re-parsing university names as markup
+        options = [];
+
+        if (!query) { closeListbox(); return; }
+
+        const matches = data.filter(function(name) {
+          return name.toLowerCase().indexOf(query) !== -1;
+        }).slice(0, MAX_RESULTS);
+
+        if (matches.length === 0) {
+          const empty = document.createElement('li');
+          empty.className = 'uni-combobox-empty';
+          empty.setAttribute('role', 'presentation');
+          empty.textContent = 'No matches — check the spelling, or type "Other" if your school isn\'t listed.';
+          listbox.appendChild(empty);
+          listbox.hidden = false;
+          input.setAttribute('aria-expanded', 'true');
+          return;
+        }
+
+        matches.forEach(function(name, i) {
+          const li = document.createElement('li');
+          li.id = 'uni-opt-' + i;
+          li.className = 'uni-combobox-option';
+          li.setAttribute('role', 'option');
+          li.setAttribute('aria-selected', String(name === input.value));
+          li.textContent = name;
+          // mousedown (not click) + preventDefault keeps focus on the
+          // input the whole time — otherwise the input's blur handler
+          // would close the listbox before the click ever registers.
+          li.addEventListener('mousedown', function(e) {
+            e.preventDefault();
+            selectValue(name);
+          });
+          listbox.appendChild(li);
+          options.push(li);
+        });
+
+        listbox.hidden = false;
+        input.setAttribute('aria-expanded', 'true');
+        setActive(0); // auto-highlight the top match so Enter is immediately useful
+      }
+
+      input.addEventListener('input', renderOptions);
+
+      input.addEventListener('keydown', function(e) {
+        if (listbox.hidden && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+          renderOptions();
+          return;
+        }
+        if (listbox.hidden) return;
+
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          if (options.length) setActive(Math.min(activeIndex + 1, options.length - 1));
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          if (options.length) setActive(Math.max(activeIndex - 1, 0));
+        } else if (e.key === 'Enter') {
+          if (activeIndex >= 0 && options[activeIndex]) {
+            e.preventDefault();
+            selectValue(options[activeIndex].textContent);
+          }
+        } else if (e.key === 'Escape') {
+          closeListbox();
+        }
+      });
+
+      // Clicking anywhere outside closes the list (mousedown-preventDefault
+      // above already handles clicks on the options themselves).
+      document.addEventListener('mousedown', function(e) {
+        if (e.target !== input && !listbox.contains(e.target)) closeListbox();
+      });
+
+      input.addEventListener('blur', function() {
+        // A tiny delay so an in-progress option mousedown (which calls
+        // selectValue synchronously before blur fires) isn't undone by
+        // this — belt-and-suspenders alongside preventDefault above.
+        setTimeout(closeListbox, 0);
+      });
+
+      syncOtherField(); // in case the browser restored a previous value on reload
     })();
 
     (function setupTermsGate() {

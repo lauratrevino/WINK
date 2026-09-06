@@ -119,6 +119,33 @@
       border-color: #FF8200; background: #ffffff; box-shadow: 0 0 0 3px rgba(255,130,0,0.12);
     }
 
+    /* University combobox — replaces a plain <select> with 2,338 options
+       (unusable to scroll through on a phone) with search-as-you-type.
+       Implements the WAI-ARIA "combobox with listbox popup" pattern:
+       https://www.w3.org/WAI/ARIA/apg/patterns/combobox/ */
+    .uni-combobox { position: relative; }
+    .uni-combobox-input {
+      /* 16px, not the shared 13px other fields use — below 16px, iOS
+         Safari auto-zooms the whole page on focus, which is exactly the
+         kind of "not elegant on phones" this field was built to fix. */
+      font-size: 16px !important;
+    }
+    .uni-combobox-listbox {
+      position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 20;
+      margin: 0; padding: 4px; list-style: none;
+      background: #fff; border: 1.5px solid #dde3f0; border-radius: 10px;
+      box-shadow: 0 12px 32px rgba(0,40,85,0.16);
+      max-height: 260px; overflow-y: auto;
+    }
+    .uni-combobox-listbox[hidden] { display: none; }
+    .uni-combobox-option {
+      padding: 9px 11px; border-radius: 7px; font-size: 14px; color: #002855;
+      cursor: pointer; scroll-margin-block: 4px;
+    }
+    .uni-combobox-option.is-active { background: #fff3e6; color: #FF8200; }
+    .uni-combobox-option[aria-selected="true"] { font-weight: 700; }
+    .uni-combobox-empty { padding: 9px 11px; font-size: 13px; color: #9ca3af; font-style: italic; }
+
     .field-with-icon { position: relative; display: flex; align-items: center; }
     .field-with-icon input { padding-right: 34px; }
     .field-icon-btn {
@@ -291,12 +318,17 @@
           </div>
 
           <div class="form-group">
-            <label for="university">Choose your University. If you are not a student choose Other.<span class="required-marker" aria-hidden="true">*</span><span class="sr-only"> (required)</span></label>
-            <select id="university" name="university" required aria-required="true" aria-label="University">
-              <option value="">Select your university...</option>
-                  <option value="Other" style="font-weight:700;">Other (not currently a student, or my school isn't listed)</option>
-                  {% for u in universities[1:] %}<option value="{{ u }}">{{ u }}</option>{% endfor %}
-            </select>
+            <label for="university-input">Choose your University. If you are not a student choose Other.<span class="required-marker" aria-hidden="true">*</span><span class="sr-only"> (required)</span></label>
+            <div class="uni-combobox">
+              <input type="text" id="university-input" name="university" class="uni-combobox-input"
+                     role="combobox" aria-expanded="false" aria-autocomplete="list"
+                     aria-controls="university-listbox" aria-activedescendant=""
+                     aria-required="true" required autocomplete="off" autocapitalize="off"
+                     autocorrect="off" spellcheck="false"
+                     placeholder="Start typing your university…">
+              <ul id="university-listbox" role="listbox" class="uni-combobox-listbox" aria-label="Matching universities" hidden></ul>
+            </div>
+            <p class="field-hint">Not currently a student, or your school isn't listed? Type "Other".</p>
           </div>
 
           <div class="form-group" id="other_university_group" style="display:none;">
@@ -470,6 +502,9 @@
     </div>
   </div>
 
+      <script nonce="{{ csp_nonce() }}">
+        window.WINK_REGISTER_DATA = { universities: {{ universities | tojson }} };
+      </script>
       <script src="{{ static_url('js/register.js') }}"></script>
 
 </body>
