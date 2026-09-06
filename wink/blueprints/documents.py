@@ -1,6 +1,5 @@
 import logging
 import os
-import threading
 import uuid
 
 from flask import Blueprint, abort, current_app, g, jsonify, render_template, request, send_file
@@ -9,7 +8,7 @@ from werkzeug.utils import secure_filename
 
 from .. import config
 from ..errors import log_error
-from ..extensions import generate_csrf_token, db_cursor
+from ..extensions import generate_csrf_token, db_cursor, run_in_background
 from ..security import login_required, page_login_required, admin_required, file_signature_valid, rate_limited, verified_required
 from ..services.analytics import log_event
 from ..services.course_colors import ensure_course_colors, purge_course_data_if_gone
@@ -219,19 +218,33 @@ def upload_file():
                 except Exception as e: log_error("documents.upload.orphan_cleanup", e)
             raise
 
-        deadlines_found = 0
-        if new_doc_id and content:
-            deadlines = extract_deadlines(content, student_id=s["id"])
-            if deadlines and config.DB_URL:
-                insert_deadlines(s["id"], new_doc_id, course, deadlines)
-                deadlines_found = len(deadlines)
+        # Deadline extraction is an Anthropic API call (frequently several
+        # seconds) — previously ran inline, meaning every single-document
+        # upload held its gunicorn worker thread (and its checked-out DB
+        # connection) hostage for that whole call. Fine at pilot volume;
+        # at thousands of concurrent uploads that's exactly the kind of
+        # thing that exhausts worker threads/DB pool slots under load. The
+        # document itself is already fully saved and usable by the time
+        # the response returns below — this only affects when its
+        # deadlines show up on the calendar, by (typically) a few seconds.
+        # deadlines_found was previously returned here but nothing in the
+        # frontend reads it (documents.html's upload handler only checks
+        # `data.error`/`data.docs`), so it's dropped rather than reported
+        # as 0/stale.
+        if new_doc_id and content and config.DB_URL:
+            def _extract_and_insert(student_id, doc_id, course_label, doc_content):
+                deadlines = extract_deadlines(doc_content, student_id=student_id)
+                if deadlines:
+                    insert_deadlines(student_id, doc_id, course_label, deadlines)
+            run_in_background(current_app._get_current_object(), _extract_and_insert,
+                               s["id"], new_doc_id, course, content)
 
         log_event(s["id"], "file_replaced" if replaced else "file_uploaded",
-                  {"name": orig, "course": course, "crn": crn, "chars": len(content), "deadlines": deadlines_found})
+                  {"name": orig, "course": course, "crn": crn, "chars": len(content)})
         invalidate_student_docs_cache(s["id"])
         return jsonify({
             "success": True, "docs": get_docs(s["id"]), "chars_extracted": len(content),
-            "replaced": replaced, "deadlines_found": deadlines_found,
+            "replaced": replaced,
             "no_ocr_warning": ext in config.IMAGE_EXTS_NO_OCR
         })
     except Exception as e:
@@ -270,7 +283,7 @@ def list_global_documents():
     return jsonify({"docs": get_global_docs(university or None)})
 
 
-def _assign_global_deadlines_in_background(app, new_doc_id, content, university, label, orig, triggered_by_id):
+def _assign_global_deadlines_in_background(new_doc_id, content, university, label, orig, triggered_by_id):
     """Runs the AI deadline extraction and per-student deadline insertion for
     a just-uploaded global document, off the request thread. This is the
     part that scales with student count and involves an AI call — for a
@@ -280,31 +293,31 @@ def _assign_global_deadlines_in_background(app, new_doc_id, content, university,
     is already fully usable for retrieval by the time this starts; this
     thread only handles pre-populating deadlines from it.
 
-    Needs its own Flask app context — get_db() relies on Flask's per-request
-    `g`, which doesn't exist on a bare background thread."""
-    with app.app_context():
-        try:
-            deadlines = extract_deadlines(content, student_id=triggered_by_id)
-            if not deadlines:
-                return
-            with db_cursor() as cur:
-                # Only assign to students who can actually receive/see them — a
-                # suspended or self-deleted account shouldn't accumulate new
-                # deadlines from material uploaded after they left.
-                if university == "ALL":
-                    cur.execute("SELECT id FROM students WHERE is_active IS TRUE AND account_deleted_at IS NULL")
-                else:
-                    cur.execute("""SELECT id FROM students WHERE lower(university)=lower(%s)
-                                   AND is_active IS TRUE AND account_deleted_at IS NULL""", (university,))
-                student_ids = [r["id"] for r in cur.fetchall()]
-            for student_id in student_ids:
-                insert_deadlines(student_id, new_doc_id, label, deadlines)
-            logger.info(
-                "GLOBAL UPLOAD (background): %s (%s) → %d deadline(s) applied to %d student(s)",
-                orig, university, len(deadlines), len(student_ids),
-            )
-        except Exception as e:
-            log_error("documents.global_upload_background_deadlines", e, document_id=new_doc_id)
+    Runs via the shared bg_executor (see run_in_background), which already
+    supplies the app context get_db() needs — no bare background thread
+    here, and no unbounded thread creation under a burst of admin uploads."""
+    try:
+        deadlines = extract_deadlines(content, student_id=triggered_by_id)
+        if not deadlines:
+            return
+        with db_cursor() as cur:
+            # Only assign to students who can actually receive/see them — a
+            # suspended or self-deleted account shouldn't accumulate new
+            # deadlines from material uploaded after they left.
+            if university == "ALL":
+                cur.execute("SELECT id FROM students WHERE is_active IS TRUE AND account_deleted_at IS NULL")
+            else:
+                cur.execute("""SELECT id FROM students WHERE lower(university)=lower(%s)
+                               AND is_active IS TRUE AND account_deleted_at IS NULL""", (university,))
+            student_ids = [r["id"] for r in cur.fetchall()]
+        for student_id in student_ids:
+            insert_deadlines(student_id, new_doc_id, label, deadlines)
+        logger.info(
+            "GLOBAL UPLOAD (background): %s (%s) → %d deadline(s) applied to %d student(s)",
+            orig, university, len(deadlines), len(student_ids),
+        )
+    except Exception as e:
+        log_error("documents.global_upload_background_deadlines", e, document_id=new_doc_id)
 
 
 @bp.route("/upload-global", methods=["POST"])
@@ -393,12 +406,9 @@ def upload_global_document():
             except Exception as e: log_error("documents.upload_global.replace_cleanup", e)
 
         if new_doc_id and content and config.DB_URL:
-            app_obj = current_app._get_current_object()
-            threading.Thread(
-                target=_assign_global_deadlines_in_background,
-                args=(app_obj, new_doc_id, content, university, label, orig, s["id"]),
-                daemon=True,
-            ).start()
+            run_in_background(current_app._get_current_object(),
+                               _assign_global_deadlines_in_background,
+                               new_doc_id, content, university, label, orig, s["id"])
 
         invalidate_global_docs_cache(None if university == "ALL" else university)
         log_event(s["id"], "global_file_uploaded",

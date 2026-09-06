@@ -1,5 +1,6 @@
 import logging
 import time
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 
 import httpx
@@ -12,6 +13,31 @@ from flask import g
 from . import config
 
 logger = logging.getLogger(__name__)
+
+# Shared, bounded pool for fire-and-forget background work that shouldn't
+# hold up a request/response cycle (deadline extraction after an upload,
+# etc.) but also shouldn't be free to spawn an unbounded number of raw
+# threads under load. See config.BG_EXECUTOR_MAX_WORKERS for why.
+bg_executor = ThreadPoolExecutor(
+    max_workers=config.BG_EXECUTOR_MAX_WORKERS,
+    thread_name_prefix="wink-bg",
+)
+
+
+def run_in_background(app, fn, *args, **kwargs):
+    """Submits fn(*args, **kwargs) to the shared background executor,
+    inside the given Flask app's app_context (background threads have no
+    request context, so any code that touches get_db()/g needs one).
+    Any exception is logged and swallowed here rather than left to crash
+    silently in an executor worker thread with nothing watching it.
+    """
+    def _wrapped():
+        with app.app_context():
+            try:
+                fn(*args, **kwargs)
+            except Exception:
+                logger.exception("Background job %s failed", getattr(fn, "__name__", fn))
+    return bg_executor.submit(_wrapped)
 
 try:
     from flask_wtf import CSRFProtect

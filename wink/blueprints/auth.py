@@ -15,6 +15,7 @@ from ..services.analytics import _anonymize_student_sql, log_event
 from ..services.deadlines import extract_deadlines, insert_deadlines
 from ..services.email import send_email
 from ..timeutil import utcnow_naive, is_valid_timezone
+from ..universities_list import UNIVERSITIES
 from ..mfa_crypto import decrypt_mfa_secret, encrypt_mfa_secret
 from .demo import delete_demo_student
 
@@ -39,7 +40,8 @@ def register():
             return jsonify(success=False, error=msg), 400
         return render_template("register.html", error=msg,
                                classifications=config.CLASSIFICATIONS, majors=config.MAJORS,
-                               preferred_languages=config.PREFERRED_LANGUAGES)
+                               preferred_languages=config.PREFERRED_LANGUAGES,
+                               universities=UNIVERSITIES)
     try:
         if request.method == "POST":
             email = request.form.get("email", "").strip().lower()
@@ -195,7 +197,8 @@ def register():
             return redirect(redirect_url)
         return render_template("register.html", error=None,
                                classifications=config.CLASSIFICATIONS, majors=config.MAJORS,
-                               preferred_languages=config.PREFERRED_LANGUAGES)
+                               preferred_languages=config.PREFERRED_LANGUAGES,
+                               universities=UNIVERSITIES)
     except Exception as e:
         log_error("auth.register", e)
         return err("Something went wrong on our end. Please try again in a moment.")

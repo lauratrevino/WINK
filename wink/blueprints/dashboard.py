@@ -11,6 +11,7 @@ from ..services.deadlines import get_upcoming_deadlines
 from ..services.documents import get_docs
 from ..services.motivation import get_motivation
 from ..services.progress import get_student_progress
+from ..universities_list import UNIVERSITIES
 
 bp = Blueprint("dashboard", __name__)
 
@@ -39,6 +40,7 @@ def dashboard():
                                upcoming_deadlines=upcoming_deadlines,
                                questions_this_month=questions_this_month,
                                classifications=config.CLASSIFICATIONS, majors=config.MAJORS,
+                               universities=UNIVERSITIES,
                                course_colors=course_colors, progress=progress,
                                encouragement=encouragement)
     except Exception as e:

@@ -9,6 +9,7 @@ from ..services.analytics import (anonymize_student_record, compute_engagement_i
                                    get_demo_usage_stats, get_student_summaries,
                                    get_total_token_usage, log_event, safe_payload)
 from ..services.health import run_health_checks, overall_status
+from ..universities_list import UNIVERSITIES
 
 bp = Blueprint("admin", __name__)
 
@@ -19,7 +20,7 @@ def analytics_page():
     try:
         s = g.student
         log_event(s["id"], "page_view", {"page": "analytics"})
-        return render_template("analytics.html", s=s, active="analytics")
+        return render_template("analytics.html", s=s, active="analytics", universities=UNIVERSITIES)
     except Exception as e:
         log_error("admin.analytics_page", e)
         return f"<h2>Something went wrong</h2><p>Please try again, or <form method='POST' action='/logout' style='display:inline'><input type='hidden' name='csrf_token' value='{generate_csrf_token()}'><button type='submit' style='background:none;border:none;padding:0;color:#0645AD;text-decoration:underline;cursor:pointer;font:inherit;'>log out</button></form> and back in.</p>", 500

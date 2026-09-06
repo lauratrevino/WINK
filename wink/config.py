@@ -111,6 +111,16 @@ MAX_CHAT_HISTORY_TOTAL_CHARS = 24000
 DB_POOL_MIN = int(os.environ.get("DB_POOL_MIN", "1"))
 DB_POOL_MAX = int(os.environ.get("DB_POOL_MAX", "20"))
 
+# Bounded pool for off-request background work (per-student deadline
+# extraction after a document upload, global-document deadline fan-out).
+# Deliberately NOT raw threading.Thread() per job: at low pilot volume
+# that's harmless, but at thousands of concurrent uploads it lets a burst
+# create unbounded threads inside a single gunicorn worker process, each
+# holding a DB connection from the (fixed-size) pool above — that's the
+# failure mode this caps. Jobs beyond capacity queue rather than spawning
+# more threads; each still runs eventually, just not all at once.
+BG_EXECUTOR_MAX_WORKERS = int(os.environ.get("BG_EXECUTOR_MAX_WORKERS", "8"))
+
 STATIC_CACHE_MAX_AGE_SECONDS = int(os.environ.get("STATIC_CACHE_MAX_AGE_SECONDS", str(60 * 60 * 24)))
 
 RETRIEVAL_CHUNK_CHARS = 1000
