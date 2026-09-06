@@ -303,6 +303,11 @@ def chat():
         def generate():
             full_reply = []
             usage = None
+            # Default so a failure before the stream body runs (e.g. the
+            # initial API call itself raising — auth error, outage) still
+            # leaves this defined; it's referenced unconditionally in
+            # log_answer() below regardless of how generate() exits.
+            web_search_provenance = ""
             try:
                 with client.messages.stream(
                     model=config.CHAT_MODEL,
