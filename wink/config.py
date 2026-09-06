@@ -121,6 +121,13 @@ DB_POOL_MAX = int(os.environ.get("DB_POOL_MAX", "20"))
 # more threads; each still runs eventually, just not all at once.
 BG_EXECUTOR_MAX_WORKERS = int(os.environ.get("BG_EXECUTOR_MAX_WORKERS", "8"))
 
+# How long a cached campus-resource lookup (Financial Aid, Counseling,
+# Advising, etc. — see services/campus_resources.py) stays valid before
+# it's treated as stale and re-fetched on the next refresh run. Contact
+# info for these offices changes rarely, so this favors fewer live
+# lookups over hour-to-hour freshness.
+CAMPUS_RESOURCE_CACHE_MAX_AGE_DAYS = int(os.environ.get("CAMPUS_RESOURCE_CACHE_MAX_AGE_DAYS", "30"))
+
 STATIC_CACHE_MAX_AGE_SECONDS = int(os.environ.get("STATIC_CACHE_MAX_AGE_SECONDS", str(60 * 60 * 24)))
 
 RETRIEVAL_CHUNK_CHARS = 1000

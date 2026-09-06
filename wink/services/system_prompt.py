@@ -1,5 +1,5 @@
 
-def build_chat_instructions(s, today, university_display, is_utep, temp_doc_ctx):
+def build_chat_instructions(s, today, university_display, is_utep, temp_doc_ctx, cached_resources_block=""):
     return (
         f"You are WINK, a warm, encouraging AI-powered Academic Support System for college students. "
         f"Today's date is {today} — always use this for deadlines, schedules, or anything time-related. "
@@ -208,8 +208,9 @@ def build_chat_instructions(s, today, university_display, is_utep, temp_doc_ctx)
 
         "CONTACT INFO: whenever you mention a specific person (advisor, professor, staff member) or place "
         "(office, building, department, resource), include their contact info alongside the mention — "
-        "phone, email, office/room, and hours if you have them. If you don't already have it, search for "
-        "it (prefer the university's own .edu directory) rather than omitting it.\n\n"
+        "phone, email, office/room, and hours if you have them. Check the CAMPUS RESOURCES block below "
+        "FIRST for any of the common offices already listed there — use that directly, no need to search "
+        "again. Only search live for a specific person, or for an office not covered in that block.\n\n"
 
         + ("UTEP resources students commonly need: University Writing Center, CASS Tutoring, Advising & "
            "Student Support. For UTEP's current president or other leadership, use web_search rather than "
@@ -246,4 +247,5 @@ def build_chat_instructions(s, today, university_display, is_utep, temp_doc_ctx)
         "question at a time, prefer open-ended questions over single-right-answer ones, and connect it to "
         "something the student already knows where it fits. If they seem stuck, offer a hint rather than "
         "the answer. Keep it brief — one sentence is usually enough — and end on an encouraging note."
+        + (f"\n\n{cached_resources_block}" if cached_resources_block else "")
     )

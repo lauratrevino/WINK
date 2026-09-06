@@ -5,9 +5,11 @@ from flask import Blueprint, g, jsonify, render_template
 
 from .. import config
 from ..errors import log_error
-from ..extensions import generate_csrf_token
+from ..extensions import csrf, db_cursor, generate_csrf_token
 from ..security import admin_page_required, page_login_required
 from ..services.analytics import log_event
+from ..services.campus_resources import refresh_all_known_resources
+from ..services.cron import cron_job
 from ..services.health import run_health_checks, overall_status
 
 bp = Blueprint("misc", __name__)
@@ -117,3 +119,30 @@ def health_page():
     except Exception as e:
         log_error("misc.health_page", e)
         return jsonify({"status": overall}), (200 if overall != "fail" else 503)
+
+
+@bp.route("/refresh-campus-resources", methods=["POST"])
+@csrf.exempt
+@cron_job("refresh_campus_resources")
+def refresh_campus_resources(run_id):
+    """Refreshes the cached campus-resource contact info (Financial Aid,
+    Counseling, Advising, etc. — see services/campus_resources.py) for
+    every university with at least one active student, so the chat
+    system prompt can serve these from cache instead of running a live
+    web_search on every message that touches one of these offices. Meant
+    to be called periodically (e.g. weekly) by an external scheduler,
+    same pattern as /send-deadline-reminders and /send-weekly-digest."""
+    with db_cursor() as cur:
+        cur.execute("""SELECT DISTINCT university FROM students
+                       WHERE is_active IS TRUE AND account_deleted_at IS NULL
+                       AND university IS NOT NULL AND university <> '' AND university <> 'Other'""")
+        universities = [r["university"] for r in cur.fetchall()]
+
+    processed = 0
+    failed = 0
+    for university in universities:
+        results = refresh_all_known_resources(university)
+        processed += 1
+        failed += sum(1 for ok in results.values() if not ok)
+
+    return {"number_processed": processed, "number_failed": failed, "universities": universities}

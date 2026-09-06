@@ -1,6 +1,6 @@
 # Scheduled jobs
 
-Four scripts here each trigger one scheduled WINK endpoint. None of them
+Five scripts here each trigger one scheduled WINK endpoint. None of them
 run themselves — something external (a Render Cron Job, a system
 crontab, GitHub Actions on a schedule, etc.) has to invoke each script on
 the cadence below. Every endpoint is authenticated by the
@@ -14,6 +14,7 @@ scripts — not just in the deployed app's environment.
 | `send_weekly_digest.sh` | `POST /send-weekly-digest` | once a week, Monday morning | Yes — the endpoint itself skips a duplicate send within 6 days. |
 | `purge_deleted_conversations.sh` | `POST /purge-deleted-conversations` | once a day | Yes — idempotent; nothing to purge between runs beyond what newly crossed 3 months. |
 | `purge_expired_demos.sh` | `POST /purge-expired-demos` | once a day (or more) | Yes — idempotent. |
+| `refresh_campus_resources.sh` | `POST /refresh-campus-resources` | once a week | Yes, but wasteful — this info (office phone/email/hours) changes rarely, so running it more often just spends extra Anthropic + web_search calls per office per university for no real freshness gain. |
 
 ## Configuration
 

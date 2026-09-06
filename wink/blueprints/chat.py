@@ -24,6 +24,7 @@ from ..services.practice import (generate_practice_questions, generate_practice_
 from ..services.research import log_answer, record_student_feedback
 from ..services.cron import cron_job
 from ..services.system_prompt import build_chat_instructions
+from ..services.campus_resources import get_resources_context_block
 from ..timeutil import utcnow_naive, resolve_student_timezone, build_date_reference_block
 
 bp = Blueprint("chat", __name__)
@@ -279,8 +280,9 @@ def chat():
         else:
             university_display = student_university or "their university"
         is_utep = "utep" in student_university.lower() or "el paso" in student_university.lower()
+        cached_resources_block = get_resources_context_block(student_university)
         instructions = build_chat_instructions(
-            s, today, university_display, is_utep, temp_doc_ctx,
+            s, today, university_display, is_utep, temp_doc_ctx, cached_resources_block,
         )
         system = [
             {"type": "text", "text": instructions},
