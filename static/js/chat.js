@@ -1,11 +1,15 @@
-    // The nonce this exact script tag was rendered with (Jinja's
-    // csp_nonce() above) — same value the response's CSP header used for
-    // BOTH script-src-elem and style-src-elem (see _set_csp_nonce() /
-    // set_security_headers() in wink/__init__.py). Captured now, while
-    // document.currentScript is still valid, so it can be reused later
-    // inside async callbacks (resolveDiagramMarkers() below) where
-    // document.currentScript would no longer point here.
-    const CSP_NONCE = document.currentScript ? document.currentScript.nonce : '';
+    // The nonce this page was rendered with (Jinja's csp_nonce(), passed
+    // through from templates/chat.html's small inline bridge script as
+    // window.WINK_CHAT_DATA.cspNonce) — same value the response's CSP
+    // header used for BOTH script-src-elem and style-src-elem (see
+    // _set_csp_nonce() / set_security_headers() in wink/__init__.py).
+    // NOTE: this file is loaded via <script src>, not inline, so
+    // document.currentScript.nonce is empty here — the external tag
+    // itself has no nonce attribute (none needed for 'self'-sourced
+    // scripts) and doesn't inherit the page's per-request nonce. Reading
+    // it from WINK_CHAT_DATA instead is what actually carries the real
+    // value through.
+    const CSP_NONCE = (window.WINK_CHAT_DATA && window.WINK_CHAT_DATA.cspNonce) || '';
 
     // Handles broken images from markdown embeds (see formatMessage()'s
     // wink-md-image class below) — 'error' events don't bubble, so this
