@@ -65,6 +65,18 @@ logger.info(
     EMAIL_CONFIGURED, SMTP_HOST, SMTP_USER, SMTP_PORT,
 )
 CRON_SECRET = os.environ.get("CRON_SECRET", "")
+
+# Gates real (non-demo) registration during Phase 1, when the approved IRB
+# population is a specific ~25-student course section, not the general
+# public — even though mywink.ai is a public URL with no other access
+# control. Distributed by the TA to eligible students (not by the PI
+# directly), consistent with the protocol's existing anti-coercion design
+# for recruitment. Deliberately OFF (no gate at all) when this is unset —
+# that's the intended state once a future, broader-population phase gets
+# its own IRB approval and this restriction is meant to lift; the wide
+# university/classification list already sitting in the UI is exactly
+# that anticipated future scaling, just not switched on yet.
+WINK_ACCESS_CODE = os.environ.get("WINK_ACCESS_CODE", "").strip()
 # Optional extra hardening for the SES bounce/complaint webhook — if set,
 # incoming notifications are also checked against this specific SNS topic
 # ARN, on top of the signature verification that always applies. Leave

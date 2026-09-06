@@ -41,7 +41,7 @@ def register():
         return render_template("register.html", error=msg,
                                classifications=config.CLASSIFICATIONS, majors=config.MAJORS,
                                preferred_languages=config.PREFERRED_LANGUAGES,
-                               universities=UNIVERSITIES)
+                               universities=UNIVERSITIES, access_code_required=bool(config.WINK_ACCESS_CODE))
     try:
         if request.method == "POST":
             email = request.form.get("email", "").strip().lower()
@@ -64,6 +64,17 @@ def register():
                 return err("Too many attempts from this network — please wait a while and try again.")
             if rate_limited(f"register:{request.remote_addr}:{email}", max_calls=8, window_seconds=300):
                 return err("Too many attempts — please wait a few minutes and try again.")
+            # Phase 1's approved population is a specific ~25-student course
+            # section, not the general public — even though this page is a
+            # public URL. See config.WINK_ACCESS_CODE for why this is
+            # conditional (unset = no gate, the intended state once a wider
+            # population has its own IRB approval). Checked before any other
+            # field so a wrong/missing code fails fast without validating
+            # (or revealing anything about) the rest of the submission.
+            if config.WINK_ACCESS_CODE:
+                submitted_code = request.form.get("access_code", "").strip()
+                if not secrets.compare_digest(submitted_code.upper(), config.WINK_ACCESS_CODE.upper()):
+                    return err("That access code isn't valid. Check with your instructor for the correct code.")
             pw = request.form.get("password", "").strip()
             fn = request.form.get("first_name", "").strip()[:100]
             ln = request.form.get("last_name", "").strip()[:100]
@@ -198,7 +209,7 @@ def register():
         return render_template("register.html", error=None,
                                classifications=config.CLASSIFICATIONS, majors=config.MAJORS,
                                preferred_languages=config.PREFERRED_LANGUAGES,
-                               universities=UNIVERSITIES)
+                               universities=UNIVERSITIES, access_code_required=bool(config.WINK_ACCESS_CODE))
     except Exception as e:
         log_error("auth.register", e)
         return err("Something went wrong on our end. Please try again in a moment.")
