@@ -64,6 +64,34 @@ class TestRefreshResource:
             ok = cr.refresh_resource("Test University", "financial_aid", "Financial Aid Office")
             assert ok is False
 
+    def test_empty_code_fence_fails_gracefully_not_crashing(self, app, monkeypatch):
+        """A second, subtler version of the same underlying failure: the
+        model emits an opening/closing ```json fence with nothing real
+        inside it (still likely a max_tokens cutoff, just after the fence
+        marker instead of before any text at all). This passes the
+        not-empty check on the RAW text but must not reach json.loads on
+        an empty string after fence-stripping."""
+        import wink.services.campus_resources as cr
+
+        fake = FakeAnthropicClient(FakeResponse([FakeTextBlock("```json```")], stop_reason="max_tokens"))
+        monkeypatch.setattr(cr, "anthropic_client", fake)
+
+        with app.app_context():
+            ok = cr.refresh_resource("Test University", "financial_aid", "Financial Aid Office")
+            assert ok is False
+
+    def test_malformed_non_json_text_fails_gracefully_not_crashing(self, app, monkeypatch):
+        """Any other genuinely malformed (non-empty, non-fence) response
+        text should also fail cleanly rather than raising."""
+        import wink.services.campus_resources as cr
+
+        fake = FakeAnthropicClient(FakeResponse([FakeTextBlock("Sorry, I couldn't find that.")]))
+        monkeypatch.setattr(cr, "anthropic_client", fake)
+
+        with app.app_context():
+            ok = cr.refresh_resource("Test University", "financial_aid", "Financial Aid Office")
+            assert ok is False
+
     def test_json_wrapped_in_markdown_fence_still_parses(self, app, monkeypatch):
         import wink.services.campus_resources as cr
 

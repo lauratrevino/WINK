@@ -114,22 +114,23 @@ def refresh_resource(university, resource_key, display_name):
     try:
         resp = anthropic_client.messages.create(
             model=config.CHAT_MODEL,
-            # Was 1024 — too tight once a real web_search call is involved.
-            # The search results (query + returned snippets) get counted as
-            # part of this same turn's output before the model ever gets to
-            # write its actual JSON answer, so a small budget means the
-            # response hits max_tokens and stops with NO text block at all —
-            # exactly the "Expecting value: line 1 column 1 (char 0)" empty-
-            # string JSON error this produced. Same failure shape, same fix,
-            # as extract_deadlines() needed for the same reason.
-            max_tokens=4096,
-            tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 3}],
+            # Was 1024, then 4096 — both still too tight in practice.
+            # web_search's own returned snippets count against this same
+            # budget before the model reaches its actual answer, and a
+            # thorough multi-query search can use meaningfully more of it
+            # than expected. Also capping max_uses at 1 below (was 3) —
+            # one good search is enough to find an office's contact page,
+            # and each additional search this makes room for eats further
+            # into the budget for no real benefit for a lookup this simple.
+            max_tokens=8192,
+            tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 1}],
             system=(
                 "You look up current, real contact info for a specific university "
-                "office. Use web_search to find the office's actual current phone "
-                "number, email, physical location/room, and hours — prefer the "
-                "university's own .edu pages. Respond with ONLY a JSON object, no "
-                "other text, in exactly this shape: "
+                "office. Use web_search ONCE to find the office's actual current "
+                "phone number, email, physical location/room, and hours — prefer "
+                "the university's own .edu pages; a single good search is enough, "
+                "don't search repeatedly. Respond with ONLY a JSON object, no "
+                "other text, no markdown code fence, in exactly this shape: "
                 '{"found": true, "contact_info": "Phone: ... | Email: ... | '
                 'Location: ... | Hours: ...", "source_urls": ["https://..."]} '
                 '— include only the fields you actually found (omit a piece '
@@ -164,7 +165,34 @@ def refresh_resource(university, resource_key, display_name):
             if raw.startswith("json"):
                 raw = raw[4:]
             raw = raw.strip()
-        data = json.loads(raw)
+        if not raw:
+            # A response that WAS just a fence with nothing meaningful
+            # inside it (e.g. "```json```") passes the check above (it's
+            # non-empty before stripping) but ends up empty here — same
+            # underlying cause (cut off before writing real content), just
+            # caught at a different point. Without this second check this
+            # fell straight into json.loads("") and raised an opaque
+            # JSONDecodeError instead of failing gracefully like the
+            # no-text-at-all case above.
+            logger.warning(
+                "Campus resource lookup for %s / %s was just an empty code "
+                "fence with no real content (stop_reason=%s).",
+                university, display_name, getattr(resp, "stop_reason", None),
+            )
+            return False
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            # Log enough of the actual raw text to diagnose a genuinely
+            # new failure shape without needing another round trip —
+            # truncated since this could in principle contain a very long
+            # response.
+            logger.warning(
+                "Campus resource lookup for %s / %s returned text that "
+                "wasn't valid JSON (stop_reason=%s): %r",
+                university, display_name, getattr(resp, "stop_reason", None), raw[:300],
+            )
+            return False
         if not data.get("found"):
             logger.info("Campus resource lookup found nothing for %s / %s", university, display_name)
             return False
