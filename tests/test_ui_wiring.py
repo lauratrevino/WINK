@@ -20,7 +20,13 @@ class TestNewUIWiring:
         r = client.get("/dashboard")
         assert r.status_code == 200
         assert b"conflict-card" in r.data
-        assert b"loadDeadlineConflicts" in r.data
+        # loadDeadlineConflicts itself now lives in static/js/dashboard.js
+        # (extracted out of an inline <script> block) rather than in the
+        # page's own HTML — fetch it the same way a browser would and
+        # check there instead of assuming it's still inline.
+        js = client.get("/static/js/dashboard.js")
+        assert js.status_code == 200
+        assert b"loadDeadlineConflicts" in js.data
 
     def test_documents_page_has_doc_type_selector(self, client):
         register(client)
@@ -48,8 +54,12 @@ class TestNewUIWiring:
         register(client)
         r = client.get("/chat-page")
         assert r.status_code == 200
-        assert b"addFeedbackButtons" in r.data
-        assert b"submitFeedback" in r.data
+        # Same as the dashboard conflict-widget case above: these functions
+        # now live in static/js/chat.js, not inline in the page HTML.
+        js = client.get("/static/js/chat.js")
+        assert js.status_code == 200
+        assert b"addFeedbackButtons" in js.data
+        assert b"submitFeedback" in js.data
 
     def test_practice_page_reflects_real_uploaded_courses(self, client):
         register(client)

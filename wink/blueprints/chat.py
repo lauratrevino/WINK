@@ -18,6 +18,7 @@ from ..services.analytics import log_event, log_token_usage, parse_conversation_
 from ..services.deadlines import build_deadlines_context
 from ..services.documents import (build_doc_context, build_global_doc_context, get_docs,
                                    get_global_doc_names)
+from ..services.retrieval import embed_texts
 from ..services.practice import (generate_practice_questions, generate_practice_summary,
                                   generate_study_plan, get_due_questions, grade_quiz_answer,
                                   record_attempt, store_practice_questions)
@@ -218,7 +219,24 @@ def chat():
         # small — nowhere near worth tripling peak per-request connection
         # usage under concurrent load.
         now = datetime.now(ZoneInfo(resolve_student_timezone(s)))
-        doc_ctx = build_doc_context(docs, question=user_msg, sid=s["id"])
+        # Shared, memoized query-embedding getter: build_doc_context()
+        # (student's own documents) and build_global_doc_context()
+        # (general reference material) both independently rank their
+        # chunks against this SAME question text when neural retrieval
+        # is active — without sharing this, that was two separate live
+        # Voyage API round trips per chat message for an identical
+        # embedding input. This computes it at most once, on whichever
+        # of the two calls below actually needs it first (or never, if
+        # neither ends up doing neural ranking — e.g. everything fits
+        # in full-context mode).
+        _query_embeddings_cache = {}
+        def _get_query_embeddings():
+            if "v" not in _query_embeddings_cache:
+                _query_embeddings_cache["v"] = (
+                    embed_texts([user_msg], input_type="query") if config.VOYAGE_API_KEY else None
+                )
+            return _query_embeddings_cache["v"]
+        doc_ctx = build_doc_context(docs, question=user_msg, sid=s["id"], get_query_embeddings=_get_query_embeddings)
         deadline_ctx = build_deadlines_context(s["id"], now=now)
         # build_global_doc_context() now decides internally (via a cheap
         # aggregate query) whether it needs full document content at all —
@@ -226,7 +244,7 @@ def chat():
         # is a separate, deliberately cheap (no content) lookup purely for
         # citation verification below, so that check doesn't force a full
         # fetch either.
-        global_ctx = build_global_doc_context(student_university, question=user_msg)
+        global_ctx = build_global_doc_context(student_university, question=user_msg, get_query_embeddings=_get_query_embeddings)
 
         # Every filename actually shown to the model this turn — a
         # citation naming anything outside this set (see

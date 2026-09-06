@@ -411,7 +411,7 @@ def get_global_chunks(university, question=None):
         log_error("services.documents.get_global_chunks", e); return []
 
 
-def build_doc_context(docs, question=None, sid=None):
+def build_doc_context(docs, question=None, sid=None, get_query_embeddings=None):
     if not docs:
         return "\n\nThe student has not uploaded any course documents yet."
 
@@ -449,7 +449,7 @@ def build_doc_context(docs, question=None, sid=None):
             chunk_texts = [c["content"] for c in chunk_rows]
             chunk_embeddings = [c["embedding"] for c in chunk_rows]
             top = rank_chunks(question, chunk_texts, config.RETRIEVAL_TOP_N_STUDENT_DOCS,
-                              chunk_embeddings=chunk_embeddings)
+                              chunk_embeddings=chunk_embeddings, get_query_embeddings=get_query_embeddings)
             def _labeled(d):
                 crn = (d.get("crn") or "").strip()
                 return f"{d['orig_name']} ({d['course']}, CRN {crn})" if crn else f"{d['orig_name']} ({d['course']})"
@@ -585,7 +585,7 @@ def get_global_doc_names(university=None):
         log_error("services.documents.get_global_doc_names", e); return []
 
 
-def build_global_doc_context(university=None, question=None):
+def build_global_doc_context(university=None, question=None, get_query_embeddings=None):
     """Builds the general-reference-material context for a chat message.
 
     Deliberately does not take a pre-fetched docs list as a parameter —
@@ -628,7 +628,7 @@ def build_global_doc_context(university=None, question=None):
             chunk_texts = [c["content"] for c in chunk_rows]
             chunk_embeddings = [c["embedding"] for c in chunk_rows]
             top = rank_chunks(question, chunk_texts, config.RETRIEVAL_TOP_N_GLOBAL_DOCS,
-                              chunk_embeddings=chunk_embeddings)
+                              chunk_embeddings=chunk_embeddings, get_query_embeddings=get_query_embeddings)
             ctx = intro + footer_note
             ctx += f"{'='*60}\n\n"
             ctx += "\n\n---\n\n".join(top)

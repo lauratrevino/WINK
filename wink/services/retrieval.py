@@ -89,10 +89,19 @@ def embed_texts(texts, input_type):
         return None
 
 
-def _rank_neural(question, chunks, chunk_embeddings):
+def _rank_neural(question, chunks, chunk_embeddings, get_query_embeddings=None):
     if not voyage_client or chunk_embeddings is None or any(e is None for e in chunk_embeddings):
         raise NotImplementedError
-    query_embeddings = embed_texts([question], input_type="query")
+    # get_query_embeddings, when given, is a zero-arg callable that
+    # computes-and-memoizes the query embedding on its FIRST call only —
+    # see chat.py. A single chat message calls rank_chunks() twice (once
+    # for the student's own documents, once for global reference
+    # material), and both need an embedding of the exact same question
+    # text; without sharing it, that was two separate live Voyage API
+    # round trips per message for identical input. Falls back to
+    # embedding it directly here when no callable is given (e.g. direct
+    # callers, tests) — same behavior as before this existed.
+    query_embeddings = get_query_embeddings() if get_query_embeddings else embed_texts([question], input_type="query")
     if not query_embeddings:
         raise NotImplementedError
     # cosine_similarity (already used for the TF-IDF path above) rather
@@ -106,13 +115,13 @@ def _rank_neural(question, chunks, chunk_embeddings):
     return sorted(range(len(chunks)), key=lambda i: sims[i], reverse=True)
 
 
-def rank_chunks(question, chunks, top_n, chunk_embeddings=None):
+def rank_chunks(question, chunks, top_n, chunk_embeddings=None, get_query_embeddings=None):
     if not chunks:
         return []
     if len(chunks) <= top_n:
         return chunks
     try:
-        order = _rank_neural(question, chunks, chunk_embeddings)
+        order = _rank_neural(question, chunks, chunk_embeddings, get_query_embeddings=get_query_embeddings)
     except NotImplementedError:
         order = _rank_tfidf(question, chunks)
     return [chunks[i] for i in order[:top_n]]
