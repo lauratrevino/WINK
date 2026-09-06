@@ -17,8 +17,8 @@ bp = Blueprint("misc", __name__)
 _APP_START_TIME = time.time()
 
 
-PRIVACY_EFFECTIVE_DATE = "Monday, August 17th, 2026"
-TERMS_EFFECTIVE_DATE = "Monday, August 17th, 2026"
+PRIVACY_EFFECTIVE_DATE = "Tuesday, September 1st, 2026"
+TERMS_EFFECTIVE_DATE = "Tuesday, September 1st, 2026"
 
 
 @bp.route("/")
