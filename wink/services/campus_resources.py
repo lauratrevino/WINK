@@ -114,7 +114,15 @@ def refresh_resource(university, resource_key, display_name):
     try:
         resp = anthropic_client.messages.create(
             model=config.CHAT_MODEL,
-            max_tokens=1024,
+            # Was 1024 — too tight once a real web_search call is involved.
+            # The search results (query + returned snippets) get counted as
+            # part of this same turn's output before the model ever gets to
+            # write its actual JSON answer, so a small budget means the
+            # response hits max_tokens and stops with NO text block at all —
+            # exactly the "Expecting value: line 1 column 1 (char 0)" empty-
+            # string JSON error this produced. Same failure shape, same fix,
+            # as extract_deadlines() needed for the same reason.
+            max_tokens=4096,
             tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 3}],
             system=(
                 "You look up current, real contact info for a specific university "
@@ -136,6 +144,18 @@ def refresh_resource(university, resource_key, display_name):
         )
         text_blocks = [b.text for b in resp.content if getattr(b, "type", None) == "text"]
         raw = "".join(text_blocks).strip()
+        if not raw:
+            # Distinguish this from a malformed-JSON case below — this
+            # means the model never emitted a text block at all (most
+            # likely hit max_tokens mid-search, or refused for some other
+            # reason). stop_reason makes that diagnosable directly from
+            # logs instead of just an opaque empty-string JSON error.
+            logger.warning(
+                "Campus resource lookup for %s / %s returned no text at all "
+                "(stop_reason=%s) — likely ran out of max_tokens mid-search.",
+                university, display_name, getattr(resp, "stop_reason", None),
+            )
+            return False
         # Same tolerant fence-stripping as elsewhere (see json_utils) —
         # the model occasionally wraps JSON in a ```json fence despite
         # being asked not to.

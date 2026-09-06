@@ -28,7 +28,7 @@ def clean_db(app):
     with app.app_context():
         conn = get_db(); cur = conn.cursor()
         cur.execute("""TRUNCATE students, documents, events, password_resets,
-                       deadlines, conversations, rate_limits RESTART IDENTITY CASCADE""")
+                       deadlines, conversations, rate_limits, campus_resources RESTART IDENTITY CASCADE""")
         conn.commit(); cur.close()
     yield
 
