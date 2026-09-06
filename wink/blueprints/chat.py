@@ -334,26 +334,48 @@ def chat():
                     messages=messages,
                     tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": config.WEB_SEARCH_MAX_USES}]
                 ) as stream:
-                    # IMPORTANT: do NOT stream stream.text_stream live. When the
-                    # model uses web_search, Anthropic returns the model's own
-                    # narration text ("Let me search for that...", "The search
-                    # results don't show...") as real interleaved text blocks
-                    # between search calls — those land in text_stream exactly
-                    # like the real answer does. Streaming that live means the
-                    # student sees WINK's search process instead of a finished
-                    # answer, no matter what the system prompt says not to do —
-                    # this is a transport problem, not a wording problem, and no
-                    # prompt instruction can fix it. Instead, drain the stream
-                    # silently (keeping the raw text as a fallback below), then
-                    # from the assembled final message keep only the text
-                    # block(s) that come after the LAST tool-related block —
-                    # that's the actual finished answer. Everything before it
-                    # was narration or intermediate search commentary.
+                    # Real, live, word-by-word streaming — but ONLY for a
+                    # response that never touches web_search. When the model
+                    # searches, Anthropic returns its own narration text
+                    # ("Let me search for that...", "The search results
+                    # don't show...") as real interleaved text blocks around
+                    # the tool calls — streaming that live would show the
+                    # student WINK's search process instead of a finished
+                    # answer, no matter what the system prompt says not to
+                    # do (a transport problem, not a wording one). The
+                    # ordinary case — a course/document question with no
+                    # search — is the common one and gets full live
+                    # streaming; a search-triggered response falls back to
+                    # the previous drain-then-filter behavior below, exactly
+                    # as before.
+                    #
+                    # The decision is made ONCE, from the very FIRST content
+                    # block of the response: if it's a tool block, this turn
+                    # is treated as search-triggered for its entire duration;
+                    # if it's plain text, every text delta streams live as it
+                    # arrives. This relies on Claude reliably deciding to
+                    # search (emitting a tool_use/server_tool_use block)
+                    # BEFORE any narration text, rather than narrating in
+                    # prose first — true in practice, and reinforced by the
+                    # system prompt's existing "no narrating your own
+                    # process" instruction. It is not a hard guarantee: a
+                    # response that starts with plain text and only decides
+                    # to search partway through would still leak that
+                    # opening text live. Accepted tradeoff for the large,
+                    # common-case latency win — see chat speed notes.
+                    stream_live = None
                     raw_text_accum = []
-                    for delta in stream.text_stream:
-                        raw_text_accum.append(delta)
+                    for event in stream:
+                        etype = getattr(event, "type", None)
+                        if etype == "content_block_start" and stream_live is None:
+                            block_type = getattr(event.content_block, "type", None)
+                            stream_live = block_type not in ("server_tool_use", "web_search_tool_result", "tool_use")
+                        elif etype == "text":
+                            raw_text_accum.append(event.text)
+                            if stream_live:
+                                full_reply.append(event.text)
+                                yield event.text
                     raw_text = "".join(raw_text_accum)
-                    web_search_provenance = ""
                     final_answer = ""
                     try:
                         final_message = stream.get_final_message()
@@ -403,17 +425,21 @@ def chat():
                         web_search_provenance = "\n".join(provenance_lines)
                     except Exception as e:
                         log_error("chat.stream_usage", e)
-                    # Prefer the filtered final_answer (it correctly excludes
-                    # any pre-tool-call narration text) — but if it came back
-                    # empty, either because the model never used a tool at all
-                    # and get_final_message()/content didn't populate as
-                    # expected, or because get_final_message() isn't available
-                    # at all, fall back to the raw drained text so a real reply
-                    # is never silently dropped to nothing.
-                    reply_text = final_answer or raw_text
-                    if reply_text:
-                        full_reply.append(reply_text)
-                        yield reply_text
+                    if not stream_live:
+                        # Nothing has been sent to the student yet (the
+                        # model used a tool) — send the filtered final
+                        # answer now, all at once, same as before this
+                        # change. Prefer the filtered final_answer (it
+                        # correctly excludes any pre-tool-call narration
+                        # text) — but if it came back empty, either because
+                        # get_final_message()/content didn't populate as
+                        # expected, or isn't available at all, fall back to
+                        # the raw drained text so a real reply is never
+                        # silently dropped to nothing.
+                        reply_text = final_answer or raw_text
+                        if reply_text:
+                            full_reply.append(reply_text)
+                            yield reply_text
             except anthropic.RateLimitError as e:
                 log_error("chat.stream", e, category="AI_RATE_LIMIT")
                 yield "\n\nWINK is getting a lot of questions right now. Please wait a moment and try again."

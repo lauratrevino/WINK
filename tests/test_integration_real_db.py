@@ -176,10 +176,23 @@ class TestChatWithRealDBFakeModel:
         class FakeStream:
             def __enter__(self): return self
             def __exit__(self, *a): return False
-            @property
-            def text_stream(self):
-                yield "The "
-                yield "answer."
+            def __iter__(self):
+                class _Block:
+                    type = "text"
+                class _Event:
+                    def __init__(self, type_, content_block=None, text=None):
+                        self.type = type_; self.content_block = content_block; self.text = text
+                yield _Event("content_block_start", content_block=_Block())
+                yield _Event("text", text="The ")
+                yield _Event("text", text="answer.")
+            def get_final_message(self):
+                class _Usage:
+                    input_tokens = 0; output_tokens = 0
+                    cache_creation_input_tokens = 0; cache_read_input_tokens = 0
+                class _Msg:
+                    usage = _Usage()
+                    content = []
+                return _Msg()
         class FakeMessages:
             def stream(self, **kwargs): return FakeStream()
         class FakeClient:

@@ -330,9 +330,14 @@ class TestPreStreamContextParallelization:
         def __exit__(self, *a):
             return False
 
-        @property
-        def text_stream(self):
-            yield self._text
+        def __iter__(self):
+            class _Block:
+                type = "text"
+            class _Event:
+                def __init__(self, type_, content_block=None, text=None):
+                    self.type = type_; self.content_block = content_block; self.text = text
+            yield _Event("content_block_start", content_block=_Block())
+            yield _Event("text", text=self._text)
 
         def get_final_message(self):
             class _Usage:

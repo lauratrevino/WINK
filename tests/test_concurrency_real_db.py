@@ -17,10 +17,24 @@ class SlowFakeStream:
     def __exit__(self, *a):
         return False
 
-    @property
-    def text_stream(self):
+    def __iter__(self):
+        class _Block:
+            type = "text"
+        class _Event:
+            def __init__(self, type_, content_block=None, text=None):
+                self.type = type_; self.content_block = content_block; self.text = text
         time.sleep(self.delay)
-        yield "Answer."
+        yield _Event("content_block_start", content_block=_Block())
+        yield _Event("text", text="Answer.")
+
+    def get_final_message(self):
+        class _Usage:
+            input_tokens = 0; output_tokens = 0
+            cache_creation_input_tokens = 0; cache_read_input_tokens = 0
+        class _Msg:
+            usage = _Usage()
+            content = []
+        return _Msg()
 
 
 class SlowFakeMessages:
