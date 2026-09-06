@@ -96,8 +96,10 @@ def _chunks(resp):
 class TestChatStreaming:
     def test_ordinary_answer_streams_incrementally(self, client, app, monkeypatch):
         import wink.blueprints.chat as chat_module
+        import wink.config as config
 
         register(client)
+        monkeypatch.setattr(config, "ANTHROPIC_API_KEY", "fake-key-for-test")
         csrf_token = _chat_csrf_token(client)
 
         events = [
@@ -120,8 +122,10 @@ class TestChatStreaming:
         finished answer after the search, sent as a single chunk, exactly
         as before live streaming was added for the ordinary case."""
         import wink.blueprints.chat as chat_module
+        import wink.config as config
 
         register(client)
+        monkeypatch.setattr(config, "ANTHROPIC_API_KEY", "fake-key-for-test")
         csrf_token = _chat_csrf_token(client)
 
         events = [
@@ -144,9 +148,11 @@ class TestChatStreaming:
 
     def test_search_provenance_still_recorded_for_research(self, client, app, monkeypatch):
         import wink.blueprints.chat as chat_module
+        import wink.config as config
         from wink.extensions import get_db
 
         register(client)
+        monkeypatch.setattr(config, "ANTHROPIC_API_KEY", "fake-key-for-test")
         csrf_token = _chat_csrf_token(client)
 
         events = [
