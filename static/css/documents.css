@@ -282,10 +282,18 @@
     @media (max-width: 720px) {
 
       .hero-card {
-        justify-content: flex-start; padding: 24px; aspect-ratio: auto; min-height: 0;
+        justify-content: flex-start; padding: 20px; aspect-ratio: auto; min-height: 220px;
       }
+      /* This was a flat 92%-opaque color covering the ENTIRE card — on
+         desktop ::before is a gradient that fades to transparent on the
+         right so the WINK image shows through there, but the mobile
+         override dropped the fade and just left a wall of near-opaque
+         color over the whole thing, hiding the image completely. A
+         top-to-bottom gradient keeps the text readable up top (where it
+         sits) while actually letting the image show through the lower
+         part of the card, the way the desktop version does on its side. */
       .hero-card::before {
-        background: rgba(244,246,251,0.92);
+        background: linear-gradient(180deg, rgba(244,246,251,0.94) 0%, rgba(244,246,251,0.78) 55%, rgba(244,246,251,0.30) 100%);
       }
       .hero-text { flex-basis: auto; max-width: 100%; }
       table { font-size: 13px; }
