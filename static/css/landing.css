@@ -1,6 +1,15 @@
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { height: 100%; margin: 0; padding: 0; overflow-x: hidden; }
+    /* min-height (not height) + overflow-x on html only: an explicit
+       height:100% on body combined with overflow-x:hidden makes the
+       browser treat body as its own internally-scrolling box (a CSS
+       overflow-computation quirk — setting one axis non-visible forces
+       the other to "auto" too), which is exactly the kind of setup
+       that gets confused by mobile Safari's address bar resizing the
+       viewport. This keeps the normal, single page-level scroll on
+       every screen size instead. */
+    html { overflow-x: hidden; }
+    html, body { min-height: 100%; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; background: #f0f2f8; }
 
     .hero {

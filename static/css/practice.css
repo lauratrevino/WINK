@@ -68,6 +68,32 @@
     .empty-state { text-align: center; padding: 32px 16px; color: #6b7a99; font-size: 13px; }
     .loading-spinner { text-align: center; padding: 24px; color: #6b7a99; font-size: 13px; }
 
-    .attach-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+    .attach-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
     .attach-row input[type="file"] { font-size: 13px; }
     .attach-status { font-size: 12px; color: #6b7a99; }
+
+    @media (max-width: 640px) {
+      .page-shell { padding: 18px 14px 48px; }
+      .page-header h1 { font-size: 20px; }
+      .card { padding: 16px 14px; }
+
+      /* Course / Type / How-many were a strict row that squeezed each
+         field down to an unreadable width on a phone — stack them and
+         let each take the full card width instead. */
+      .form-row { flex-direction: column; align-items: stretch; gap: 12px; }
+      .form-group { min-width: 0; }
+      /* #count-group has an inline max-width:120px (set by the template
+         for the desktop 3-up row) — override it here so it goes full
+         width once the row stacks, instead of leaving a cramped little
+         number box on its own line. */
+      #count-group { max-width: none !important; }
+      .form-group input, .form-group select {
+        /* 16px avoids iOS Safari's zoom-on-focus (anything under 16px
+           triggers it) — same fix used on grades.html and chat.html. */
+        font-size: 16px; padding: 11px 12px;
+      }
+
+      #generate-btn { width: 100%; justify-content: center; }
+      .attach-row { flex-direction: column; align-items: stretch; gap: 8px; }
+      .attach-row label.btn { width: 100%; justify-content: center; text-align: center; }
+    }

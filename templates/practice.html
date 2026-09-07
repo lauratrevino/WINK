@@ -83,6 +83,26 @@
     .results-actions { display: flex; justify-content: flex-end; margin-bottom: 8px; }
 
     #print-area { display: none; }
+
+    @media (max-width: 640px) {
+      /* Flashcards were a fixed 260px tile in a wrapping row — fine on
+         desktop, but on a narrow phone that leaves an awkward sliver of
+         empty space next to a single card. Let each card fill the
+         available width instead, up to a sensible reading width. */
+      .flashcard-grid { justify-content: center; }
+      .flashcard-wrap { width: 100%; max-width: 320px; }
+      .flashcard { height: 190px; }
+      .flashcard-face { padding: 14px; }
+
+      .quiz-option { padding: 11px 14px; font-size: 15px; }
+      .quiz-score-tally { margin-left: 0; margin-top: 6px; }
+
+      .summary-block { padding: 16px 18px; }
+
+      .course-dropdown-wrap input#course-input,
+      #qtype-input, #count-input { font-size: 16px; }
+    }
+
     @media print {
       body * { visibility: hidden; }
       #print-area, #print-area * { visibility: visible; }
