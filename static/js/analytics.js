@@ -431,13 +431,21 @@
       if (!overlay) {
         overlay = document.createElement('div');
         overlay.id = 'demo-convo-overlay';
-        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,20,40,0.5);display:flex;align-items:center;justify-content:center;z-index:9999;';
-        overlay.innerHTML = `<div style="background:#fff;border-radius:12px;max-width:640px;width:90%;max-height:80vh;display:flex;flex-direction:column;">
-          <div style="padding:16px 20px;border-bottom:1px solid #eef0f6;display:flex;justify-content:space-between;align-items:center;">
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,20,40,0.5);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;box-sizing:border-box;';
+        // overflow:hidden + min-width:0 on the card, and flex:1;min-height:0
+        // on the scrolling body, are all needed together for a flex-column
+        // modal like this to actually clip/scroll its content instead of
+        // spilling out past its own rounded-corner box once the content
+        // (Pages visited table + every Q&A exchange) is tall enough to
+        // exceed max-height -- without them the overflow just renders
+        // outside the white card with no background behind it, letting
+        // the page underneath show through it.
+        overlay.innerHTML = `<div style="background:#fff;border-radius:12px;max-width:640px;width:90%;max-height:80vh;display:flex;flex-direction:column;overflow:hidden;min-width:0;">
+          <div style="padding:16px 20px;border-bottom:1px solid #eef0f6;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;">
             <h3 style="margin:0;font-size:16px;color:#002855;">Demo session detail</h3>
             <button id="demo-convo-close" style="background:none;border:none;font-size:18px;cursor:pointer;color:#6b7a99;">✕</button>
           </div>
-          <div id="demo-convo-body" style="padding:16px 20px;overflow-y:auto;"></div>
+          <div id="demo-convo-body" style="padding:16px 20px;overflow-y:auto;flex:1;min-height:0;"></div>
         </div>`;
         document.body.appendChild(overlay);
         overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
