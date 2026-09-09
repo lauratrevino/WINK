@@ -7,78 +7,42 @@ from flask import Blueprint, jsonify, redirect, request, session, url_for
 from werkzeug.security import generate_password_hash
 
 from .. import config
-from ..errors import log_error
 from ..extensions import csrf, db_cursor
 from ..security import rate_limited
 from ..services.cron import cron_job
+from ..services.demo import end_demo_session
 
 bp = Blueprint("demo", __name__)
 DEMO_TTL_HOURS = 6
 
 
-def _log_demo_session_ended(cur, student_id, reason):
-    # A SAVEPOINT here, not just a bare try/except, matters for a reason
-    # that already caused a real bug: if any statement below fails against
-    # Postgres, the whole transaction is poisoned (Postgres refuses every
-    # further command until a rollback) even though this function's own
-    # `except Exception: pass` looks like it safely swallowed the error.
-    # The caller's NEXT statement in the same transaction (delete_demo_student's
-    # UPDATE right after this call, or _purge_expired's UPDATE in its loop)
-    # would then fail too, with an unrelated-looking "current transaction is
-    # aborted" error — which is exactly what happened when demo_sessions was
-    # missing a column this INSERT expected. Rolling back to a savepoint
-    # undoes only this function's own statements, leaving whatever the
-    # caller already did earlier in the same transaction intact.
-    cur.execute("SAVEPOINT log_demo_session_ended")
-    try:
-        cur.execute("SELECT created_at FROM students WHERE id=%s", (student_id,))
-        row = cur.fetchone()
-        if not row:
-            cur.execute("RELEASE SAVEPOINT log_demo_session_ended")
-            return
-        started_at = row["created_at"]
-        cur.execute("SELECT COUNT(*) as n FROM events WHERE student_id=%s AND event_type='question_asked'",
-                    (student_id,))
-        questions_asked = cur.fetchone()["n"] or 0
-        duration_seconds = max(0, int((datetime.utcnow() - started_at).total_seconds()))
-        cur.execute("""INSERT INTO demo_sessions(started_at, ended_at, duration_seconds, questions_asked, ended_reason, student_id)
-                       VALUES (%s, NOW(), %s, %s, %s, %s)""",
-                    (started_at, duration_seconds, questions_asked, reason, student_id))
-        cur.execute("RELEASE SAVEPOINT log_demo_session_ended")
-    except Exception as e:
-        cur.execute("ROLLBACK TO SAVEPOINT log_demo_session_ended")
-        log_error("demo.log_session_ended", e, student_id=student_id)
-
-
 def _purge_expired(cur):
-    """Ends expired demo sessions WITHOUT deleting anything — the account
-    row, its uploaded/seeded documents, its events, and its conversations
-    are all kept indefinitely so every demo run remains visible in
-    Analytics (statistics + full conversation content), not just a
-    one-line summary. is_active=FALSE is what actually stops this from
-    re-matching on the next run (demo_expires_at alone would just keep
-    re-selecting the same rows forever) and also removes it from
-    'Active Right Now' in the demo usage stats. Returns the number of
-    sessions actually ended, so callers don't need a separate count query
-    that could get out of sync with what was actually processed."""
+    """Ends expired demo sessions WITHOUT deleting anything -- see
+    services/demo.py's end_demo_session for why. is_active=FALSE is what
+    actually stops this from re-matching on the next run (demo_expires_at
+    alone would just keep re-selecting the same rows forever) and also
+    removes it from 'Active Right Now' in the demo usage stats. Returns
+    the number of sessions actually ended, so callers don't need (and
+    can't get out of sync with) a separate count query -- see
+    purge_expired_demos_cron's history for what happens when the two
+    counts disagree."""
     cur.execute("SELECT id FROM students WHERE is_demo=TRUE AND is_active=TRUE AND demo_expires_at < NOW()")
     expired = [r["id"] for r in cur.fetchall()]
     for sid in expired:
-        _log_demo_session_ended(cur, sid, "expired")
-        cur.execute("UPDATE students SET is_active=FALSE WHERE id=%s", (sid,))
+        end_demo_session(cur, sid, "expired")
     return len(expired)
 
 
 def delete_demo_student(student_id, reason="logout"):
     """Historically hard-deleted the demo account on logout/replacement.
-    Now just ends the session the same way expiry does (see _purge_expired
-    above) — nothing is deleted, so the demo's statistics and full
-    conversation history stay available in Analytics."""
+    Now just ends the session the same non-destructive way expiry does
+    (services/demo.py's end_demo_session) -- nothing is deleted, so the
+    demo's statistics and full conversation history stay available in
+    Analytics."""
     if not student_id or not config.DB_URL:
         return
     with db_cursor(commit=True) as cur:
-        _log_demo_session_ended(cur, student_id, reason)
-        cur.execute("UPDATE students SET is_active=FALSE WHERE id=%s AND is_demo=TRUE", (student_id,))
+        end_demo_session(cur, student_id, reason)
 
 
 def _seed_demo(cur, sid):

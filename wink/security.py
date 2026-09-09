@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 from . import config
 from .extensions import get_db, db_cursor
+from .services.demo import end_demo_session
 
 
 class AuthCheckUnavailable(Exception):
@@ -59,10 +60,19 @@ def current_student():
         if s and s.get("is_demo") and s.get("demo_expires_at"):
             from datetime import datetime
             if s["demo_expires_at"] <= datetime.utcnow():
+                # Ends the session the same non-destructive way logout and
+                # the daily purge cron do (see services/demo.py's
+                # end_demo_session) — this used to hard-delete the demo's
+                # events and account row right here, which silently threw
+                # away everything the moment anyone revisited an expired
+                # demo link, without even recording a demo_sessions row
+                # for it. Nothing is deleted now: the account, its
+                # documents, events, and conversations all stay in place
+                # for Analytics, just marked inactive so it stops being
+                # treated as a live demo session.
                 sid = s["id"]
                 cur = conn.cursor()
-                cur.execute("DELETE FROM events WHERE student_id=%s", (sid,))
-                cur.execute("DELETE FROM students WHERE id=%s AND is_demo=TRUE", (sid,))
+                end_demo_session(cur, sid, "expired")
                 conn.commit(); cur.close()
                 session.clear()
                 return None
