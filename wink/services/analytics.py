@@ -188,7 +188,12 @@ def get_page_time_breakdown(cur, student_id):
     cur.execute("""
         SELECT event_type, payload, created_at FROM events
         WHERE student_id=%s ORDER BY created_at ASC""", (student_id,))
-    rows = cur.fetchall()
+    # Demo accounts carry ~48 backdated fake page_view events per session
+    # (see _seed_demo) so a fresh visitor's dashboard looks populated --
+    # those aren't real visits, and their old timestamps would also throw
+    # off the gap-based time calculation below, so they're dropped
+    # entirely rather than just excluded from the visit count.
+    rows = [r for r in cur.fetchall() if not safe_payload(r["payload"]).get("seeded")]
     pages = {}
     for i, r in enumerate(rows):
         if r["event_type"] != "page_view":

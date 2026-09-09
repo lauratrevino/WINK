@@ -429,20 +429,30 @@ Tue Dec. 15 | Grades Due | Tue Dec. 15 – Grades Due"""),
                        VALUES(%s,%s,%s,%s,%s,%s,%s,%s,NOW()-INTERVAL '2 days')""",
                     (sid,course,q,a,e,interval,streak,today+timedelta(days=interval)))
 
+    # Every event below is fabricated backstory (backdated up to 7 weeks
+    # before this account even existed) purely so a brand-new demo visitor
+    # immediately sees a populated dashboard/progress chart instead of an
+    # empty one. It is NOT something the visitor did. Each payload carries
+    # "seeded": True so admin-facing analytics (real questions asked, real
+    # pages visited/time spent) can tell it apart from the visitor's actual
+    # activity -- without that flag, these ~24 fake "questions" and ~48
+    # fake "page views" per demo session silently swamped the real counts
+    # (a visitor who asked exactly 1 real question showed up as having
+    # asked 25).
     event_rows=[]
     for weeks_ago in range(7,-1,-1):
         base=datetime.utcnow()-timedelta(weeks=weeks_ago)
         for dayoff in (0,2,4):
             at=base+timedelta(days=dayoff)
             event_rows.extend([
-                ("page_view",{"page":"dashboard"},at),
-                ("page_view",{"page":"calendar"},at+timedelta(minutes=2)),
-                ("question_asked",{"question":"Sample demo academic question"},at+timedelta(minutes=5)),
+                ("page_view",{"page":"dashboard","seeded":True},at),
+                ("page_view",{"page":"calendar","seeded":True},at+timedelta(minutes=2)),
+                ("question_asked",{"question":"Sample demo academic question","seeded":True},at+timedelta(minutes=5)),
             ])
         if weeks_ago < 5:
-            event_rows.append(("practice_attempt",{"course":"MATH 1324","correct":True},base+timedelta(days=3)))
+            event_rows.append(("practice_attempt",{"course":"MATH 1324","correct":True,"seeded":True},base+timedelta(days=3)))
     for did,due in completed_ids:
-        event_rows.append(("deadline_completed_toggled",{"deadline_id":did,"completed":True},datetime.combine(due-timedelta(days=1),datetime.min.time())))
+        event_rows.append(("deadline_completed_toggled",{"deadline_id":did,"completed":True,"seeded":True},datetime.combine(due-timedelta(days=1),datetime.min.time())))
     for etype,payload,created in event_rows:
         cur.execute("INSERT INTO events(student_id,event_type,payload,created_at) VALUES(%s,%s,%s,%s)",
                     (sid,etype,json.dumps(payload),created))

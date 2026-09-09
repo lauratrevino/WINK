@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from ..errors import log_error
+from .analytics import safe_payload
 
 
 def log_demo_session_ended(cur, student_id, reason):
@@ -27,9 +28,14 @@ def log_demo_session_ended(cur, student_id, reason):
             cur.execute("RELEASE SAVEPOINT log_demo_session_ended")
             return
         started_at = row["created_at"]
-        cur.execute("SELECT COUNT(*) as n FROM events WHERE student_id=%s AND event_type='question_asked'",
+        # _seed_demo backdates ~24 fake "question_asked" events per demo
+        # account (see its comment) so a fresh visitor's dashboard looks
+        # populated. Those aren't real questions, so they're excluded here
+        # via the "seeded" payload flag -- a plain COUNT(*) would credit
+        # every demo session with ~24 questions nobody actually asked.
+        cur.execute("SELECT payload FROM events WHERE student_id=%s AND event_type='question_asked'",
                     (student_id,))
-        questions_asked = cur.fetchone()["n"] or 0
+        questions_asked = sum(1 for r in cur.fetchall() if not safe_payload(r["payload"]).get("seeded"))
         duration_seconds = max(0, int((datetime.utcnow() - started_at).total_seconds()))
         cur.execute("""INSERT INTO demo_sessions(started_at, ended_at, duration_seconds, questions_asked, ended_reason, student_id)
                        VALUES (%s, NOW(), %s, %s, %s, %s)""",
