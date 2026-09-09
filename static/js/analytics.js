@@ -2,7 +2,7 @@
 
     function switchTab(name) {
       document.querySelectorAll('.tab-btn').forEach((b, i) => {
-        const tabs = ['students','activity','conversations','deadlines','distributions','insights','general-docs'];
+        const tabs = ['students','demo','activity','conversations','deadlines','distributions','insights','general-docs'];
         b.classList.toggle('active', tabs[i] === name);
       });
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
@@ -389,6 +389,9 @@
         [formatDemoDuration(dm.avg_duration_seconds), 'Avg Duration'],
         [formatDemoDuration(dm.max_duration_seconds), 'Longest Session'],
         [dm.total_questions_asked || 0, 'Total Questions Asked'],
+        [dm.total_uploads || 0, 'Total Uploads'],
+        [formatTokenCount(dm.total_tokens), 'Total Tokens'],
+        [formatCostUsd(dm.total_estimated_cost_usd), 'Est. Cost'],
       ];
       box.innerHTML = items.map(([val, label]) => `
         <div class="mini-stat"><div class="mini-stat-value">${val}</div><div class="mini-stat-label">${label}</div></div>
@@ -400,15 +403,20 @@
       const tbody = document.getElementById('demo-sessions-tbody');
       if (!tbody) return;
       if (!sessions.length) {
-        tbody.innerHTML = '<tr><td colspan="5" style="color:#6b7a99;">No demo sessions yet.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" style="color:#6b7a99;">No demo sessions yet.</td></tr>';
         return;
       }
       tbody.innerHTML = sessions.map(s => `
         <tr>
           <td>${escapeHtml(s.started)}</td>
           <td>${formatDemoDuration(s.duration_seconds)}</td>
-          <td>${s.questions_asked}</td>
-          <td style="color:#6b7a99;">${escapeHtml(s.ended_reason)}</td>
+          <td><span class="badge badge-orange">${s.questions_asked}</span></td>
+          <td>${s.uploads}</td>
+          <td style="color:#6b7a99;">${formatTokenCount(s.total_tokens)}</td>
+          <td style="color:#6b7a99;">${formatCostUsd(s.estimated_cost_usd)}</td>
+          <td>${s.is_active
+            ? '<span class="badge badge-active">Active</span>'
+            : `<span style="color:#6b7a99;">${escapeHtml(s.ended_reason)}</span>`}</td>
           <td>${s.student_id && s.questions_asked > 0
             ? `<button class="tab-btn demo-view-btn" style="padding:4px 10px;font-size:11px;" data-sid="${s.student_id}">View</button>`
             : ''}</td>

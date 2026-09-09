@@ -226,15 +226,88 @@ def get_demo_usage_stats(cur):
     cur.execute("SELECT COUNT(*) as n FROM students WHERE is_demo=TRUE AND is_active=TRUE")
     row["active_now"] = cur.fetchone()["n"] or 0
     row["avg_duration_seconds"] = round(float(row["avg_duration_seconds"] or 0))
+
+    # Total uploads/tokens/cost across every demo account, mirroring what
+    # the top-of-page stats row shows for real students (minus demo's).
+    cur.execute("""SELECT COUNT(*) as n FROM events e JOIN students s ON s.id=e.student_id
+                   WHERE e.event_type='file_uploaded' AND s.is_demo=TRUE""")
+    row["total_uploads"] = cur.fetchone()["n"] or 0
+    cur.execute("""
+        SELECT t.model, SUM(t.input_tokens) as input_tokens, SUM(t.output_tokens) as output_tokens,
+               SUM(t.cache_creation_input_tokens) as cache_creation_input_tokens,
+               SUM(t.cache_read_input_tokens) as cache_read_input_tokens
+        FROM token_usage t JOIN students s ON s.id = t.student_id
+        WHERE s.is_demo=TRUE
+        GROUP BY t.model
+    """)
+    total_tokens, total_cost = 0, 0.0
+    for r in cur.fetchall():
+        total_tokens += (r["input_tokens"] or 0) + (r["output_tokens"] or 0)
+        total_cost += estimate_cost_usd(
+            r["model"], r["input_tokens"], r["output_tokens"],
+            r["cache_creation_input_tokens"], r["cache_read_input_tokens"],
+        )
+    row["total_tokens"] = total_tokens
+    row["total_estimated_cost_usd"] = round(total_cost, 4)
     return row
 
 
-def get_total_token_usage(cur):
+def get_demo_session_summaries(cur):
+    """Per-session detail for the Demo Usage tab, matching the same depth
+    get_student_summaries() gives real students -- uploads, tokens, and
+    estimated cost, not just start time/duration/questions. duration_seconds
+    (already recorded to the second by log_demo_session_ended) doubles as
+    "time spent" here; there's no separate login/logout gap calculation to
+    do the way _get_time_spent_by_student() does for registered students,
+    since a demo account only ever has the one session. Each demo_sessions
+    row corresponds to exactly one student_id (start_demo() creates a
+    fresh account per /demo/start), so unlike the Students table there's
+    no separate "Sessions" count to show.
+    """
     cur.execute("""
-        SELECT model, SUM(input_tokens) as input_tokens, SUM(output_tokens) as output_tokens,
-               SUM(cache_creation_input_tokens) as cache_creation_input_tokens,
-               SUM(cache_read_input_tokens) as cache_read_input_tokens
-        FROM token_usage GROUP BY model
+        SELECT id, student_id, to_char(started_at, 'Mon DD HH24:MI') as started,
+               duration_seconds, questions_asked, ended_reason
+        FROM demo_sessions
+        ORDER BY started_at DESC
+        LIMIT 100
+    """)
+    rows = [dict(r) for r in cur.fetchall()]
+    if not rows:
+        return rows
+    sids = [r["student_id"] for r in rows if r["student_id"]]
+    cur.execute("SELECT id, is_active FROM students WHERE id = ANY(%s)", (sids,))
+    active_by_id = {r["id"]: r["is_active"] for r in cur.fetchall()}
+    # Real uploads only -- _seed_demo never fabricates file_uploaded events
+    # (only page_view/question_asked/practice_attempt/deadline_completed_
+    # toggled), so this count needs no "seeded" filtering the way questions
+    # and page visits do.
+    cur.execute("""SELECT student_id, COUNT(*) as n FROM events
+                   WHERE student_id = ANY(%s) AND event_type='file_uploaded'
+                   GROUP BY student_id""", (sids,))
+    uploads_by_id = {r["student_id"]: r["n"] for r in cur.fetchall()}
+    token_usage = _get_token_usage_by_student(cur)
+    for r in rows:
+        sid = r["student_id"]
+        r["uploads"] = uploads_by_id.get(sid, 0)
+        r["is_active"] = bool(active_by_id.get(sid, False))
+        usage = token_usage.get(sid, {"tokens": 0, "cost_usd": 0.0})
+        r["total_tokens"] = usage["tokens"]
+        r["estimated_cost_usd"] = usage["cost_usd"]
+    return rows
+
+
+def get_total_token_usage(cur):
+    # Excludes demo accounts' token usage, same reasoning as
+    # compute_engagement_insights above -- this feeds the page's overall
+    # "Est. AI Cost" tile, meant to reflect real students. Demo's own
+    # token/cost usage is surfaced separately in the Demo Usage tab.
+    cur.execute("""
+        SELECT t.model, SUM(t.input_tokens) as input_tokens, SUM(t.output_tokens) as output_tokens,
+               SUM(t.cache_creation_input_tokens) as cache_creation_input_tokens,
+               SUM(t.cache_read_input_tokens) as cache_read_input_tokens
+        FROM token_usage t JOIN students s ON s.id = t.student_id
+        WHERE s.is_demo IS NOT TRUE
+        GROUP BY t.model
     """)
     total_tokens = 0
     total_cost = 0.0
@@ -290,6 +363,22 @@ def get_student_summaries(cur):
 
 
 def compute_engagement_insights(cur):
+    """Everything here is meant to describe real enrolled students, the
+    same way get_student_summaries() and the Students tab do -- demo
+    visitors have their own dedicated Demo Usage view (see
+    get_demo_usage_stats/get_demo_session_summaries) with their own
+    numbers, seeded backstory included. Before demo accounts stayed
+    around indefinitely (see services/demo.py's end_demo_session), a
+    demo row was usually gone again within hours, so most of the queries
+    below could get away without an explicit is_demo filter -- deletion
+    was quietly doing that job for them. Now that nothing is deleted,
+    every one of them needs `s.is_demo IS NOT TRUE` explicitly, or the
+    growing pile of demo accounts (each carrying ~24 fake questions and
+    ~48 fake page views from _seed_demo, on top of whatever the visitor
+    actually did) silently swamps these "real student" numbers -- which
+    is exactly what made By University show more students than are
+    actually enrolled.
+    """
     out = {}
 
     cur.execute("""
@@ -299,12 +388,14 @@ def compute_engagement_insights(cur):
                COUNT(*) FILTER (WHERE e.event_type='question_asked') as questions,
                COUNT(*) FILTER (WHERE e.event_type='file_uploaded') as uploads
         FROM students s LEFT JOIN events e ON e.student_id = s.id
+        WHERE s.is_demo IS NOT TRUE
         GROUP BY 1 ORDER BY students DESC""")
     out["by_university"] = [dict(r) for r in cur.fetchall()]
 
     cur.execute("""
         SELECT e.student_id, e.event_type, e.created_at, COALESCE(NULLIF(s.university,''),'Not set') as university
         FROM events e JOIN students s ON s.id = e.student_id
+        WHERE s.is_demo IS NOT TRUE
         ORDER BY e.student_id, e.created_at ASC""")
     rows = cur.fetchall()
     sessions_by_student = {}
@@ -334,8 +425,10 @@ def compute_engagement_insights(cur):
     }
 
     cur.execute("""
-        SELECT student_id, COUNT(DISTINCT date_trunc('week', created_at)) as weeks
-        FROM events GROUP BY student_id""")
+        SELECT e.student_id, COUNT(DISTINCT date_trunc('week', e.created_at)) as weeks
+        FROM events e JOIN students s ON s.id = e.student_id
+        WHERE s.is_demo IS NOT TRUE
+        GROUP BY e.student_id""")
     week_rows = cur.fetchall()
     total_active = len(week_rows)
     returning = sum(1 for r in week_rows if r["weeks"] >= 2)
@@ -344,22 +437,29 @@ def compute_engagement_insights(cur):
     cur.execute("""
         SELECT s.created_at as joined, MIN(e.created_at) as first_q
         FROM students s JOIN events e ON e.student_id = s.id AND e.event_type = 'question_asked'
+        WHERE s.is_demo IS NOT TRUE
         GROUP BY s.id, s.created_at""")
     gaps = [(r["first_q"] - r["joined"]).total_seconds() / 60.0 for r in cur.fetchall()]
     gaps = [g for g in gaps if g >= 0]
     out["avg_minutes_to_first_question"] = round(sum(gaps) / len(gaps), 1) if gaps else None
 
     cur.execute("""
-        SELECT EXTRACT(DOW FROM created_at)::int as dow, EXTRACT(HOUR FROM created_at)::int as hour, COUNT(*) as n
-        FROM events WHERE event_type='question_asked' GROUP BY 1,2""")
+        SELECT EXTRACT(DOW FROM e.created_at)::int as dow, EXTRACT(HOUR FROM e.created_at)::int as hour, COUNT(*) as n
+        FROM events e JOIN students s ON s.id = e.student_id
+        WHERE e.event_type='question_asked' AND s.is_demo IS NOT TRUE
+        GROUP BY 1,2""")
     grid = [[0]*24 for _ in range(7)]
     for r in cur.fetchall():
         grid[r["dow"]][r["hour"]] = r["n"]
     out["usage_heatmap"] = grid
 
-    cur.execute("SELECT due_date, COUNT(*) as n FROM deadlines WHERE due_date IS NOT NULL GROUP BY due_date")
+    cur.execute("""
+        SELECT d.due_date, COUNT(*) as n FROM deadlines d JOIN students s ON s.id = d.student_id
+        WHERE d.due_date IS NOT NULL AND s.is_demo IS NOT TRUE GROUP BY d.due_date""")
     due_by_date = {r["due_date"]: r["n"] for r in cur.fetchall()}
-    cur.execute("SELECT DATE(created_at) as d, COUNT(*) as n FROM events WHERE event_type='question_asked' GROUP BY DATE(created_at)")
+    cur.execute("""
+        SELECT DATE(e.created_at) as d, COUNT(*) as n FROM events e JOIN students s ON s.id = e.student_id
+        WHERE e.event_type='question_asked' AND s.is_demo IS NOT TRUE GROUP BY DATE(e.created_at)""")
     q_by_date = {r["d"]: r["n"] for r in cur.fetchall()}
     spikes = []
     for due_date, n_due in due_by_date.items():
@@ -373,9 +473,10 @@ def compute_engagement_insights(cur):
     out["deadline_spikes"] = spikes[-30:]  
 
     cur.execute("""
-        SELECT event_type, COUNT(*) as n FROM events
-        WHERE event_type IN ('file_uploaded','temp_file_used','global_file_uploaded')
-        GROUP BY event_type""")
+        SELECT e.event_type, COUNT(*) as n FROM events e JOIN students s ON s.id = e.student_id
+        WHERE e.event_type IN ('file_uploaded','temp_file_used','global_file_uploaded')
+          AND s.is_demo IS NOT TRUE
+        GROUP BY e.event_type""")
     mix = {r["event_type"]: r["n"] for r in cur.fetchall()}
     out["upload_mix"] = {
         "permanent": mix.get("file_uploaded", 0),
@@ -403,16 +504,17 @@ def compute_engagement_insights(cur):
           ) as with_docs,
           COUNT(*) as total
         FROM events e JOIN students st ON st.id = e.student_id
-        WHERE e.event_type = 'question_asked'""")
+        WHERE e.event_type = 'question_asked' AND st.is_demo IS NOT TRUE""")
     row = cur.fetchone()
     out["general_doc_availability_pct"] = (
         round(row["with_docs"] / row["total"] * 100, 1) if row and row["total"] else 0
     )
 
     cur.execute("""
-        SELECT (payload::json->>'rating') as rating, COUNT(*) as n
-        FROM events WHERE event_type='answer_feedback'
-        GROUP BY (payload::json->>'rating')""")
+        SELECT (e.payload::json->>'rating') as rating, COUNT(*) as n
+        FROM events e JOIN students s ON s.id = e.student_id
+        WHERE e.event_type='answer_feedback' AND s.is_demo IS NOT TRUE
+        GROUP BY (e.payload::json->>'rating')""")
     counts = {r["rating"]: r["n"] for r in cur.fetchall()}
     up, down = counts.get("up", 0), counts.get("down", 0)
     out["answer_feedback"] = {
@@ -421,13 +523,14 @@ def compute_engagement_insights(cur):
     }
 
     cur.execute("""
-        SELECT (payload::json->>'q') as question, COUNT(*) as n, COUNT(DISTINCT student_id) as n_students
-        FROM events
-        WHERE event_type = 'question_asked'
-          AND created_at >= NOW() - INTERVAL '7 days'
-          AND length(payload::json->>'q') > 8
-        GROUP BY (payload::json->>'q')
-        HAVING COUNT(DISTINCT student_id) >= 2
+        SELECT (e.payload::json->>'q') as question, COUNT(*) as n, COUNT(DISTINCT e.student_id) as n_students
+        FROM events e JOIN students s ON s.id = e.student_id
+        WHERE e.event_type = 'question_asked'
+          AND s.is_demo IS NOT TRUE
+          AND e.created_at >= NOW() - INTERVAL '7 days'
+          AND length(e.payload::json->>'q') > 8
+        GROUP BY (e.payload::json->>'q')
+        HAVING COUNT(DISTINCT e.student_id) >= 2
         ORDER BY n_students DESC, n DESC
         LIMIT 15
     """)

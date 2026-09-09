@@ -72,6 +72,7 @@
 
     <div class="tab-bar">
       <button class="tab-btn active" onclick="switchTab('students')">👥 Students</button>
+      <button class="tab-btn" onclick="switchTab('demo')">🧪 Demo</button>
       <button class="tab-btn" onclick="switchTab('activity')">⚡ Activity Feed</button>
       <button class="tab-btn" onclick="switchTab('conversations')">💬 Conversations</button>
       <button class="tab-btn" onclick="switchTab('deadlines')">📅 Deadlines</button>
@@ -103,6 +104,34 @@
             </tr></thead>
             <tbody id="students-tbody"><tr><td colspan="13" style="text-align:center;padding:32px;color:#6b7a99;">Loading…</td></tr></tbody>
           </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="tab-demo">
+      <div class="card">
+        <div class="card-header"><h2>Demo Usage</h2><span style="font-size:13px;color:#6b7a99;">Try WINK Demo — separate from real enrolled students, excluded everywhere else on this page</span></div>
+        <div class="card-body">
+          <div class="mini-stats" id="demo-mini-stats">
+            <div class="mini-stat"><div class="mini-stat-value">—</div><div class="mini-stat-label">Total Demos Started</div></div>
+            <div class="mini-stat"><div class="mini-stat-value">—</div><div class="mini-stat-label">Active Right Now</div></div>
+            <div class="mini-stat"><div class="mini-stat-value">—</div><div class="mini-stat-label">Avg Duration</div></div>
+            <div class="mini-stat"><div class="mini-stat-value">—</div><div class="mini-stat-label">Longest Session</div></div>
+            <div class="mini-stat"><div class="mini-stat-value">—</div><div class="mini-stat-label">Total Questions Asked</div></div>
+            <div class="mini-stat"><div class="mini-stat-value">—</div><div class="mini-stat-label">Total Uploads</div></div>
+            <div class="mini-stat"><div class="mini-stat-value">—</div><div class="mini-stat-label">Total Tokens</div></div>
+            <div class="mini-stat"><div class="mini-stat-value">—</div><div class="mini-stat-label">Est. Cost</div></div>
+          </div>
+          <div style="overflow-x:auto;">
+            <table style="margin-top:16px;">
+              <thead>
+                <tr><th>Started</th><th>Duration</th><th>Questions</th><th>Uploads</th><th>Tokens</th><th>Est. Cost</th><th>Status</th><th></th></tr>
+              </thead>
+              <tbody id="demo-sessions-tbody">
+                <tr><td colspan="8" style="color:#6b7a99;">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -160,27 +189,6 @@
             <div class="mini-stat"><div class="mini-stat-value">—</div><div class="mini-stat-label">Time to First Question</div></div>
             <div class="mini-stat"><div class="mini-stat-value">—</div><div class="mini-stat-label">Questions w/ General Docs</div></div>
           </div>
-        </div>
-      </div>
-
-      <div class="card" style="margin-bottom:20px;">
-        <div class="card-header"><h2>Demo Usage</h2><span style="font-size:13px;color:#6b7a99;">Try WINK Demo — separate from real enrolled students, excluded everywhere else on this page</span></div>
-        <div class="card-body">
-          <div class="mini-stats" id="demo-mini-stats">
-            <div class="mini-stat"><div class="mini-stat-value">—</div><div class="mini-stat-label">Total Demos Started</div></div>
-            <div class="mini-stat"><div class="mini-stat-value">—</div><div class="mini-stat-label">Active Right Now</div></div>
-            <div class="mini-stat"><div class="mini-stat-value">—</div><div class="mini-stat-label">Avg Duration</div></div>
-            <div class="mini-stat"><div class="mini-stat-value">—</div><div class="mini-stat-label">Longest Session</div></div>
-            <div class="mini-stat"><div class="mini-stat-value">—</div><div class="mini-stat-label">Total Questions Asked</div></div>
-          </div>
-          <table style="margin-top:16px;">
-            <thead>
-              <tr><th>Started</th><th>Duration</th><th>Questions</th><th>Ended</th><th></th></tr>
-            </thead>
-            <tbody id="demo-sessions-tbody">
-              <tr><td colspan="5" style="color:#6b7a99;">Loading…</td></tr>
-            </tbody>
-          </table>
         </div>
       </div>
 

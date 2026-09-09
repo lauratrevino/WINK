@@ -6,8 +6,8 @@ from ..errors import log_error
 from ..extensions import generate_csrf_token, db_cursor
 from ..security import admin_page_required, admin_required
 from ..services.analytics import (anonymize_student_record, compute_engagement_insights,
-                                   get_demo_usage_stats, get_page_time_breakdown, get_student_summaries,
-                                   get_total_token_usage, log_event, safe_payload)
+                                   get_demo_session_summaries, get_demo_usage_stats, get_page_time_breakdown,
+                                   get_student_summaries, get_total_token_usage, log_event, safe_payload)
 from ..services.health import run_health_checks, overall_status
 from ..universities_list import UNIVERSITIES
 
@@ -35,13 +35,23 @@ def analytics_data():
             cur.execute("SELECT COUNT(*) as n FROM students WHERE is_demo IS NOT TRUE")
             total_s = cur.fetchone()["n"]
 
-            cur.execute("SELECT COUNT(*) as n FROM events WHERE event_type IN ('login','account_created')")
+            # These three, and the "recent" feed just below, are scoped to
+            # real students (JOIN + is_demo filter) for the same reason as
+            # compute_engagement_insights in services/analytics.py: demo
+            # accounts are never deleted now, so an unfiltered COUNT(*)
+            # here would keep growing to include every demo session's
+            # seeded fake activity. Demo has its own numbers on the Demo
+            # Usage tab.
+            cur.execute("""SELECT COUNT(*) as n FROM events e JOIN students s ON s.id=e.student_id
+                           WHERE e.event_type IN ('login','account_created') AND s.is_demo IS NOT TRUE""")
             total_sess = cur.fetchone()["n"]
 
-            cur.execute("SELECT COUNT(*) as n FROM events WHERE event_type='question_asked'")
+            cur.execute("""SELECT COUNT(*) as n FROM events e JOIN students s ON s.id=e.student_id
+                           WHERE e.event_type='question_asked' AND s.is_demo IS NOT TRUE""")
             total_q = cur.fetchone()["n"]
 
-            cur.execute("SELECT COUNT(*) as n FROM events WHERE event_type='file_uploaded'")
+            cur.execute("""SELECT COUNT(*) as n FROM events e JOIN students s ON s.id=e.student_id
+                           WHERE e.event_type='file_uploaded' AND s.is_demo IS NOT TRUE""")
             total_up = cur.fetchone()["n"]
 
             students = get_student_summaries(cur)
@@ -53,6 +63,7 @@ def analytics_data():
                     s.first_name, s.last_name, s.email
                 FROM events e
                 LEFT JOIN students s ON s.id = e.student_id
+                WHERE s.is_demo IS NOT TRUE OR s.id IS NULL
                 ORDER BY e.created_at DESC
                 LIMIT 60
             """)
@@ -93,10 +104,21 @@ def analytics_data_full():
         if not config.DB_URL: return jsonify({"error": "No database"}), 500
         with db_cursor() as cur:
             cur.execute("SELECT COUNT(*) as n FROM students WHERE is_demo IS NOT TRUE"); total_s = cur.fetchone()["n"]
-            cur.execute("SELECT COUNT(*) as n FROM events WHERE event_type IN ('login','account_created')")
+            # See compute_engagement_insights()'s docstring in
+            # services/analytics.py: these all need an explicit is_demo
+            # exclusion now that demo accounts (and their seeded fake
+            # activity) stick around indefinitely instead of getting
+            # deleted at the end of each session. Demo has its own tab
+            # with its own real numbers.
+            cur.execute("""SELECT COUNT(*) as n FROM events e JOIN students s ON s.id=e.student_id
+                           WHERE e.event_type IN ('login','account_created') AND s.is_demo IS NOT TRUE""")
             total_sess = cur.fetchone()["n"]
-            cur.execute("SELECT COUNT(*) as n FROM events WHERE event_type='question_asked'"); total_q = cur.fetchone()["n"]
-            cur.execute("SELECT COUNT(*) as n FROM events WHERE event_type='file_uploaded'"); total_up = cur.fetchone()["n"]
+            cur.execute("""SELECT COUNT(*) as n FROM events e JOIN students s ON s.id=e.student_id
+                           WHERE e.event_type='question_asked' AND s.is_demo IS NOT TRUE""")
+            total_q = cur.fetchone()["n"]
+            cur.execute("""SELECT COUNT(*) as n FROM events e JOIN students s ON s.id=e.student_id
+                           WHERE e.event_type='file_uploaded' AND s.is_demo IS NOT TRUE""")
+            total_up = cur.fetchone()["n"]
 
             students = get_student_summaries(cur)
 
@@ -104,7 +126,7 @@ def analytics_data_full():
                 SELECT e.payload, to_char(e.created_at,'Mon DD HH24:MI') as ts,
                        s.first_name, s.last_name, s.email
                 FROM events e LEFT JOIN students s ON s.id=e.student_id
-                WHERE e.event_type = 'question_asked'
+                WHERE e.event_type = 'question_asked' AND (s.is_demo IS NOT TRUE OR s.id IS NULL)
                 ORDER BY e.created_at DESC LIMIT 100""")
             questions = []
             for r in cur.fetchall():
@@ -136,10 +158,15 @@ def analytics_data_full():
             # logged fine, they just never surfaced on this page once
             # enough older students had accumulated 200+ rows between
             # them.
+            # Excludes demo -- it now has its own Demo Usage tab with a
+            # "View" popup per session showing that exact same Q&A detail
+            # (student_conversations() below), so it doesn't need to also
+            # be mixed into the real-students feed here.
             cur.execute("""
                 SELECT al.question, al.answer_text, to_char(al.created_at,'Mon DD HH24:MI') as ts,
                        s.first_name, s.last_name, s.email, s.id as sid
                 FROM answer_logs al LEFT JOIN students s ON s.id = al.student_id
+                WHERE s.is_demo IS NOT TRUE OR s.id IS NULL
                 ORDER BY al.created_at DESC LIMIT 200""")
             conversations = [
                 {
@@ -158,6 +185,7 @@ def analytics_data_full():
                 SELECT e.event_type, e.payload, to_char(e.created_at,'Mon DD HH24:MI') as ts,
                        s.first_name, s.last_name, s.email
                 FROM events e LEFT JOIN students s ON s.id=e.student_id
+                WHERE s.is_demo IS NOT TRUE OR s.id IS NULL
                 ORDER BY e.created_at DESC LIMIT 100""")
             recent = []
             for r in cur.fetchall():
@@ -170,42 +198,42 @@ def analytics_data_full():
             cur.execute("SELECT classification, COUNT(*) as n FROM students WHERE is_demo IS NOT TRUE GROUP BY classification ORDER BY n DESC")
             by_class = [dict(r) for r in cur.fetchall()]
 
-            cur.execute("SELECT course, COUNT(*) as n FROM documents GROUP BY course ORDER BY n DESC")
+            # documents.student_id is NULL for global reference docs (not
+            # owned by any student), which still belong in this chart --
+            # only a demo account's own seeded/uploaded docs are excluded.
+            cur.execute("""
+                SELECT d.course, COUNT(*) as n FROM documents d LEFT JOIN students s ON s.id = d.student_id
+                WHERE s.is_demo IS NOT TRUE OR s.id IS NULL
+                GROUP BY d.course ORDER BY n DESC""")
             by_course = [dict(r) for r in cur.fetchall()]
 
             cur.execute("""
-                SELECT to_char(created_at,'Mon DD') as day, COUNT(*) as n
-                FROM events
-                WHERE created_at >= NOW() - INTERVAL '7 days'
-                GROUP BY to_char(created_at,'Mon DD'), DATE(created_at)
-                ORDER BY DATE(created_at) ASC""")
+                SELECT to_char(e.created_at,'Mon DD') as day, COUNT(*) as n
+                FROM events e JOIN students s ON s.id = e.student_id
+                WHERE e.created_at >= NOW() - INTERVAL '7 days' AND s.is_demo IS NOT TRUE
+                GROUP BY to_char(e.created_at,'Mon DD'), DATE(e.created_at)
+                ORDER BY DATE(e.created_at) ASC""")
             daily = [dict(r) for r in cur.fetchall()]
 
             cur.execute("""
                 SELECT d.title, d.course, d.due_date, s.first_name, s.last_name
                 FROM deadlines d JOIN students s ON s.id = d.student_id
-                WHERE d.due_date >= (NOW() AT TIME ZONE %s)::date
+                WHERE d.due_date >= (NOW() AT TIME ZONE %s)::date AND s.is_demo IS NOT TRUE
                 ORDER BY d.due_date ASC LIMIT 100""", (config.APP_TIMEZONE,))
             upcoming_deadlines = []
             for r in cur.fetchall():
                 row = dict(r)
                 row["due_date"] = row["due_date"].isoformat() if row["due_date"] else None
                 upcoming_deadlines.append(row)
-            cur.execute("SELECT COUNT(*) as n FROM deadlines WHERE due_date >= (NOW() AT TIME ZONE %s)::date", (config.APP_TIMEZONE,))
+            cur.execute("""SELECT COUNT(*) as n FROM deadlines d JOIN students s ON s.id = d.student_id
+                           WHERE d.due_date >= (NOW() AT TIME ZONE %s)::date AND s.is_demo IS NOT TRUE""",
+                        (config.APP_TIMEZONE,))
             total_deadlines = cur.fetchone()["n"]
 
             insights = compute_engagement_insights(cur)
             token_totals = get_total_token_usage(cur)
             demo_usage = get_demo_usage_stats(cur)
-
-            cur.execute("""
-                SELECT id, student_id, to_char(started_at, 'Mon DD HH24:MI') as started,
-                       duration_seconds, questions_asked, ended_reason
-                FROM demo_sessions
-                ORDER BY started_at DESC
-                LIMIT 100
-            """)
-            demo_sessions = [dict(r) for r in cur.fetchall()]
+            demo_sessions = get_demo_session_summaries(cur)
 
         return jsonify({
             "total_students": total_s,
