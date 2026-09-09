@@ -167,6 +167,46 @@ def _get_time_spent_by_student(cur):
     return totals
 
 
+def get_page_time_breakdown(cur, student_id):
+    """Per-page visit count and time spent for one student, used by the
+    demo-session detail view (and usable for any student id, registered
+    or demo -- nothing here is demo-specific). A page's "time spent" for
+    a given visit is the gap until that student's NEXT event of any kind
+    (another page_view, a question, a rating, ...), which is the same
+    approach _get_time_spent_by_student() above uses for whole sessions,
+    just applied per page_view instead of per login. Capped at 30 minutes
+    per visit so an abandoned tab (no further activity at all -- the gap
+    would otherwise run until whatever event comes next, possibly hours
+    later, or forever for the very last event in the student's history)
+    doesn't blow out the total. The very last event in the student's
+    history has no "next" event to measure against, so it contributes a
+    visit to the count but not to the time total -- its actual duration
+    is genuinely unknown, not zero, and silently treating it as zero
+    would just as silently undercount short sessions.
+    """
+    MAX_PAGE_MINUTES = 30.0
+    cur.execute("""
+        SELECT event_type, payload, created_at FROM events
+        WHERE student_id=%s ORDER BY created_at ASC""", (student_id,))
+    rows = cur.fetchall()
+    pages = {}
+    for i, r in enumerate(rows):
+        if r["event_type"] != "page_view":
+            continue
+        payload = safe_payload(r["payload"])
+        page = payload.get("page") or "unknown"
+        entry = pages.setdefault(page, {"page": page, "visits": 0, "minutes": 0.0})
+        entry["visits"] += 1
+        if i + 1 < len(rows):
+            gap_minutes = (rows[i + 1]["created_at"] - r["created_at"]).total_seconds() / 60.0
+            entry["minutes"] += max(0.0, min(gap_minutes, MAX_PAGE_MINUTES))
+    result = list(pages.values())
+    for entry in result:
+        entry["minutes"] = round(entry["minutes"], 1)
+    result.sort(key=lambda e: e["minutes"], reverse=True)
+    return result
+
+
 def get_demo_usage_stats(cur):
     cur.execute("""
         SELECT COUNT(*) as total_sessions,

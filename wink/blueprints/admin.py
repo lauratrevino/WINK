@@ -6,7 +6,7 @@ from ..errors import log_error
 from ..extensions import generate_csrf_token, db_cursor
 from ..security import admin_page_required, admin_required
 from ..services.analytics import (anonymize_student_record, compute_engagement_insights,
-                                   get_demo_usage_stats, get_student_summaries,
+                                   get_demo_usage_stats, get_page_time_breakdown, get_student_summaries,
                                    get_total_token_usage, log_event, safe_payload)
 from ..services.health import run_health_checks, overall_status
 from ..universities_list import UNIVERSITIES
@@ -126,11 +126,21 @@ def analytics_data_full():
             # reading the short 200-char snippet from events — that field
             # serves a distinct purpose, exact-match grouping for the "common
             # questions" analytics feature, not a full-text display.)
+            # Ordered by recency (most recent exchange first), not by
+            # student id: this feed is capped at 200 rows, and sorting by
+            # s.id first meant the lowest-id (oldest-registered) students'
+            # entire histories filled that cap before any newer activity
+            # -- a fresh demo session or a new student's first chat --
+            # ever got a chance to appear. That's what made the demo look
+            # like it had "stopped recording": the exchanges were being
+            # logged fine, they just never surfaced on this page once
+            # enough older students had accumulated 200+ rows between
+            # them.
             cur.execute("""
                 SELECT al.question, al.answer_text, to_char(al.created_at,'Mon DD HH24:MI') as ts,
                        s.first_name, s.last_name, s.email, s.id as sid
                 FROM answer_logs al LEFT JOIN students s ON s.id = al.student_id
-                ORDER BY s.id, al.created_at ASC LIMIT 200""")
+                ORDER BY al.created_at DESC LIMIT 200""")
             conversations = [
                 {
                     "first_name": r.get("first_name", ""),
@@ -233,17 +243,24 @@ def student_conversations(sid):
             # full question and answer together on one row per exchange (no
             # fragile sequential pairing needed), and it's the only place that
             # still holds the full answer text (see the comment in chat.py's
-            # log_event("answer_given", ...) call for why).
+            # log_event("answer_given", ...) call for why). student_feedback
+            # is included here too (the student's own thumbs up/down, set by
+            # /rate-answer) — this is the same detail view a registered
+            # student's conversations would show, just reached via a
+            # different table (demo_sessions -> here) than the "Students"
+            # tab uses for a registered account.
             cur.execute("""
-                SELECT question, answer_text, to_char(created_at,'Mon DD HH24:MI') as ts
+                SELECT question, answer_text, student_feedback, to_char(created_at,'Mon DD HH24:MI') as ts
                 FROM answer_logs
                 WHERE student_id=%s
                 ORDER BY created_at ASC""", (sid,))
             conversations = [
-                {"question": r["question"], "answer": r["answer_text"], "ts": r["ts"]}
+                {"question": r["question"], "answer": r["answer_text"],
+                 "rating": r["student_feedback"], "ts": r["ts"]}
                 for r in cur.fetchall()
             ]
-        return jsonify({"conversations": conversations})
+            pages = get_page_time_breakdown(cur, sid)
+        return jsonify({"conversations": conversations, "pages": pages})
     except Exception as e:
         log_error("admin.student_conversations", e)
         return jsonify({"error": "Something went wrong on our end. Please try again."}), 500

@@ -426,7 +426,7 @@
         overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,20,40,0.5);display:flex;align-items:center;justify-content:center;z-index:9999;';
         overlay.innerHTML = `<div style="background:#fff;border-radius:12px;max-width:640px;width:90%;max-height:80vh;display:flex;flex-direction:column;">
           <div style="padding:16px 20px;border-bottom:1px solid #eef0f6;display:flex;justify-content:space-between;align-items:center;">
-            <h3 style="margin:0;font-size:16px;color:#002855;">Demo conversation</h3>
+            <h3 style="margin:0;font-size:16px;color:#002855;">Demo session detail</h3>
             <button id="demo-convo-close" style="background:none;border:none;font-size:18px;cursor:pointer;color:#6b7a99;">✕</button>
           </div>
           <div id="demo-convo-body" style="padding:16px 20px;overflow-y:auto;"></div>
@@ -441,16 +441,42 @@
         const res = await fetch(`/student-conversations/${sid}`);
         const data = await res.json();
         const convos = data.conversations || [];
+        const pages = data.pages || [];
+
+        const ratingBadge = r => r === 'up'
+          ? '<span style="color:#1a7f37;">👍 helpful</span>'
+          : r === 'down' ? '<span style="color:#b91c1c;">👎 not helpful</span>' : '';
+
+        const pagesHtml = pages.length ? `
+          <div style="margin-bottom:20px;">
+            <div style="font-size:12px;font-weight:600;color:#002855;margin-bottom:6px;">Pages visited</div>
+            <table style="width:100%;border-collapse:collapse;font-size:12px;">
+              <thead><tr style="color:#6b7a99;text-align:left;">
+                <th style="padding:4px 0;font-weight:500;">Page</th>
+                <th style="padding:4px 0;font-weight:500;">Visits</th>
+                <th style="padding:4px 0;font-weight:500;">Time spent</th>
+              </tr></thead>
+              <tbody>${pages.map(p => `
+                <tr style="border-top:1px solid #eef0f6;">
+                  <td style="padding:5px 0;">${escapeHtml(p.page)}</td>
+                  <td style="padding:5px 0;">${p.visits}</td>
+                  <td style="padding:5px 0;">${p.minutes > 0 ? p.minutes + ' min' : '—'}</td>
+                </tr>`).join('')}</tbody>
+            </table>
+          </div>` : '';
+
         if (!convos.length) {
-          body.innerHTML = '<p style="color:#6b7a99;">No conversation recorded for this demo.</p>';
+          body.innerHTML = pagesHtml +
+            '<p style="color:#6b7a99;">No conversation recorded for this demo.</p>';
           return;
         }
-        body.innerHTML = convos.map(c => `
+        const convosHtml = convos.map(c => `
           <div style="margin-bottom:16px;">
-            <div style="font-size:11px;color:#6b7a99;margin-bottom:4px;">${escapeHtml(c.ts)}</div>
+            <div style="font-size:11px;color:#6b7a99;margin-bottom:4px;">${escapeHtml(c.ts)}${c.rating ? ' · ' + ratingBadge(c.rating) : ''}</div>
             <div style="background:#f4f6fb;border-radius:8px;padding:10px 12px;margin-bottom:6px;"><strong>Student:</strong> ${escapeHtml(c.question)}</div>
             <div style="background:#fff3e6;border-radius:8px;padding:10px 12px;"><strong>WINK:</strong> ${escapeHtml(c.answer)}</div>
           </div>`).join('');
+        body.innerHTML = pagesHtml + convosHtml;
       } catch (e) {
         body.innerHTML = '<p style="color:#b91c1c;">Something went wrong loading this conversation.</p>';
       }
