@@ -9,6 +9,17 @@ from ..errors import log_error
 from ..extensions import db_cursor
 from .pricing import estimate_cost_usd
 
+# Admin accounts (config.ADMIN_EMAILS) are ordinary rows in the `students`
+# table -- there's no separate is_admin column -- so every "real student"
+# aggregate in this module has to exclude them explicitly, the same way
+# is_demo excludes demo accounts. Without this, an admin/TA's own dev/
+# testing account (often the oldest account, with disproportionate logins,
+# questions, and token usage from building/testing WINK) gets counted as a
+# "real student" and skews these numbers -- exactly the kind of thing that
+# makes a stat like "time to first question" look wrong with a small pilot
+# cohort, where one such account can dominate an average.
+_ADMIN_EMAILS = list(config.ADMIN_EMAILS)
+
 
 def log_event(sid, etype, payload=None):
     if not config.DB_URL:
@@ -306,9 +317,9 @@ def get_total_token_usage(cur):
                SUM(t.cache_creation_input_tokens) as cache_creation_input_tokens,
                SUM(t.cache_read_input_tokens) as cache_read_input_tokens
         FROM token_usage t JOIN students s ON s.id = t.student_id
-        WHERE s.is_demo IS NOT TRUE
+        WHERE s.is_demo IS NOT TRUE AND lower(s.email) != ALL(%s)
         GROUP BY t.model
-    """)
+    """, (_ADMIN_EMAILS,))
     total_tokens = 0
     total_cost = 0.0
     for r in cur.fetchall():
@@ -345,9 +356,9 @@ def get_student_summaries(cur):
         FROM students s
         LEFT JOIN event_counts ec ON ec.student_id = s.id
         LEFT JOIN doc_counts dc ON dc.student_id = s.id
-        WHERE s.is_demo IS NOT TRUE
+        WHERE s.is_demo IS NOT TRUE AND lower(s.email) != ALL(%s)
         ORDER BY s.created_at DESC
-    """)
+    """, (_ADMIN_EMAILS,))
     result = [dict(r) for r in cur.fetchall()]
     for r in result:
         r["account_deleted_at"] = r["account_deleted_at"].isoformat() if r["account_deleted_at"] else None
@@ -378,6 +389,14 @@ def compute_engagement_insights(cur):
     actually did) silently swamps these "real student" numbers -- which
     is exactly what made By University show more students than are
     actually enrolled.
+
+    Every query also excludes `lower(s.email) != ALL(_ADMIN_EMAILS)` --
+    an admin/TA account is a completely ordinary students row (there's no
+    is_admin column), so without this exclusion whoever built/tested WINK
+    counts as a "real student" too, and with a small pilot cohort their
+    own dev/testing activity (often the single oldest account, with the
+    most logins, questions, and token usage) can dominate an average like
+    avg_minutes_to_first_question outright.
     """
     out = {}
 
@@ -388,15 +407,15 @@ def compute_engagement_insights(cur):
                COUNT(*) FILTER (WHERE e.event_type='question_asked') as questions,
                COUNT(*) FILTER (WHERE e.event_type='file_uploaded') as uploads
         FROM students s LEFT JOIN events e ON e.student_id = s.id
-        WHERE s.is_demo IS NOT TRUE
-        GROUP BY 1 ORDER BY students DESC""")
+        WHERE s.is_demo IS NOT TRUE AND lower(s.email) != ALL(%s)
+        GROUP BY 1 ORDER BY students DESC""", (_ADMIN_EMAILS,))
     out["by_university"] = [dict(r) for r in cur.fetchall()]
 
     cur.execute("""
         SELECT e.student_id, e.event_type, e.created_at, COALESCE(NULLIF(s.university,''),'Not set') as university
         FROM events e JOIN students s ON s.id = e.student_id
-        WHERE s.is_demo IS NOT TRUE
-        ORDER BY e.student_id, e.created_at ASC""")
+        WHERE s.is_demo IS NOT TRUE AND lower(s.email) != ALL(%s)
+        ORDER BY e.student_id, e.created_at ASC""", (_ADMIN_EMAILS,))
     rows = cur.fetchall()
     sessions_by_student = {}
     cur_session = None
@@ -427,8 +446,8 @@ def compute_engagement_insights(cur):
     cur.execute("""
         SELECT e.student_id, COUNT(DISTINCT date_trunc('week', e.created_at)) as weeks
         FROM events e JOIN students s ON s.id = e.student_id
-        WHERE s.is_demo IS NOT TRUE
-        GROUP BY e.student_id""")
+        WHERE s.is_demo IS NOT TRUE AND lower(s.email) != ALL(%s)
+        GROUP BY e.student_id""", (_ADMIN_EMAILS,))
     week_rows = cur.fetchall()
     total_active = len(week_rows)
     returning = sum(1 for r in week_rows if r["weeks"] >= 2)
@@ -437,8 +456,8 @@ def compute_engagement_insights(cur):
     cur.execute("""
         SELECT s.created_at as joined, MIN(e.created_at) as first_q
         FROM students s JOIN events e ON e.student_id = s.id AND e.event_type = 'question_asked'
-        WHERE s.is_demo IS NOT TRUE
-        GROUP BY s.id, s.created_at""")
+        WHERE s.is_demo IS NOT TRUE AND lower(s.email) != ALL(%s)
+        GROUP BY s.id, s.created_at""", (_ADMIN_EMAILS,))
     gaps = [(r["first_q"] - r["joined"]).total_seconds() / 60.0 for r in cur.fetchall()]
     gaps = [g for g in gaps if g >= 0]
     out["avg_minutes_to_first_question"] = round(sum(gaps) / len(gaps), 1) if gaps else None
@@ -446,8 +465,8 @@ def compute_engagement_insights(cur):
     cur.execute("""
         SELECT EXTRACT(DOW FROM e.created_at)::int as dow, EXTRACT(HOUR FROM e.created_at)::int as hour, COUNT(*) as n
         FROM events e JOIN students s ON s.id = e.student_id
-        WHERE e.event_type='question_asked' AND s.is_demo IS NOT TRUE
-        GROUP BY 1,2""")
+        WHERE e.event_type='question_asked' AND s.is_demo IS NOT TRUE AND lower(s.email) != ALL(%s)
+        GROUP BY 1,2""", (_ADMIN_EMAILS,))
     grid = [[0]*24 for _ in range(7)]
     for r in cur.fetchall():
         grid[r["dow"]][r["hour"]] = r["n"]
@@ -455,11 +474,13 @@ def compute_engagement_insights(cur):
 
     cur.execute("""
         SELECT d.due_date, COUNT(*) as n FROM deadlines d JOIN students s ON s.id = d.student_id
-        WHERE d.due_date IS NOT NULL AND s.is_demo IS NOT TRUE GROUP BY d.due_date""")
+        WHERE d.due_date IS NOT NULL AND s.is_demo IS NOT TRUE AND lower(s.email) != ALL(%s)
+        GROUP BY d.due_date""", (_ADMIN_EMAILS,))
     due_by_date = {r["due_date"]: r["n"] for r in cur.fetchall()}
     cur.execute("""
         SELECT DATE(e.created_at) as d, COUNT(*) as n FROM events e JOIN students s ON s.id = e.student_id
-        WHERE e.event_type='question_asked' AND s.is_demo IS NOT TRUE GROUP BY DATE(e.created_at)""")
+        WHERE e.event_type='question_asked' AND s.is_demo IS NOT TRUE AND lower(s.email) != ALL(%s)
+        GROUP BY DATE(e.created_at)""", (_ADMIN_EMAILS,))
     q_by_date = {r["d"]: r["n"] for r in cur.fetchall()}
     spikes = []
     for due_date, n_due in due_by_date.items():
@@ -475,8 +496,8 @@ def compute_engagement_insights(cur):
     cur.execute("""
         SELECT e.event_type, COUNT(*) as n FROM events e JOIN students s ON s.id = e.student_id
         WHERE e.event_type IN ('file_uploaded','temp_file_used','global_file_uploaded')
-          AND s.is_demo IS NOT TRUE
-        GROUP BY e.event_type""")
+          AND s.is_demo IS NOT TRUE AND lower(s.email) != ALL(%s)
+        GROUP BY e.event_type""", (_ADMIN_EMAILS,))
     mix = {r["event_type"]: r["n"] for r in cur.fetchall()}
     out["upload_mix"] = {
         "permanent": mix.get("file_uploaded", 0),
@@ -504,7 +525,8 @@ def compute_engagement_insights(cur):
           ) as with_docs,
           COUNT(*) as total
         FROM events e JOIN students st ON st.id = e.student_id
-        WHERE e.event_type = 'question_asked' AND st.is_demo IS NOT TRUE""")
+        WHERE e.event_type = 'question_asked' AND st.is_demo IS NOT TRUE
+          AND lower(st.email) != ALL(%s)""", (_ADMIN_EMAILS,))
     row = cur.fetchone()
     out["general_doc_availability_pct"] = (
         round(row["with_docs"] / row["total"] * 100, 1) if row and row["total"] else 0
@@ -513,8 +535,8 @@ def compute_engagement_insights(cur):
     cur.execute("""
         SELECT (e.payload::json->>'rating') as rating, COUNT(*) as n
         FROM events e JOIN students s ON s.id = e.student_id
-        WHERE e.event_type='answer_feedback' AND s.is_demo IS NOT TRUE
-        GROUP BY (e.payload::json->>'rating')""")
+        WHERE e.event_type='answer_feedback' AND s.is_demo IS NOT TRUE AND lower(s.email) != ALL(%s)
+        GROUP BY (e.payload::json->>'rating')""", (_ADMIN_EMAILS,))
     counts = {r["rating"]: r["n"] for r in cur.fetchall()}
     up, down = counts.get("up", 0), counts.get("down", 0)
     out["answer_feedback"] = {
@@ -527,13 +549,14 @@ def compute_engagement_insights(cur):
         FROM events e JOIN students s ON s.id = e.student_id
         WHERE e.event_type = 'question_asked'
           AND s.is_demo IS NOT TRUE
+          AND lower(s.email) != ALL(%s)
           AND e.created_at >= NOW() - INTERVAL '7 days'
           AND length(e.payload::json->>'q') > 8
         GROUP BY (e.payload::json->>'q')
         HAVING COUNT(DISTINCT e.student_id) >= 2
         ORDER BY n_students DESC, n DESC
         LIMIT 15
-    """)
+    """, (_ADMIN_EMAILS,))
     out["common_questions"] = [dict(r) for r in cur.fetchall()]
 
     return out

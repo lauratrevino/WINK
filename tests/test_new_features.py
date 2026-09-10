@@ -183,7 +183,13 @@ class TestDeadlineConflicts:
 class TestAnswerFeedback:
     def test_records_and_aggregates_real_feedback(self, client, app):
         from wink.extensions import get_db
-        register(client, email="admin@utep.edu")
+        # Deliberately NOT config's ADMIN_EMAIL ("admin@utep.edu", set in
+        # conftest.py) -- compute_engagement_insights() now excludes admin
+        # accounts from every "real student" aggregate (see analytics.py),
+        # the same way it already excluded demo accounts, so registering as
+        # the admin address here would make this test's own feedback
+        # invisible to the exact stat it's trying to verify.
+        register(client, email="student@utep.edu")
 
         for rating in ["up", "up", "down"]:
             resp = client.post("/rate-answer", json={

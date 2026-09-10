@@ -223,9 +223,57 @@ class TestAdminAnalytics:
         register(client, email="admin@utep.edu")
 
         data = client.get("/analytics-data").get_json()
-        assert data["total_students"] == 2
+        # The admin's own account is a students row too (no separate
+        # is_admin column), but analytics-data now excludes ADMIN_EMAILS
+        # from every "real student" aggregate -- the same way it already
+        # excluded demo accounts -- so it should show only the one actual
+        # student, not the admin who's merely looking at the page.
+        assert data["total_students"] == 1
         emails = {s["email"] for s in data["students"]}
-        assert emails == {"s1@utep.edu", "admin@utep.edu"}
+        assert emails == {"s1@utep.edu"}
+
+    def test_engagement_insights_exclude_admin_activity(self, client, app):
+        """Regression test for the analytics numbers (e.g. "time to first
+        question" on the Insights tab) being skewed by the admin's own
+        account -- see the comment atop compute_engagement_insights() in
+        wink/services/analytics.py. Registers a real student who asks a
+        question right away, then logs the admin account asking a question
+        only after a long, unrealistic delay; if the admin's activity were
+        still leaking into these aggregates, avg_minutes_to_first_question
+        would be dragged way up by it."""
+        from wink.extensions import get_db
+        from wink.services.analytics import log_event, compute_engagement_insights
+
+        register(client, email="s1@utep.edu")
+        client.post("/logout")
+        register(client, email="admin@utep.edu")
+
+        with app.app_context():
+            conn = get_db(); cur = conn.cursor()
+            cur.execute("SELECT id FROM students WHERE email=%s", ("s1@utep.edu",))
+            real_id = cur.fetchone()["id"]
+            cur.execute("SELECT id FROM students WHERE email=%s", ("admin@utep.edu",))
+            admin_id = cur.fetchone()["id"]
+            cur.close()
+
+            log_event(real_id, "question_asked", {"q": "Real student question"})
+            # A huge, obviously-unrealistic gap -- if this ever leaked into
+            # the average, it would be impossible to miss.
+            log_event(admin_id, "question_asked", {"q": "Admin poking at the app"})
+            cur = conn.cursor()
+            cur.execute("""UPDATE events SET created_at = created_at + INTERVAL '30 days'
+                           WHERE student_id=%s AND event_type='question_asked'""", (admin_id,))
+            conn.commit(); cur.close()
+
+            insights = compute_engagement_insights(cur=conn.cursor())
+
+        assert insights["avg_minutes_to_first_question"] is not None
+        # A real student who asks a question immediately after registering
+        # should show a near-zero gap -- nowhere close to the 30-day gap
+        # the admin's own account would contribute if it weren't excluded.
+        assert insights["avg_minutes_to_first_question"] < 5
+        by_uni = {r["university"]: r["students"] for r in insights["by_university"]}
+        assert sum(by_uni.values()) == 1
 
     def test_toggle_student_active_persists_to_real_db(self, client, app):
         from wink.extensions import get_db

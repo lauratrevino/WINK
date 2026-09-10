@@ -11,6 +11,16 @@ from ..services.analytics import (anonymize_student_record, compute_engagement_i
 from ..services.health import run_health_checks, overall_status
 from ..universities_list import UNIVERSITIES
 
+# Admin accounts (config.ADMIN_EMAILS) are ordinary rows in the `students`
+# table -- there's no separate is_admin column -- so every "real student"
+# aggregate below has to exclude them explicitly, the same way is_demo
+# excludes demo accounts. Without this, an admin/TA's own dev/testing
+# account (often the oldest account, with disproportionate logins,
+# questions, and token usage from building/testing WINK) gets counted as
+# a "real student" and skews these numbers, especially with a small pilot
+# cohort where one such account can dominate an average.
+_ADMIN_EMAILS = list(config.ADMIN_EMAILS)
+
 bp = Blueprint("admin", __name__)
 
 
@@ -32,7 +42,8 @@ def analytics_data():
     try:
         if not config.DB_URL: return jsonify({"error": "No database"}), 500
         with db_cursor() as cur:
-            cur.execute("SELECT COUNT(*) as n FROM students WHERE is_demo IS NOT TRUE")
+            cur.execute("SELECT COUNT(*) as n FROM students WHERE is_demo IS NOT TRUE AND lower(email) != ALL(%s)",
+                        (_ADMIN_EMAILS,))
             total_s = cur.fetchone()["n"]
 
             # These three, and the "recent" feed just below, are scoped to
@@ -43,15 +54,18 @@ def analytics_data():
             # seeded fake activity. Demo has its own numbers on the Demo
             # Usage tab.
             cur.execute("""SELECT COUNT(*) as n FROM events e JOIN students s ON s.id=e.student_id
-                           WHERE e.event_type IN ('login','account_created') AND s.is_demo IS NOT TRUE""")
+                           WHERE e.event_type IN ('login','account_created') AND s.is_demo IS NOT TRUE
+                           AND lower(s.email) != ALL(%s)""", (_ADMIN_EMAILS,))
             total_sess = cur.fetchone()["n"]
 
             cur.execute("""SELECT COUNT(*) as n FROM events e JOIN students s ON s.id=e.student_id
-                           WHERE e.event_type='question_asked' AND s.is_demo IS NOT TRUE""")
+                           WHERE e.event_type='question_asked' AND s.is_demo IS NOT TRUE
+                           AND lower(s.email) != ALL(%s)""", (_ADMIN_EMAILS,))
             total_q = cur.fetchone()["n"]
 
             cur.execute("""SELECT COUNT(*) as n FROM events e JOIN students s ON s.id=e.student_id
-                           WHERE e.event_type='file_uploaded' AND s.is_demo IS NOT TRUE""")
+                           WHERE e.event_type='file_uploaded' AND s.is_demo IS NOT TRUE
+                           AND lower(s.email) != ALL(%s)""", (_ADMIN_EMAILS,))
             total_up = cur.fetchone()["n"]
 
             students = get_student_summaries(cur)
@@ -63,20 +77,23 @@ def analytics_data():
                     s.first_name, s.last_name, s.email
                 FROM events e
                 LEFT JOIN students s ON s.id = e.student_id
-                WHERE s.is_demo IS NOT TRUE OR s.id IS NULL
+                WHERE (s.is_demo IS NOT TRUE OR s.id IS NULL)
+                  AND (s.email IS NULL OR lower(s.email) != ALL(%s))
                 ORDER BY e.created_at DESC
                 LIMIT 60
-            """)
+            """, (_ADMIN_EMAILS,))
             recent = []
             for r in cur.fetchall():
                 row = dict(r)
                 row["payload"] = safe_payload(row.get("payload"))
                 recent.append(row)
 
-            cur.execute("SELECT major, COUNT(*) as n FROM students WHERE is_demo IS NOT TRUE GROUP BY major ORDER BY n DESC")
+            cur.execute("SELECT major, COUNT(*) as n FROM students WHERE is_demo IS NOT TRUE "
+                        "AND lower(email) != ALL(%s) GROUP BY major ORDER BY n DESC", (_ADMIN_EMAILS,))
             by_major = [dict(r) for r in cur.fetchall()]
 
-            cur.execute("SELECT classification, COUNT(*) as n FROM students WHERE is_demo IS NOT TRUE GROUP BY classification ORDER BY n DESC")
+            cur.execute("SELECT classification, COUNT(*) as n FROM students WHERE is_demo IS NOT TRUE "
+                        "AND lower(email) != ALL(%s) GROUP BY classification ORDER BY n DESC", (_ADMIN_EMAILS,))
             by_class = [dict(r) for r in cur.fetchall()]
 
             token_totals = get_total_token_usage(cur)
@@ -103,7 +120,9 @@ def analytics_data_full():
     try:
         if not config.DB_URL: return jsonify({"error": "No database"}), 500
         with db_cursor() as cur:
-            cur.execute("SELECT COUNT(*) as n FROM students WHERE is_demo IS NOT TRUE"); total_s = cur.fetchone()["n"]
+            cur.execute("SELECT COUNT(*) as n FROM students WHERE is_demo IS NOT TRUE AND lower(email) != ALL(%s)",
+                        (_ADMIN_EMAILS,))
+            total_s = cur.fetchone()["n"]
             # See compute_engagement_insights()'s docstring in
             # services/analytics.py: these all need an explicit is_demo
             # exclusion now that demo accounts (and their seeded fake
@@ -111,43 +130,30 @@ def analytics_data_full():
             # deleted at the end of each session. Demo has its own tab
             # with its own real numbers.
             cur.execute("""SELECT COUNT(*) as n FROM events e JOIN students s ON s.id=e.student_id
-                           WHERE e.event_type IN ('login','account_created') AND s.is_demo IS NOT TRUE""")
+                           WHERE e.event_type IN ('login','account_created') AND s.is_demo IS NOT TRUE
+                           AND lower(s.email) != ALL(%s)""", (_ADMIN_EMAILS,))
             total_sess = cur.fetchone()["n"]
             cur.execute("""SELECT COUNT(*) as n FROM events e JOIN students s ON s.id=e.student_id
-                           WHERE e.event_type='question_asked' AND s.is_demo IS NOT TRUE""")
+                           WHERE e.event_type='question_asked' AND s.is_demo IS NOT TRUE
+                           AND lower(s.email) != ALL(%s)""", (_ADMIN_EMAILS,))
             total_q = cur.fetchone()["n"]
             cur.execute("""SELECT COUNT(*) as n FROM events e JOIN students s ON s.id=e.student_id
-                           WHERE e.event_type='file_uploaded' AND s.is_demo IS NOT TRUE""")
+                           WHERE e.event_type='file_uploaded' AND s.is_demo IS NOT TRUE
+                           AND lower(s.email) != ALL(%s)""", (_ADMIN_EMAILS,))
             total_up = cur.fetchone()["n"]
 
             students = get_student_summaries(cur)
-
-            cur.execute("""
-                SELECT e.payload, to_char(e.created_at,'Mon DD HH24:MI') as ts,
-                       s.first_name, s.last_name, s.email
-                FROM events e LEFT JOIN students s ON s.id=e.student_id
-                WHERE e.event_type = 'question_asked' AND (s.is_demo IS NOT TRUE OR s.id IS NULL)
-                ORDER BY e.created_at DESC LIMIT 100""")
-            questions = []
-            for r in cur.fetchall():
-                row = dict(r)
-                p = safe_payload(row.pop("payload"))
-                questions.append({
-                    "first_name": row.get("first_name", ""),
-                    "last_name": row.get("last_name", ""),
-                    "email": row.get("email", ""),
-                    "question": p.get("q", ""),
-                    "ts": row.get("ts", "")
-                })
 
             # Reads from answer_logs rather than pairing up question_asked/
             # answer_given events — same reasoning as student_conversations()
             # above: answer_logs has the full question+answer together on one
             # row, and it's the only place that still holds the full answer
-            # text. (The separate "questions" feed above intentionally keeps
-            # reading the short 200-char snippet from events — that field
-            # serves a distinct purpose, exact-match grouping for the "common
-            # questions" analytics feature, not a full-text display.)
+            # text. (A separate short-snippet "questions" feed used to be
+            # built here too, straight from the question_asked events'
+            # 200-char payload — but nothing in the frontend ever rendered
+            # it once this conversations feed and the Insights tab's
+            # "common questions" existed, so it was a dead query on every
+            # page load and has been removed.)
             # Ordered by recency (most recent exchange first), not by
             # student id: this feed is capped at 200 rows, and sorting by
             # s.id first meant the lowest-id (oldest-registered) students'
@@ -166,8 +172,9 @@ def analytics_data_full():
                 SELECT al.question, al.answer_text, to_char(al.created_at,'Mon DD HH24:MI') as ts,
                        s.first_name, s.last_name, s.email, s.id as sid
                 FROM answer_logs al LEFT JOIN students s ON s.id = al.student_id
-                WHERE s.is_demo IS NOT TRUE OR s.id IS NULL
-                ORDER BY al.created_at DESC LIMIT 200""")
+                WHERE (s.is_demo IS NOT TRUE OR s.id IS NULL)
+                  AND (s.email IS NULL OR lower(s.email) != ALL(%s))
+                ORDER BY al.created_at DESC LIMIT 200""", (_ADMIN_EMAILS,))
             conversations = [
                 {
                     "first_name": r.get("first_name", ""),
@@ -185,17 +192,20 @@ def analytics_data_full():
                 SELECT e.event_type, e.payload, to_char(e.created_at,'Mon DD HH24:MI') as ts,
                        s.first_name, s.last_name, s.email
                 FROM events e LEFT JOIN students s ON s.id=e.student_id
-                WHERE s.is_demo IS NOT TRUE OR s.id IS NULL
-                ORDER BY e.created_at DESC LIMIT 100""")
+                WHERE (s.is_demo IS NOT TRUE OR s.id IS NULL)
+                  AND (s.email IS NULL OR lower(s.email) != ALL(%s))
+                ORDER BY e.created_at DESC LIMIT 100""", (_ADMIN_EMAILS,))
             recent = []
             for r in cur.fetchall():
                 row = dict(r)
                 row["payload"] = safe_payload(row.get("payload"))
                 recent.append(row)
 
-            cur.execute("SELECT major, COUNT(*) as n FROM students WHERE is_demo IS NOT TRUE GROUP BY major ORDER BY n DESC")
+            cur.execute("SELECT major, COUNT(*) as n FROM students WHERE is_demo IS NOT TRUE "
+                        "AND lower(email) != ALL(%s) GROUP BY major ORDER BY n DESC", (_ADMIN_EMAILS,))
             by_major = [dict(r) for r in cur.fetchall()]
-            cur.execute("SELECT classification, COUNT(*) as n FROM students WHERE is_demo IS NOT TRUE GROUP BY classification ORDER BY n DESC")
+            cur.execute("SELECT classification, COUNT(*) as n FROM students WHERE is_demo IS NOT TRUE "
+                        "AND lower(email) != ALL(%s) GROUP BY classification ORDER BY n DESC", (_ADMIN_EMAILS,))
             by_class = [dict(r) for r in cur.fetchall()]
 
             # documents.student_id is NULL for global reference docs (not
@@ -203,31 +213,35 @@ def analytics_data_full():
             # only a demo account's own seeded/uploaded docs are excluded.
             cur.execute("""
                 SELECT d.course, COUNT(*) as n FROM documents d LEFT JOIN students s ON s.id = d.student_id
-                WHERE s.is_demo IS NOT TRUE OR s.id IS NULL
-                GROUP BY d.course ORDER BY n DESC""")
+                WHERE (s.is_demo IS NOT TRUE OR s.id IS NULL)
+                  AND (s.email IS NULL OR lower(s.email) != ALL(%s))
+                GROUP BY d.course ORDER BY n DESC""", (_ADMIN_EMAILS,))
             by_course = [dict(r) for r in cur.fetchall()]
 
             cur.execute("""
                 SELECT to_char(e.created_at,'Mon DD') as day, COUNT(*) as n
                 FROM events e JOIN students s ON s.id = e.student_id
                 WHERE e.created_at >= NOW() - INTERVAL '7 days' AND s.is_demo IS NOT TRUE
+                  AND lower(s.email) != ALL(%s)
                 GROUP BY to_char(e.created_at,'Mon DD'), DATE(e.created_at)
-                ORDER BY DATE(e.created_at) ASC""")
+                ORDER BY DATE(e.created_at) ASC""", (_ADMIN_EMAILS,))
             daily = [dict(r) for r in cur.fetchall()]
 
             cur.execute("""
                 SELECT d.title, d.course, d.due_date, s.first_name, s.last_name
                 FROM deadlines d JOIN students s ON s.id = d.student_id
                 WHERE d.due_date >= (NOW() AT TIME ZONE %s)::date AND s.is_demo IS NOT TRUE
-                ORDER BY d.due_date ASC LIMIT 100""", (config.APP_TIMEZONE,))
+                  AND lower(s.email) != ALL(%s)
+                ORDER BY d.due_date ASC LIMIT 100""", (config.APP_TIMEZONE, _ADMIN_EMAILS))
             upcoming_deadlines = []
             for r in cur.fetchall():
                 row = dict(r)
                 row["due_date"] = row["due_date"].isoformat() if row["due_date"] else None
                 upcoming_deadlines.append(row)
             cur.execute("""SELECT COUNT(*) as n FROM deadlines d JOIN students s ON s.id = d.student_id
-                           WHERE d.due_date >= (NOW() AT TIME ZONE %s)::date AND s.is_demo IS NOT TRUE""",
-                        (config.APP_TIMEZONE,))
+                           WHERE d.due_date >= (NOW() AT TIME ZONE %s)::date AND s.is_demo IS NOT TRUE
+                           AND lower(s.email) != ALL(%s)""",
+                        (config.APP_TIMEZONE, _ADMIN_EMAILS))
             total_deadlines = cur.fetchone()["n"]
 
             insights = compute_engagement_insights(cur)
@@ -242,7 +256,6 @@ def analytics_data_full():
             "total_uploads": total_up,
             "total_deadlines": total_deadlines,
             "students": students,
-            "questions": questions,
             "conversations": conversations,
             "recent": recent,
             "by_major": by_major,
