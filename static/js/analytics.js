@@ -427,32 +427,33 @@
     }
 
     async function viewDemoConversation(sid) {
+      // Built with CSS classes (defined in analytics.css) rather than
+      // inline style="" attributes: this page's CSP only allows the
+      // specific inline-style hashes computed from templates/*.html at
+      // startup (see wink/csp_hashes.py), so a style="" attribute written
+      // here in JS can never be on that allowlist and gets silently
+      // dropped by the browser -- which is why this popup used to render
+      // with no background or positioning at all once it had enough
+      // content to need its max-height/overflow rules.
       let overlay = document.getElementById('demo-convo-overlay');
       if (!overlay) {
         overlay = document.createElement('div');
         overlay.id = 'demo-convo-overlay';
-        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,20,40,0.5);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;box-sizing:border-box;';
-        // overflow:hidden + min-width:0 on the card, and flex:1;min-height:0
-        // on the scrolling body, are all needed together for a flex-column
-        // modal like this to actually clip/scroll its content instead of
-        // spilling out past its own rounded-corner box once the content
-        // (Pages visited table + every Q&A exchange) is tall enough to
-        // exceed max-height -- without them the overflow just renders
-        // outside the white card with no background behind it, letting
-        // the page underneath show through it.
-        overlay.innerHTML = `<div style="background:#fff;border-radius:12px;max-width:640px;width:90%;max-height:80vh;display:flex;flex-direction:column;overflow:hidden;min-width:0;">
-          <div style="padding:16px 20px;border-bottom:1px solid #eef0f6;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;">
-            <h3 style="margin:0;font-size:16px;color:#002855;">Demo session detail</h3>
-            <button id="demo-convo-close" style="background:none;border:none;font-size:18px;cursor:pointer;color:#6b7a99;">✕</button>
+        overlay.className = 'demo-convo-overlay';
+        overlay.innerHTML = `<div class="demo-convo-card">
+          <div class="demo-convo-header">
+            <h3>Demo session detail</h3>
+            <button id="demo-convo-close" class="demo-convo-close">✕</button>
           </div>
-          <div id="demo-convo-body" style="padding:16px 20px;overflow-y:auto;flex:1;min-height:0;"></div>
+          <div id="demo-convo-body" class="demo-convo-body"></div>
         </div>`;
         document.body.appendChild(overlay);
-        overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
-        overlay.querySelector('#demo-convo-close').addEventListener('click', () => overlay.remove());
+        overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('open'); });
+        overlay.querySelector('#demo-convo-close').addEventListener('click', () => overlay.classList.remove('open'));
       }
+      overlay.classList.add('open');
       const body = overlay.querySelector('#demo-convo-body');
-      body.innerHTML = '<p style="color:#6b7a99;">Loading…</p>';
+      body.innerHTML = '<p class="demo-convo-loading">Loading…</p>';
       try {
         const res = await fetch(`/student-conversations/${sid}`);
         const data = await res.json();
@@ -460,41 +461,41 @@
         const pages = data.pages || [];
 
         const ratingBadge = r => r === 'up'
-          ? '<span style="color:#1a7f37;">👍 helpful</span>'
-          : r === 'down' ? '<span style="color:#b91c1c;">👎 not helpful</span>' : '';
+          ? '<span class="demo-rating-up">👍 helpful</span>'
+          : r === 'down' ? '<span class="demo-rating-down">👎 not helpful</span>' : '';
 
         const pagesHtml = pages.length ? `
-          <div style="margin-bottom:20px;">
-            <div style="font-size:12px;font-weight:600;color:#002855;margin-bottom:6px;">Pages visited</div>
-            <table style="width:100%;border-collapse:collapse;font-size:12px;">
-              <thead><tr style="color:#6b7a99;text-align:left;">
-                <th style="padding:4px 0;font-weight:500;">Page</th>
-                <th style="padding:4px 0;font-weight:500;">Visits</th>
-                <th style="padding:4px 0;font-weight:500;">Time spent</th>
+          <div class="demo-pages-section">
+            <div class="demo-pages-title">Pages visited</div>
+            <table>
+              <thead><tr>
+                <th>Page</th>
+                <th>Visits</th>
+                <th>Time spent</th>
               </tr></thead>
               <tbody>${pages.map(p => `
-                <tr style="border-top:1px solid #eef0f6;">
-                  <td style="padding:5px 0;">${escapeHtml(p.page)}</td>
-                  <td style="padding:5px 0;">${p.visits}</td>
-                  <td style="padding:5px 0;">${p.minutes > 0 ? p.minutes + ' min' : '—'}</td>
+                <tr>
+                  <td>${escapeHtml(p.page)}</td>
+                  <td>${p.visits}</td>
+                  <td>${p.minutes > 0 ? p.minutes + ' min' : '—'}</td>
                 </tr>`).join('')}</tbody>
             </table>
           </div>` : '';
 
         if (!convos.length) {
           body.innerHTML = pagesHtml +
-            '<p style="color:#6b7a99;">No conversation recorded for this demo.</p>';
+            '<p class="demo-convo-empty">No conversation recorded for this demo.</p>';
           return;
         }
         const convosHtml = convos.map(c => `
-          <div style="margin-bottom:16px;">
-            <div style="font-size:11px;color:#6b7a99;margin-bottom:4px;">${escapeHtml(c.ts)}${c.rating ? ' · ' + ratingBadge(c.rating) : ''}</div>
-            <div style="background:#f4f6fb;border-radius:8px;padding:10px 12px;margin-bottom:6px;"><strong>Student:</strong> ${escapeHtml(c.question)}</div>
-            <div style="background:#fff3e6;border-radius:8px;padding:10px 12px;"><strong>WINK:</strong> ${escapeHtml(c.answer)}</div>
+          <div class="demo-convo-exchange">
+            <div class="demo-convo-meta">${escapeHtml(c.ts)}${c.rating ? ' · ' + ratingBadge(c.rating) : ''}</div>
+            <div class="demo-convo-question"><strong>Student:</strong> ${escapeHtml(c.question)}</div>
+            <div class="demo-convo-answer"><strong>WINK:</strong> ${escapeHtml(c.answer)}</div>
           </div>`).join('');
         body.innerHTML = pagesHtml + convosHtml;
       } catch (e) {
-        body.innerHTML = '<p style="color:#b91c1c;">Something went wrong loading this conversation.</p>';
+        body.innerHTML = '<p class="demo-convo-error">Something went wrong loading this conversation.</p>';
       }
     }
 
