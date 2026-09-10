@@ -8,6 +8,7 @@ from ..security import admin_page_required, admin_required
 from ..services.analytics import (anonymize_student_record, compute_engagement_insights,
                                    get_demo_session_summaries, get_demo_usage_stats, get_page_time_breakdown,
                                    get_student_summaries, get_total_token_usage, log_event, safe_payload)
+from ..services.demo import purge_demo_data_before_today
 from ..services.health import run_health_checks, overall_status
 from ..universities_list import UNIVERSITIES
 
@@ -407,6 +408,31 @@ def delete_student():
         return jsonify({"success": True, "email": target["email"]})
     except Exception as e:
         log_error("admin.delete_student", e)
+        return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
+
+
+@bp.route("/purge-old-demo-data", methods=["POST"])
+@admin_required
+def purge_old_demo_data():
+    """Deletes every demo account, and its usage history, from before
+    today (see purge_demo_data_before_today() for exactly what that
+    covers) so the Demo tab's totals stop being dominated by old
+    development/testing runs once real pilot activity starts. Today's
+    demo activity is always kept. Irreversible, so requires the same
+    typed-confirmation phrase every time, same spirit as Delete Student's
+    typed-email guard."""
+    try:
+        s = g.student
+        if not config.DB_URL: return jsonify({"error": "No database"}), 500
+        data = request.get_json() or {}
+        if (data.get("confirm") or "").strip().upper() != "PURGE":
+            return jsonify({"error": "Type PURGE to confirm."}), 400
+        with db_cursor(commit=True) as cur:
+            counts = purge_demo_data_before_today(cur)
+        log_event(s["id"], "demo_data_purged", counts)
+        return jsonify({"success": True, **counts})
+    except Exception as e:
+        log_error("admin.purge_old_demo_data", e)
         return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
 
 

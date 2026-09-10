@@ -110,7 +110,13 @@
 
     <div class="tab-panel" id="tab-demo">
       <div class="card">
-        <div class="card-header"><h2>Demo Usage</h2><span style="font-size:13px;color:#6b7a99;">Try WINK Demo — separate from real enrolled students, excluded everywhere else on this page</span></div>
+        <div class="card-header">
+          <h2>Demo Usage</h2>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:13px;color:#6b7a99;">Try WINK Demo — separate from real registered members, excluded everywhere else on this page</span>
+            <button class="tab-btn" style="padding:4px 10px;font-size:11px;color:#b91c1c;border-color:#f3c6c6;" onclick="purgeOldDemoData()">🧹 Purge Old Demo Data</button>
+          </div>
+        </div>
         <div class="card-body">
           <div class="mini-stats" id="demo-mini-stats">
             <div class="mini-stat"><div class="mini-stat-value">—</div><div class="mini-stat-label">Total Demos Started</div></div>

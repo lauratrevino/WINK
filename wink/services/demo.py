@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from .. import config
 from ..errors import log_error
 from .analytics import safe_payload
 
@@ -65,3 +66,61 @@ def end_demo_session(cur, student_id, reason):
     """
     log_demo_session_ended(cur, student_id, reason)
     cur.execute("UPDATE students SET is_active=FALSE WHERE id=%s AND is_demo=TRUE", (student_id,))
+
+
+def purge_demo_data_before_today(cur):
+    """Wipes out every demo account and demo_sessions row from before
+    "today" (in APP_TIMEZONE, matching the day boundary Deadlines already
+    uses), keeping only demo activity from today. This is a manual,
+    admin-triggered cleanup -- unlike end_demo_session()/purge_expired
+    above, which deliberately keep demo data forever for Analytics, this
+    exists because the accumulated history of a developer's own repeated
+    demo testing skews the Demo tab's aggregate stats once real pilot
+    data starts coming in, and there's no other way to clear that out.
+
+    Three groups of rows need handling, because demo data doesn't all
+    hang off the students row the way a real account's does:
+
+    1. events / document_chunks have no foreign key to students at all
+       (see delete_student()'s docstring in blueprints/admin.py) --
+       deleting the student row would just leave these dangling, so they
+       have to be deleted explicitly by student_id first.
+    2. Every other student-owned table (documents, deadlines,
+       conversations, practice_questions, grading_weights, answer_logs,
+       course_colors, token_usage) has ON DELETE CASCADE and is cleaned
+       up automatically when the students row goes.
+    3. demo_sessions is deliberately designed to outlive its student row
+       (ON DELETE SET NULL -- see migration f4b8c1e9a273) so Analytics
+       stats don't lose history if a demo account is hard-deleted some
+       other way. That means it's the one table that must be purged by
+       its OWN date (started_at), not by chasing student_id, or old
+       sessions whose student_id was already nulled out some other time
+       would be left behind still counted in the Demo tab's totals.
+
+    Returns a dict of counts for the confirmation toast.
+    """
+    cur.execute("""SELECT id FROM students
+                   WHERE is_demo=TRUE AND created_at < (NOW() AT TIME ZONE %s)::date""",
+                (config.APP_TIMEZONE,))
+    target_ids = [r["id"] for r in cur.fetchall()]
+
+    events_deleted = 0
+    chunks_deleted = 0
+    if target_ids:
+        cur.execute("DELETE FROM events WHERE student_id = ANY(%s)", (target_ids,))
+        events_deleted = cur.rowcount
+        cur.execute("DELETE FROM document_chunks WHERE student_id = ANY(%s)", (target_ids,))
+        chunks_deleted = cur.rowcount
+        cur.execute("DELETE FROM students WHERE id = ANY(%s)", (target_ids,))
+
+    cur.execute("""DELETE FROM demo_sessions
+                   WHERE started_at < (NOW() AT TIME ZONE %s)::date""",
+                (config.APP_TIMEZONE,))
+    sessions_deleted = cur.rowcount
+
+    return {
+        "demo_accounts_deleted": len(target_ids),
+        "demo_sessions_deleted": sessions_deleted,
+        "events_deleted": events_deleted,
+        "document_chunks_deleted": chunks_deleted,
+    }

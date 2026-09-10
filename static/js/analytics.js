@@ -240,6 +240,38 @@
       }
     }
 
+    async function purgeOldDemoData() {
+      const ok = await winkConfirm({
+        title: 'Purge old demo data?',
+        message: "This is IRREVERSIBLE — every demo account, and everything it produced " +
+          "(conversations, documents, deadlines, tokens/cost, its demo_sessions history), " +
+          "is permanently deleted, EXCEPT demo activity from today. Use this to clear out " +
+          "old testing runs before they skew the Demo tab's totals.",
+        confirmLabel: 'Purge',
+        danger: true
+      });
+      if (!ok) return;
+      const typed = prompt('Type PURGE to confirm:');
+      if (typed === null) return;
+      if (typed.trim().toUpperCase() !== 'PURGE') {
+        winkToast('Did not match "PURGE" — nothing was deleted.', true);
+        return;
+      }
+      try {
+        const res = await fetch('/purge-old-demo-data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ confirm: typed.trim() })
+        });
+        const data = await res.json();
+        if (!data.success) { winkToast(data.error || 'Something went wrong.', true); return; }
+        winkToast(`Purged ${data.demo_accounts_deleted} old demo account(s) and ${data.demo_sessions_deleted} old demo session(s). Today's demo data was kept.`);
+        loadData();
+      } catch (e) {
+        winkToast('Something went wrong — please try again.', true);
+      }
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
       document.querySelectorAll('th.sortable').forEach(th => {
         th.addEventListener('click', () => {

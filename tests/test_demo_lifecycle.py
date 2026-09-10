@@ -92,3 +92,102 @@ class TestExpiredDemoAccessDoesNotDestroyData:
                     "AND demo_expires_at < NOW()", (sid,))
         assert cur.fetchone()[0] == 0
         cur.close(); conn.close()
+
+
+def _register_admin(client):
+    from conftest import mark_email_verified
+    client.post("/register", data={
+        "email": "admin@utep.edu", "password": "password123",
+        "first_name": "Ada", "last_name": "Lovelace", "classification": "Senior",
+        "major": "Computer Science", "university": "University of Texas at El Paso",
+        "terms_agree": "on", "research_agree": "on", "age_confirm": "on",
+    }, follow_redirects=False)
+    mark_email_verified("admin@utep.edu")
+
+
+def _backdate(sid, days):
+    conn = _db()
+    cur = conn.cursor()
+    cur.execute("UPDATE students SET created_at = NOW() - make_interval(days => %s) WHERE id=%s", (days, sid))
+    cur.execute("UPDATE demo_sessions SET started_at = NOW() - make_interval(days => %s) WHERE student_id=%s",
+                (days, sid))
+    cur.close(); conn.close()
+
+
+class TestPurgeOldDemoData:
+    def test_non_admin_cannot_purge(self, client):
+        from conftest import mark_email_verified
+        client.post("/register", data={
+            "email": "notadmin@utep.edu", "password": "password123",
+            "first_name": "Ada", "last_name": "Lovelace", "classification": "Senior",
+            "major": "Computer Science", "university": "University of Texas at El Paso",
+            "terms_agree": "on", "research_agree": "on", "age_confirm": "on",
+        }, follow_redirects=False)
+        mark_email_verified("notadmin@utep.edu")
+        resp = client.post("/purge-old-demo-data", json={"confirm": "PURGE"})
+        assert resp.status_code == 403
+
+    def test_wrong_confirmation_phrase_deletes_nothing(self, client):
+        old_sid = _start_demo(client)
+        _expire_demo(old_sid)
+        client.get("/chat-page", follow_redirects=False)
+        _backdate(old_sid, 3)
+        client.post("/logout")
+        _register_admin(client)
+
+        resp = client.post("/purge-old-demo-data", json={"confirm": "nope"})
+        assert resp.status_code == 400
+
+        conn = _db()
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) as n FROM students WHERE id=%s", (old_sid,))
+        assert cur.fetchone()[0] == 1, "nothing should be deleted without the exact confirmation phrase"
+        cur.close(); conn.close()
+
+    def test_purge_deletes_old_demo_data_but_keeps_todays_and_real_students(self, client):
+        # An old, already-ended demo account (its whole history -- row,
+        # events, documents, conversations, demo_sessions -- backdated 3
+        # days, the way a real leftover from earlier testing would look).
+        old_sid = _start_demo(client)
+        _expire_demo(old_sid)
+        client.get("/chat-page", follow_redirects=False)
+        _backdate(old_sid, 3)
+        client.post("/logout")
+
+        # A fresh demo account created today, which must survive the purge.
+        today_sid = _start_demo(client)
+        client.post("/logout")
+
+        _register_admin(client)
+
+        resp = client.post("/purge-old-demo-data", json={"confirm": "PURGE"})
+        assert resp.status_code == 200, resp.get_data(as_text=True)
+        body = resp.get_json()
+        assert body["success"] is True
+        assert body["demo_accounts_deleted"] == 1
+        assert body["demo_sessions_deleted"] == 1
+
+        conn = _db()
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        cur.execute("SELECT id FROM students WHERE id=%s", (old_sid,))
+        assert cur.fetchone() is None, "the old demo account row should be gone"
+        cur.execute("SELECT COUNT(*) as n FROM events WHERE student_id=%s", (old_sid,))
+        assert cur.fetchone()["n"] == 0, "the old demo account's dangling events should be gone too"
+        cur.execute("SELECT COUNT(*) as n FROM demo_sessions WHERE student_id=%s", (old_sid,))
+        assert cur.fetchone()["n"] == 0, "its demo_sessions history should be gone, not just orphaned"
+
+        cur.execute("SELECT id, is_demo FROM students WHERE id=%s", (today_sid,))
+        today_row = cur.fetchone()
+        assert today_row is not None, "today's demo account must survive the purge"
+        assert today_row["is_demo"] is True
+        # Logging out of today_sid's demo above ends its session (see
+        # auth.py's logout route), which does record a demo_sessions row
+        # -- but with started_at == today, so the purge must have kept
+        # it rather than deleting it along with the old one.
+        cur.execute("SELECT COUNT(*) as n FROM demo_sessions WHERE student_id=%s", (today_sid,))
+        assert cur.fetchone()["n"] == 1, "today's own demo_sessions row must survive the purge"
+
+        cur.execute("SELECT id FROM students WHERE email='admin@utep.edu' AND is_demo IS NOT TRUE")
+        assert cur.fetchone() is not None, "the real admin account must never be touched by a demo purge"
+        cur.close(); conn.close()
