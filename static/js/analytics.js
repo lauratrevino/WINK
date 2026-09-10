@@ -61,10 +61,10 @@
     }
 
     function renderStudentsTable(students) {
-      document.getElementById('student-count').textContent = students.length + ' students';
+      document.getElementById('student-count').textContent = students.length + ' registered';
       const tbody = document.getElementById('students-tbody');
       if (students.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="14" style="text-align:center;padding:32px;color:#6b7a99;">No students yet.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="14" style="text-align:center;padding:32px;color:#6b7a99;">No one registered yet.</td></tr>';
         return;
       }
       tbody.innerHTML = students.map(s => `
@@ -259,7 +259,7 @@
         });
 
         const sr = document.getElementById('stats-row');
-        const labels = ['Total Students','Total Sessions','Questions Asked','Files Uploaded','Upcoming Deadlines','Est. AI Cost (Pilot)'];
+        const labels = ['Total Registered','Total Sessions','Questions Asked','Files Uploaded','Upcoming Deadlines','Est. AI Cost (Pilot)'];
         const tops = ['','navy-top','','green-top','navy-top',''];
         sr.innerHTML = vals.map((v,i) => `<div class="stat-card ${tops[i]}"><div class="stat-value">${v}</div><div class="stat-label">${labels[i]}</div></div>`).join('');
 
