@@ -7,6 +7,18 @@
       });
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
       document.getElementById('tab-' + name).classList.add('active');
+
+      // The top stats-row is a pilot-wide summary (Total Registered, Est. AI
+      // Cost (Pilot), etc.) and previously stayed on screen no matter which
+      // tab was active -- so switching to the Demo tab still showed the same
+      // "Est. AI Cost (Pilot)" figure sitting above the Demo tab's own,
+      // differently-scoped "Est. Cost" mini-stat, which read as if the two
+      // tabs were showing identical numbers. Hide the pilot-wide banner
+      // while viewing Demo data so only the Demo tab's own demo-scoped
+      // stats (with their own, genuinely different Est. Cost figure) are
+      // visible there.
+      const sr = document.getElementById('stats-row');
+      if (sr) sr.style.display = (name === 'demo') ? 'none' : '';
     }
 
     const eventIcons = {
@@ -391,7 +403,7 @@
         [dm.total_questions_asked || 0, 'Total Questions Asked'],
         [dm.total_uploads || 0, 'Total Uploads'],
         [formatTokenCount(dm.total_tokens), 'Total Tokens'],
-        [formatCostUsd(dm.total_estimated_cost_usd), 'Est. Cost'],
+        [formatCostUsd(dm.total_estimated_cost_usd), 'Est. AI Cost (Demo)'],
       ];
       box.innerHTML = items.map(([val, label]) => `
         <div class="mini-stat"><div class="mini-stat-value">${val}</div><div class="mini-stat-label">${label}</div></div>
