@@ -50,7 +50,7 @@ logger.info("ADMIN_EMAILS loaded as %r", ADMIN_EMAILS)
 # address is needed (e.g. the mailto link on Privacy/Terms). Never used for
 # authorization; every access check below goes through ADMIN_EMAILS.
 ADMIN_EMAIL = ADMIN_EMAILS[0]
-MAX_DOCS_PER_STUDENT = 20
+MAX_DOCS_PER_STUDENT = int(os.environ.get("MAX_DOCS_PER_STUDENT", "200"))
 EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 DEBUG_SHOW_RESET_LINKS = os.environ.get("DEBUG_SHOW_RESET_LINKS", "false").lower() == "true"
 
@@ -83,9 +83,18 @@ WINK_ACCESS_CODE = os.environ.get("WINK_ACCESS_CODE", "").strip()
 # unset and the webhook still works, verified by signature alone.
 SES_NOTIFICATION_TOPIC_ARN = os.environ.get("SES_NOTIFICATION_TOPIC_ARN", "").strip()
 
-CHAT_MODEL = os.environ.get("WINK_MODEL", "claude-haiku-4-5-20251001")
-CHAT_MAX_TOKENS = 1024
-MAX_DOC_CONTEXT_CHARS = 40000
+# Student-facing AI (chat, practice questions, study plans). Sonnet 5 is
+# much more reliable than Haiku at following long, detailed assignment
+# instructions. Override on Render with WINK_MODEL.
+CHAT_MODEL = os.environ.get("WINK_MODEL", "claude-sonnet-5")
+# Behind-the-scenes extraction (deadlines, grade weights, campus
+# resources): structured and high-volume, so it stays on cheaper Haiku.
+EXTRACTION_MODEL = os.environ.get("WINK_EXTRACTION_MODEL", "claude-haiku-4-5-20251001")
+# The model's maximum output (~48,000 words), so no deliverable is ever
+# cut off. Short answers still stop early on their own; this is only a
+# ceiling. Override with WINK_CHAT_MAX_TOKENS if needed.
+CHAT_MAX_TOKENS = int(os.environ.get("WINK_CHAT_MAX_TOKENS", "64000"))
+MAX_DOC_CONTEXT_CHARS = 200000
 MAX_GLOBAL_DOC_CONTEXT_CHARS = 20000
 # A ceiling on the COMBINED size of student documents + global reference
 # material + a temporarily attached file for one message. Each of the
@@ -96,9 +105,9 @@ MAX_GLOBAL_DOC_CONTEXT_CHARS = 20000
 # (least specific to the actual question), keeping the student's own
 # uploaded documents intact, since that's the most directly relevant
 # material.
-MAX_TOTAL_CONTEXT_CHARS = 60000
+MAX_TOTAL_CONTEXT_CHARS = 280000
 DEADLINE_EXTRACTION_MAX_CHARS = 60000
-MAX_TEMP_DOC_CHARS = 20000
+MAX_TEMP_DOC_CHARS = 80000
 # Used for "what's due today/this week" date-window comparisons (deadline
 # reminders, upcoming-deadline queries). The database itself stores naive
 # UTC timestamps throughout, but comparing against CURRENT_DATE without a
@@ -107,17 +116,17 @@ MAX_TEMP_DOC_CHARS = 20000
 # can shift the reminder window by a day. Change this if WINK is ever used
 # by students outside Mountain Time.
 APP_TIMEZONE = os.environ.get("APP_TIMEZONE", "America/Denver")
-MAX_CHAT_HISTORY_MESSAGES = 12
+MAX_CHAT_HISTORY_MESSAGES = 40
 MAX_STORED_MESSAGES_PER_CONVERSATION = 400
-WEB_SEARCH_MAX_USES = 3
-MAX_USER_MESSAGE_CHARS = 6000
-# An independent, lower ceiling on the COMBINED size of one request's
-# client-supplied chat history. Deliberately not
-# MAX_CHAT_HISTORY_MESSAGES * MAX_USER_MESSAGE_CHARS — every message is
-# already bounded by MAX_USER_MESSAGE_CHARS individually, so that product
-# is the maximum possible total and can never actually be exceeded; this
-# is the real, separate ceiling that chat.py's validation enforces.
-MAX_CHAT_HISTORY_TOTAL_CHARS = 24000
+WEB_SEARCH_MAX_USES = 5
+# Hard cap on the student's NEW message only.
+MAX_USER_MESSAGE_CHARS = 50000
+# Older history is trimmed to fit these (never rejected): each earlier
+# message is cut to MAX_HISTORY_MESSAGE_CHARS, and the oldest messages are
+# dropped once the combined size passes MAX_CHAT_HISTORY_TOTAL_CHARS. Sized
+# so a follow-up like "fix the Gantt chart" still sees the full report.
+MAX_HISTORY_MESSAGE_CHARS = 100000
+MAX_CHAT_HISTORY_TOTAL_CHARS = 120000
 
 
 DB_POOL_MIN = int(os.environ.get("DB_POOL_MIN", "1"))

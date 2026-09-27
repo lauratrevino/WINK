@@ -17,7 +17,7 @@
 
     .card-bar {
       width: 100%;
-      max-width: 900px;
+      max-width: 1052px;  /* matches the content width of every other page (1100px shell minus 24px side padding) */
       margin: 0 auto;
       box-sizing: border-box;
       padding: 0;
@@ -33,7 +33,7 @@
 
     .hero {
       min-height: 480px;
-      max-width: 900px;
+      max-width: 1052px;  /* matches the content width of every other page (1100px shell minus 24px side padding) */
       margin: 0 auto;
       padding-bottom: 0;
       overflow: visible;
@@ -95,6 +95,7 @@
       }
       .hero-text {
         width: 100%;
+        left: 0;  /* landing.css's desktop offset pushed this 14px off-screen on phones */
         padding: 18px 5% 28px;
       }
       .hero-demo-cta {

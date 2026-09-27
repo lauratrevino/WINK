@@ -40,7 +40,7 @@ _OCR_TIMEOUT_SECONDS = 20
 # A defence against PIL "decompression bomb" images: a small, valid file
 # on disk (e.g. a highly-compressed PNG) can decode into a bitmap large
 # enough to make OCR (or even just opening the image) consume excessive
-# memory and time. This is independent of the 16MB request-size cap,
+# memory and time. This is independent of the 25MB request-size cap,
 # which limits the file ON DISK, not the size of the pixel buffer it
 # decodes to. 40 million pixels is roughly a 6500x6000 image — generous
 # for any real photographed syllabus/whiteboard/handout, well below what
@@ -235,8 +235,8 @@ def extract_text(filepath, orig_name):
                 text = ""
     except Exception as e:
         log_error("services.documents.extract_text_failed", e, orig_name=orig_name); text = ""
-    if len(text) > 60000:
-        text = text[:60000] + "\n\n[Document truncated at 60,000 characters]"
+    if len(text) > 200000:
+        text = text[:200000] + "\n\n[Document truncated at 200,000 characters]"
     return text.strip()
 
 
@@ -358,7 +358,7 @@ def get_student_chunks(sid, question=None):
         with db_cursor() as cur:
             if question and question.strip():
                 cur.execute(
-                    """SELECT content, embedding FROM document_chunks
+                    """SELECT content, embedding, document_id FROM document_chunks
                        WHERE student_id=%s
                        ORDER BY ts_rank(to_tsvector('english', content), plainto_tsquery('english', %s)) DESC,
                                 document_id, chunk_index
@@ -367,13 +367,14 @@ def get_student_chunks(sid, question=None):
                 )
             else:
                 cur.execute(
-                    """SELECT content, embedding FROM document_chunks
+                    """SELECT content, embedding, document_id FROM document_chunks
                        WHERE student_id=%s ORDER BY document_id, chunk_index
                        LIMIT %s""",
                     (sid, config.RETRIEVAL_MAX_CANDIDATE_CHUNKS),
                 )
             rows = cur.fetchall()
-        return [{"content": r["content"], "embedding": json.loads(r["embedding"]) if r["embedding"] else None}
+        return [{"content": r["content"], "embedding": json.loads(r["embedding"]) if r["embedding"] else None,
+                 "document_id": r.get("document_id")}
                 for r in rows]
     except Exception as e:
         log_error("services.documents.get_student_chunks", e); return []
@@ -405,7 +406,8 @@ def get_global_chunks(university, question=None):
                     (university or "", config.RETRIEVAL_MAX_CANDIDATE_CHUNKS),
                 )
             rows = cur.fetchall()
-        return [{"content": r["content"], "embedding": json.loads(r["embedding"]) if r["embedding"] else None}
+        return [{"content": r["content"], "embedding": json.loads(r["embedding"]) if r["embedding"] else None,
+                 "document_id": r.get("document_id")}
                 for r in rows]
     except Exception as e:
         log_error("services.documents.get_global_chunks", e); return []
@@ -450,12 +452,48 @@ def build_doc_context(docs, question=None, sid=None, get_query_embeddings=None):
             chunk_embeddings = [c["embedding"] for c in chunk_rows]
             top = rank_chunks(question, chunk_texts, config.RETRIEVAL_TOP_N_STUDENT_DOCS,
                               chunk_embeddings=chunk_embeddings, get_query_embeddings=get_query_embeddings)
+            # WHOLE-DOCUMENT EXPANSION: excerpts alone can drop a numbered
+            # requirement that doesn't share words with the question (an
+            # assignment's instruction #4 was missed this way). The
+            # documents the best-matching excerpts come from are included
+            # IN FULL, most relevant first, while they fit the budget;
+            # everything else stays as excerpts.
+            doc_by_chunk = {c["content"]: c.get("document_id") for c in chunk_rows}
+            hits = {}
+            for rank, text in enumerate(top):
+                did = doc_by_chunk.get(text)
+                if did is not None:
+                    hits[did] = hits.get(did, 0) + (len(top) - rank)
+            docs_by_id = {d.get("id"): d for d in docs}
+            full_docs, used = [], 0
+            for did in sorted(hits, key=hits.get, reverse=True):
+                d = docs_by_id.get(did)
+                content = ((d or {}).get("content") or "").strip()
+                if not content or used + len(content) > config.MAX_DOC_CONTEXT_CHARS:
+                    continue
+                full_docs.append(d)
+                used += len(content)
+            # Then fill any remaining room with the student's other
+            # documents in full, newest upload first (docs arrive ordered
+            # by uploaded_at DESC), so "check my submission files" sees the
+            # files they just uploaded even if no excerpt matched.
+            chosen = {d.get("id") for d in full_docs}
+            for d in docs:
+                content = (d.get("content") or "").strip()
+                if d.get("id") in chosen or not content or used + len(content) > config.MAX_DOC_CONTEXT_CHARS:
+                    continue
+                full_docs.append(d)
+                chosen.add(d.get("id"))
+                used += len(content)
+            full_ids = {d.get("id") for d in full_docs}
+            top = [t for t in top if doc_by_chunk.get(t) not in full_ids]
             def _labeled(d):
                 crn = (d.get("crn") or "").strip()
                 return f"{d['orig_name']} ({d['course']}, CRN {crn})" if crn else f"{d['orig_name']} ({d['course']})"
             ctx = intro
             ctx += (f"The student has uploaded more material ({len(docs)} files) than fits in one "
-                    f"prompt, so below are the excerpts most relevant to their CURRENT question — "
+                    f"prompt, so below are the COMPLETE text of the document(s) most relevant to their "
+                    f"CURRENT question, plus excerpts from the rest — "
                     f"not the complete text of every document. Every document they've uploaded is "
                     f"still listed by name so you know it exists; never tell them to re-upload "
                     f"something listed here. If they ask a question that needs a document's FULL "
@@ -464,7 +502,14 @@ def build_doc_context(docs, question=None, sid=None, get_query_embeddings=None):
                     f"specific section or document if they want more of it.\n"
                     f"Uploaded files: " + ", ".join(_labeled(d) for d in docs) + "\n")
             ctx += f"{'='*60}\n\n"
-            ctx += "\n\n---\n\n".join(top)
+            for i, d in enumerate(full_docs):
+                crn = (d.get("crn") or "").strip()
+                course_label = f"{d['course']} (CRN {crn})" if crn else d['course']
+                ctx += (f"[DOCUMENT {i+1}] {d['orig_name']} (COMPLETE TEXT, most relevant to this question)\n"
+                        f"Course: {course_label}\n\n{(d.get('content') or '').strip()}\n\n{'-'*40}\n\n")
+            if top:
+                ctx += "EXCERPTS FROM THE STUDENT'S OTHER DOCUMENTS:\n\n"
+                ctx += "\n\n---\n\n".join(top)
             ctx += f"\n\n{'='*60}\n"
             return ctx
 

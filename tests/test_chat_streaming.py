@@ -110,7 +110,7 @@ class TestChatStreaming:
         final_content = [FakeContentBlock("text", text="Hello world!")]
         monkeypatch.setattr(chat_module, "anthropic_client", FakeAnthropicClient(FakeStream(events, final_content)))
 
-        resp = client.post("/chat", json={"message": "hi"}, headers={"X-CSRFToken": csrf_token})
+        resp = client.post("/chat", json={"messages": [{"role": "user", "content": "hi"}]}, headers={"X-CSRFToken": csrf_token})
         chunks = _chunks(resp)
         assert chunks == ["Hello ", "world!"], (
             f"expected two separate incremental chunks (true streaming), got {chunks}"
@@ -141,7 +141,7 @@ class TestChatStreaming:
         ]
         monkeypatch.setattr(chat_module, "anthropic_client", FakeAnthropicClient(FakeStream(events, final_content)))
 
-        resp = client.post("/chat", json={"message": "financial aid?"}, headers={"X-CSRFToken": csrf_token})
+        resp = client.post("/chat", json={"messages": [{"role": "user", "content": "financial aid?"}]}, headers={"X-CSRFToken": csrf_token})
         chunks = _chunks(resp)
         assert chunks == ["The answer is 42."], f"narration leaked or answer altered: {chunks}"
         assert "Let me check" not in "".join(chunks)
@@ -167,7 +167,7 @@ class TestChatStreaming:
         ]
         monkeypatch.setattr(chat_module, "anthropic_client", FakeAnthropicClient(FakeStream(events, final_content)))
 
-        resp = client.post("/chat", json={"message": "financial aid?"}, headers={"X-CSRFToken": csrf_token})
+        resp = client.post("/chat", json={"messages": [{"role": "user", "content": "financial aid?"}]}, headers={"X-CSRFToken": csrf_token})
         list(resp.response)  # drain the generator so the request finishes and logs
 
         with app.app_context():

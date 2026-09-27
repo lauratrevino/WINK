@@ -79,7 +79,44 @@ def _find_unverified_citations(answer_text, known_filenames):
 # terms). This is what actually bounds cost from an unauthenticated,
 # public feature.
 _DEMO_AI_BUDGET_MAX_CALLS = 25
-_DEMO_AI_BUDGET_WINDOW_SECONDS = 21600  # matches the 6-hour demo session TTL
+_DEMO_AI_BUDGET_WINDOW_SECONDS = 3600  # matches the 1-hour demo session TTL
+
+
+# Safety net behind the system prompt's no-apology rule: strips opening
+# sentences that apologize, concede ("You're absolutely right"), or narrate
+# WINK's own process ("Let me take a look..."). Only the OPENING is
+# touched; the real answer after it is left exactly as written.
+_OPENER_RE = re.compile(
+    r"^\s*(?:(?:you(?:'|\u2019)re (?:absolutely |totally |completely )?right|you are (?:absolutely )?right"
+    r"|good catch|great catch|my apologies|i apologi[sz]e|(?:i(?:'|\u2019)m |i am )?sorry(?: for| about|,)"
+    r"|my (?:mistake|bad)|i (?:missed|overlooked|should have|didn(?:'|\u2019)t read|did not read)"
+    r"|let me (?:take (?:a|another) look|look|check|re-?read|re-?check|review|go back)"
+    r"|looking (?:at|again|back)|thanks for (?:catching|pointing))"
+    r".*?(?:[.!?]+|\u2014|:)(?=\s|$|[\U0001F300-\U0001FAFF\u2600-\u27BF])"
+    r"[ \t]*(?:[\U0001F300-\U0001FAFF\u2600-\u27BF]\ufe0f?[ \t]*)*)+",
+    re.IGNORECASE,
+)
+
+
+_OPENER_STARTS = ("you're", "you\u2019re", "you are", "good catch", "great catch", "my apolog", "i apolog",
+                  "i'm sorry", "i\u2019m sorry", "i am sorry", "sorry", "my mistake", "my bad", "i missed",
+                  "i overlooked", "i should have", "i didn", "i did not", "let me", "looking at", "looking again",
+                  "looking back", "thanks for catching", "thanks for pointing")
+
+
+def _could_be_opener(held):
+    """True while the reply so far could still turn into an apology or
+    narration opener, so it's worth holding back a moment longer. Anything
+    else streams immediately, keeping replies instant."""
+    h = held.lstrip().lower()
+    if not h:
+        return True
+    return any(s.startswith(h) or h.startswith(s) for s in _OPENER_STARTS)
+
+
+def _strip_apology_opener(text):
+    cleaned = _OPENER_RE.sub("", text, count=1)
+    return cleaned.lstrip() if cleaned != text else text
 
 
 def _check_demo_ai_budget(s):
@@ -136,7 +173,7 @@ def chat():
         demo_blocked = _check_demo_ai_budget(s)
         if demo_blocked:
             return demo_blocked
-        wait = rate_limited(f"chat:{s['id']}", max_calls=20, window_seconds=60)
+        wait = rate_limited(f"chat:{s['id']}", max_calls=60, window_seconds=60)  # anti-bot ceiling only; no human can hit 1/sec
         if wait:
             return jsonify({
                 "error": "You're asking questions faster than I can keep up — please wait a moment and try again.",
@@ -154,23 +191,31 @@ def chat():
         # content type, and individual size, the last one included — so
         # nothing is checked twice and nothing earlier in the history
         # slips through unchecked.
-        if len(messages) > config.MAX_CHAT_HISTORY_MESSAGES:
-            return jsonify({"error": "Too many messages in history."}), 400
-        total_chars = 0
+        # Structure is validated for every message, but LENGTH is only a hard
+        # error for the student's new message. Older history is trimmed to
+        # fit instead of rejected: rejecting it used to break every
+        # conversation after 6 questions ("Too many messages in history")
+        # or after one long report (a single reply over the per-message cap).
         for m in messages:
             if not isinstance(m, dict) or m.get("role") not in ("user", "assistant"):
                 return jsonify({"error": "Invalid message format."}), 400
-            content = m.get("content")
-            if not isinstance(content, str):
+            if not isinstance(m.get("content"), str):
                 return jsonify({"error": "Invalid message format."}), 400
-            if len(content) > config.MAX_USER_MESSAGE_CHARS:
-                return jsonify({"error": f"A message in the history is too long (max {config.MAX_USER_MESSAGE_CHARS} characters)."}), 400
+        if not messages or messages[-1]["role"] != "user":
+            return jsonify({"error": "Invalid message format."}), 400
+        if len(messages[-1]["content"]) > config.MAX_USER_MESSAGE_CHARS:
+            return jsonify({"error": f"That message is too long (max {config.MAX_USER_MESSAGE_CHARS} characters). Try splitting it up or attaching it as a file."}), 400
+        trimmed = []
+        total_chars = 0
+        for m in reversed(messages[-config.MAX_CHAT_HISTORY_MESSAGES:]):
+            content = m["content"]
+            if len(content) > config.MAX_HISTORY_MESSAGE_CHARS:
+                content = content[:config.MAX_HISTORY_MESSAGE_CHARS] + "\n\n[...earlier content trimmed...]"
+            if trimmed and total_chars + len(content) > config.MAX_CHAT_HISTORY_TOTAL_CHARS:
+                break
+            trimmed.append({"role": m["role"], "content": content})
             total_chars += len(content)
-        # An independent, lower ceiling than MAX_CHAT_HISTORY_MESSAGES *
-        # MAX_USER_MESSAGE_CHARS — see the constant's definition in
-        # config.py for why that product is never actually reachable here.
-        if total_chars > config.MAX_CHAT_HISTORY_TOTAL_CHARS:
-            return jsonify({"error": "Combined message history is too long."}), 400
+        messages = list(reversed(trimmed))
         user_msg = messages[-1]["content"] if messages else ""
         log_event(s["id"], "question_asked", {"q": user_msg[:200]})
 
@@ -229,14 +274,18 @@ def chat():
         # of the two calls below actually needs it first (or never, if
         # neither ends up doing neural ranking — e.g. everything fits
         # in full-context mode).
+        # Retrieval looks at the previous question too, so a follow-up like
+        # "you missed part of it" still pulls up the assignment it's about.
+        _prev_user = next((m["content"] for m in reversed(messages[:-1]) if m.get("role") == "user"), "")
+        retrieval_q = (user_msg + ("\n" + _prev_user[:1000] if _prev_user else ""))
         _query_embeddings_cache = {}
         def _get_query_embeddings():
             if "v" not in _query_embeddings_cache:
                 _query_embeddings_cache["v"] = (
-                    embed_texts([user_msg], input_type="query") if config.VOYAGE_API_KEY else None
+                    embed_texts([retrieval_q], input_type="query") if config.VOYAGE_API_KEY else None
                 )
             return _query_embeddings_cache["v"]
-        doc_ctx = build_doc_context(docs, question=user_msg, sid=s["id"], get_query_embeddings=_get_query_embeddings)
+        doc_ctx = build_doc_context(docs, question=retrieval_q, sid=s["id"], get_query_embeddings=_get_query_embeddings)
         deadline_ctx = build_deadlines_context(s["id"], now=now)
         # build_global_doc_context() now decides internally (via a cheap
         # aggregate query) whether it needs full document content at all —
@@ -244,7 +293,7 @@ def chat():
         # is a separate, deliberately cheap (no content) lookup purely for
         # citation verification below, so that check doesn't force a full
         # fetch either.
-        global_ctx = build_global_doc_context(student_university, question=user_msg, get_query_embeddings=_get_query_embeddings)
+        global_ctx = build_global_doc_context(student_university, question=retrieval_q, get_query_embeddings=_get_query_embeddings)
 
         # Every filename actually shown to the model this turn — a
         # citation naming anything outside this set (see
@@ -266,18 +315,24 @@ def chat():
         else:
             temp_doc_ctx = ""
 
-        # Enforce the combined ceiling — each piece above already has its
-        # own individual cap, but that alone doesn't bound what they
-        # add up to together. Trim least-specific-to-the-question
-        # material first (global reference material, then the temp
-        # attachment), keeping the student's own uploaded documents
-        # intact since that's most directly relevant to their question.
+        # Enforce the combined ceiling. Trim least-specific material
+        # first: global reference material, then the student's saved
+        # documents. The file attached to THIS conversation is trimmed
+        # last of all: it's what the student is asking about right now
+        # (e.g. assignment instructions), and trimming its end first used
+        # to silently cut off later numbered instructions.
         combined_len = len(doc_ctx) + len(global_ctx) + len(temp_doc_ctx)
         if combined_len > config.MAX_TOTAL_CONTEXT_CHARS:
             over_by = combined_len - config.MAX_TOTAL_CONTEXT_CHARS
             trim_from_global = min(len(global_ctx), over_by)
             global_ctx = global_ctx[:len(global_ctx) - trim_from_global]
             over_by -= trim_from_global
+            if over_by > 0:
+                trim_from_docs = min(len(doc_ctx), over_by)
+                doc_ctx = doc_ctx[:len(doc_ctx) - trim_from_docs]
+                if trim_from_docs:
+                    doc_ctx += "\n[Some of the student's saved documents were shortened to fit.]\n"
+                over_by -= trim_from_docs
             if over_by > 0:
                 temp_doc_ctx = temp_doc_ctx[:max(0, len(temp_doc_ctx) - over_by)]
 
@@ -318,6 +373,16 @@ def chat():
         student_id = s["id"]
         start_time = time.time()
 
+        # The model's input + max_tokens must fit its 200k-token context
+        # window. Estimate input generously (~3 chars/token) and leave
+        # room for web search results added mid-answer, so a long
+        # conversation with big documents lowers the output ceiling
+        # instead of failing outright.
+        _est_input_tokens = (sum(len(b.get("text", "")) for b in system) +
+                             sum(len(m.get("content", "")) for m in messages)) // 3
+        _ctx_window = 200000 if "haiku" in config.CHAT_MODEL else 1000000
+        reply_max_tokens = max(8000, min(config.CHAT_MAX_TOKENS, _ctx_window - _est_input_tokens - 40000))
+
         def generate():
             full_reply = []
             usage = None
@@ -329,7 +394,7 @@ def chat():
             try:
                 with client.messages.stream(
                     model=config.CHAT_MODEL,
-                    max_tokens=config.CHAT_MAX_TOKENS,
+                    max_tokens=reply_max_tokens,
                     system=system,
                     messages=messages,
                     tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": config.WEB_SEARCH_MAX_USES}]
@@ -365,16 +430,37 @@ def chat():
                     # common-case latency win — see chat speed notes.
                     stream_live = None
                     raw_text_accum = []
+                    opener_buf, opener_done = [], False
                     for event in stream:
                         etype = getattr(event, "type", None)
                         if etype == "content_block_start" and stream_live is None:
                             block_type = getattr(event.content_block, "type", None)
-                            stream_live = block_type not in ("server_tool_use", "web_search_tool_result", "tool_use")
+                            # Sonnet 5 may think first; decide from the first
+                            # REAL block (text vs. search), not the thinking one.
+                            if block_type not in ("thinking", "redacted_thinking"):
+                                stream_live = block_type not in ("server_tool_use", "web_search_tool_result", "tool_use")
                         elif etype == "text":
                             raw_text_accum.append(event.text)
                             if stream_live:
-                                full_reply.append(event.text)
-                                yield event.text
+                                # Hold back the first ~300 characters so an
+                                # apology/narration opener can be removed
+                                # before the student ever sees it.
+                                if opener_done:
+                                    full_reply.append(event.text)
+                                    yield event.text
+                                else:
+                                    opener_buf.append(event.text)
+                                    held = "".join(opener_buf)
+                                    if (not _could_be_opener(held) or len(held) >= 300
+                                            or "\n\n" in held[40:]):
+                                        opener_done = True
+                                        out = _strip_apology_opener(held)
+                                        full_reply.append(out)
+                                        yield out
+                    if stream_live and not opener_done and opener_buf:
+                        out = _strip_apology_opener("".join(opener_buf))
+                        full_reply.append(out)
+                        yield out
                     raw_text = "".join(raw_text_accum)
                     final_answer = ""
                     try:
@@ -436,7 +522,7 @@ def chat():
                         # expected, or isn't available at all, fall back to
                         # the raw drained text so a real reply is never
                         # silently dropped to nothing.
-                        reply_text = final_answer or raw_text
+                        reply_text = _strip_apology_opener(final_answer or raw_text)
                         if reply_text:
                             full_reply.append(reply_text)
                             yield reply_text
@@ -562,7 +648,7 @@ def generate_practice():
         demo_blocked = _check_demo_ai_budget(s)
         if demo_blocked:
             return demo_blocked
-        wait = rate_limited(f"practice:{s['id']}", max_calls=5, window_seconds=600)
+        wait = rate_limited(f"practice:{s['id']}", max_calls=60, window_seconds=60)  # anti-bot ceiling only
         if wait:
             return jsonify({
                 "error": "You've generated a few sets of practice questions already — please wait a bit before making more.",
@@ -631,7 +717,7 @@ def generate_study_plan_route():
         demo_blocked = _check_demo_ai_budget(s)
         if demo_blocked:
             return demo_blocked
-        wait = rate_limited(f"study-plan:{s['id']}", max_calls=10, window_seconds=600)
+        wait = rate_limited(f"study-plan:{s['id']}", max_calls=60, window_seconds=60)  # anti-bot ceiling only
         if wait:
             return jsonify({
                 "error": "Please wait a bit before generating another study plan.",
@@ -811,6 +897,31 @@ def _conversation_transcript(title, msgs):
         lines.append(f"**{who}:** {m.get('content','')}")
         lines.append("")
     return "\n".join(lines)
+
+
+@bp.route("/export-docx", methods=["POST"])
+@login_required
+def export_docx():
+    """"Download as Word" under a WINK answer: the answer's markdown (plus
+    PNGs of any diagrams, rendered by the browser) -> a formatted .docx."""
+    from flask import Response
+    from ..services.docx_export import build_docx, decode_images
+    try:
+        data = request.get_json() or {}
+        text = str(data.get("text") or "")
+        if not text.strip():
+            return jsonify({"error": "Nothing to export."}), 400
+        if len(text) > 500000:
+            return jsonify({"error": "That answer is too long to export."}), 400
+        images = decode_images(data.get("images"))  # keeps order; a failed diagram becomes a placeholder
+        body, filename = build_docx(_strip_apology_opener(text), images)
+        log_event(g.student["id"], "answer_exported_docx", {"chars": len(text)})
+        return Response(body, mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        headers={"Content-Disposition": f'attachment; filename="{filename}"',
+                                 "Cache-Control": "no-store"})
+    except Exception as e:
+        log_error("chat.export_docx", e)
+        return jsonify({"error": "Something went wrong creating the Word file. Please try again."}), 500
 
 
 @bp.route("/conversations/<int:conv_id>/export")

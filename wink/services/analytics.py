@@ -212,6 +212,157 @@ def get_page_time_breakdown(cur, student_id):
     return result
 
 
+PAGE_LABELS = {
+    "dashboard": "Dashboard", "documents": "My Documents", "calendar": "Calendar",
+    "chat": "Ask WINK", "practice": "Practice", "grades": "Grades",
+    "progress": "My Progress", "manual": "Help", "wrapped": "Wrapped",
+    "analytics": "Analytics", "admin_hub": "Admin Hub",
+}
+
+
+def _page_time_from_rows(rows, idle_minutes=30.0):
+    """Core of the Time-by-page numbers, from one student's events in
+    time order (seeded demo events already removed).
+
+    A new session starts at a login / account creation, or after
+    idle_minutes with no activity at all (students often stay signed in
+    for days, so login alone would lump a whole week into one session).
+    Time on a page runs from opening it until the student opens another
+    page, counting every action in between (questions asked, uploads,
+    ratings) up to the last action before the session ends. Time after a
+    session's final action is unknown and not counted.
+    """
+    sessions = []
+    current = None
+    current_page = None
+    prev_at = None
+    for r in rows:
+        at = r["created_at"]
+        gap = (at - prev_at).total_seconds() / 60.0 if prev_at is not None else None
+        starts_new = (
+            current is None
+            or r["event_type"] in ("login", "account_created")
+            or (gap is not None and gap > idle_minutes)
+        )
+        if starts_new:
+            current = {"start": at, "pages": {}}
+            sessions.append(current)
+            current_page = None
+        elif current_page is not None:
+            # Time between two actions belongs to whatever page the
+            # student was on, so asking five questions on Ask WINK counts
+            # as time on Ask WINK, not just the gap before the first one.
+            current_page["minutes"] += max(0.0, gap)
+        prev_at = at
+        if r["event_type"] == "page_view":
+            page = safe_payload(r["payload"]).get("page") or "unknown"
+            current_page = current["pages"].setdefault(
+                page, {"page": page, "label": PAGE_LABELS.get(page, page.title()), "visits": 0, "minutes": 0.0})
+            current_page["visits"] += 1
+
+    out_sessions = []
+    grand = {}
+    for sess in sessions:
+        if not sess["pages"]:
+            continue
+        pages = sorted(sess["pages"].values(), key=lambda e: e["minutes"], reverse=True)
+        for e in pages:
+            g = grand.setdefault(e["page"], {"page": e["page"], "label": e["label"], "visits": 0, "minutes": 0.0})
+            g["visits"] += e["visits"]
+            g["minutes"] += e["minutes"]
+            e["minutes"] = round(e["minutes"], 1)
+        out_sessions.append({
+            "start": sess["start"].strftime("%b %d, %Y %I:%M %p"),
+            "start_iso": sess["start"].isoformat() + "Z",
+            "total_minutes": round(sum(e["minutes"] for e in pages), 1),
+            "pages": pages,
+        })
+    totals = sorted(grand.values(), key=lambda e: e["minutes"], reverse=True)
+    for e in totals:
+        e["minutes"] = round(e["minutes"], 1)
+    out_sessions.reverse()  # newest first
+    return {
+        "sessions": out_sessions,
+        "totals_by_page": totals,
+        "grand_total_minutes": round(sum(e["minutes"] for e in totals), 1),
+        "session_count": len(out_sessions),
+    }
+
+
+def get_page_time_by_session(cur, student_id, idle_minutes=30.0):
+    """Full Time-by-page detail for one student (the Engagement tab's
+    per-student popup). See _page_time_from_rows for the rules."""
+    cur.execute("""SELECT event_type, payload, created_at FROM events
+                   WHERE student_id=%s ORDER BY created_at ASC""", (student_id,))
+    rows = [r for r in cur.fetchall() if not safe_payload(r["payload"]).get("seeded")]
+    return _page_time_from_rows(rows, idle_minutes)
+
+
+def _all_page_time(cur, idle_minutes=30.0):
+    """Per-student Time-by-page results for every real student, from ONE
+    scan of the events table. Cached for the rest of the request, since the
+    Analytics page needs it for both the Engagement columns and the
+    Distributions chart."""
+    try:
+        from flask import g, has_app_context
+        cache = g if has_app_context() else None
+    except Exception:
+        cache = None
+    if cache is not None and getattr(cache, "_wink_page_time", None) is not None:
+        return cache._wink_page_time
+    cur.execute("""SELECT e.student_id, e.event_type,
+                          CASE WHEN e.event_type = 'page_view' THEN e.payload END AS payload,
+                          e.created_at
+                   FROM events e JOIN students s ON s.id = e.student_id
+                   WHERE s.is_demo IS NOT TRUE
+                   ORDER BY e.student_id, e.created_at ASC""")
+    by_student = {}
+    for r in cur.fetchall():
+        by_student.setdefault(r["student_id"], []).append(r)
+    result = {sid: _page_time_from_rows(rows, idle_minutes) for sid, rows in by_student.items()}
+    if cache is not None:
+        cache._wink_page_time = result
+    return result
+
+
+def get_page_time_summaries(cur, idle_minutes=30.0):
+    """{student_id: {page_time_minutes, active_sessions, top_page}} for
+    every real (non-demo) student."""
+    out = {}
+    for sid, d in _all_page_time(cur, idle_minutes).items():
+        top = d["totals_by_page"][0] if d["totals_by_page"] and d["totals_by_page"][0]["minutes"] > 0 else None
+        out[sid] = {
+            "page_time_minutes": d["grand_total_minutes"],
+            "active_sessions": d["session_count"],
+            "top_page": top["label"] if top else "",
+        }
+    return out
+
+
+def get_page_distribution(cur, idle_minutes=30.0):
+    """Analytics > Distributions > Pages: for every student page, total
+    time, visits, how many students used it, and average time per visit,
+    across all real (non-demo) students. Same timing rules as the
+    per-student Time by page view. Admin-only pages are left out."""
+    agg = {}
+    for sid, d in _all_page_time(cur, idle_minutes).items():
+        for p in d["totals_by_page"]:
+            if p["page"] in ("analytics", "admin_hub"):
+                continue
+            e = agg.setdefault(p["page"], {"page": p["page"], "label": p["label"], "visits": 0,
+                                           "minutes": 0.0, "students": 0})
+            e["visits"] += p["visits"]
+            e["minutes"] += p["minutes"]
+            e["students"] += 1
+    out = sorted(agg.values(), key=lambda e: e["minutes"], reverse=True)
+    total = sum(e["minutes"] for e in out) or 0
+    for e in out:
+        e["avg_minutes_per_visit"] = round(e["minutes"] / e["visits"], 1) if e["visits"] else 0
+        e["share_pct"] = round(100 * e["minutes"] / total) if total else 0
+        e["minutes"] = round(e["minutes"], 1)
+    return out
+
+
 def get_demo_usage_stats(cur):
     cur.execute("""
         SELECT COUNT(*) as total_sessions,
@@ -353,9 +504,14 @@ def get_student_summaries(cur):
         r["account_deleted_at"] = r["account_deleted_at"].isoformat() if r["account_deleted_at"] else None
         r["anonymized_at"] = r["anonymized_at"].isoformat() if r["anonymized_at"] else None
     time_spent = _get_time_spent_by_student(cur)
+    page_time = get_page_time_summaries(cur)
     token_usage = _get_token_usage_by_student(cur)
     for r in result:
         r["time_spent_minutes"] = time_spent.get(r["id"], 0)
+        pt = page_time.get(r["id"], {})
+        r["page_time_minutes"] = pt.get("page_time_minutes", 0)
+        r["active_sessions"] = pt.get("active_sessions", 0)
+        r["top_page"] = pt.get("top_page", "")
         usage = token_usage.get(r["id"], {"tokens": 0, "cost_usd": 0.0})
         r["total_tokens"] = usage["tokens"]
         r["estimated_cost_usd"] = usage["cost_usd"]

@@ -64,8 +64,54 @@ def end_demo_session(cur, student_id, reason):
     identifying — only the same usage/interaction data a registered
     student's account accumulates.
     """
+    if reason == "expired" and not demo_used_tokens(cur, student_id):
+        # An expired demo that never used the AI has nothing worth keeping
+        # for Analytics, so it is deleted outright instead of kept.
+        hard_delete_demo(cur, student_id)
+        return
     log_demo_session_ended(cur, student_id, reason)
     cur.execute("UPDATE students SET is_active=FALSE WHERE id=%s AND is_demo=TRUE", (student_id,))
+
+
+def demo_used_tokens(cur, student_id):
+    """True if this demo ever made a real AI call (any token_usage row
+    with tokens). Seeded demo data never writes token_usage, so a demo
+    that only clicked around returns False."""
+    cur.execute("""SELECT 1 FROM token_usage
+                   WHERE student_id=%s AND (COALESCE(input_tokens,0) + COALESCE(output_tokens,0)) > 0
+                   LIMIT 1""", (student_id,))
+    return cur.fetchone() is not None
+
+
+def hard_delete_demo(cur, student_id):
+    """Permanently removes one demo account and everything it produced.
+    events and document_chunks have no foreign key to students, and
+    demo_sessions outlives its student row by design, so all three are
+    deleted explicitly; every other table cascades from the students row.
+    The is_demo=TRUE guard makes it impossible to delete a real student."""
+    cur.execute("SELECT 1 FROM students WHERE id=%s AND is_demo=TRUE", (student_id,))
+    if not cur.fetchone():
+        return False
+    cur.execute("DELETE FROM events WHERE student_id=%s", (student_id,))
+    cur.execute("DELETE FROM document_chunks WHERE student_id=%s", (student_id,))
+    cur.execute("DELETE FROM demo_sessions WHERE student_id=%s", (student_id,))
+    cur.execute("DELETE FROM students WHERE id=%s AND is_demo=TRUE", (student_id,))
+    return True
+
+
+def delete_unused_expired_demos(cur):
+    """Deletes every expired demo that never used any tokens, including
+    ones that already ended before this rule existed. Returns the count."""
+    cur.execute("""SELECT s.id FROM students s
+                   WHERE s.is_demo=TRUE AND s.demo_expires_at < NOW()
+                     AND NOT EXISTS (
+                       SELECT 1 FROM token_usage t
+                       WHERE t.student_id = s.id
+                         AND (COALESCE(t.input_tokens,0) + COALESCE(t.output_tokens,0)) > 0)""")
+    ids = [r["id"] for r in cur.fetchall()]
+    for sid in ids:
+        hard_delete_demo(cur, sid)
+    return len(ids)
 
 
 def purge_demo_data_before_today(cur):

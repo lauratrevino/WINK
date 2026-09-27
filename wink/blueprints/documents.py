@@ -91,7 +91,7 @@ def download_file(doc_id):
 def upload_file():
     try:
         s = g.student
-        wait = rate_limited(f"upload:{s['id']}", max_calls=10, window_seconds=60)
+        wait = rate_limited(f"upload:{s['id']}", max_calls=60, window_seconds=60)  # anti-bot ceiling only
         if wait:
             return jsonify({"error": "Too many uploads in a row — please wait a moment.", "retry_after": wait}), 429
         if "file" not in request.files:

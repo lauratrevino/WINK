@@ -12,7 +12,7 @@
   <style nonce="{{ csp_nonce() }}">
     :root{--navy:#002855;--navy2:#0b477e;--orange:#FF8200;--cream:#fff7ec;--ink:#26364f;--muted:#6b7a99;--line:#dde3f0;--bg:#f4f6fb}
     *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
-    .manual-shell{max-width:1180px;margin:0 auto;padding:28px 22px 60px}
+    .manual-shell{max-width:1100px;margin:0 auto;padding:28px 24px 60px}
     .manual-hero{position:relative;overflow:hidden;min-height:280px;height:auto;border-radius:24px;background-image:linear-gradient(90deg,#fffaf3 0%,#fffaf3 28%,rgba(255,250,243,.4) 42%,rgba(255,250,243,0) 56%),url("{{ static_url('images/HelpWINK.png') }}");background-size:cover;background-position:center;border:2px solid var(--orange);box-shadow:0 16px 40px rgba(0,40,85,.14);display:flex;align-items:stretch}
     .hero-copy{padding:38px 36px 38px 84px;display:flex;flex-direction:column;justify-content:center;gap:6px;position:relative;z-index:2;width:100%;max-width:44%}.eyebrow{font-size:11px;font-weight:900;letter-spacing:.15em;color:var(--orange);margin-bottom:2px}.hero-copy h1{margin:0;color:var(--navy);font-size:40px;line-height:1.08;letter-spacing:-1px}.hero-copy .hello{font-size:19px;font-weight:800;color:var(--orange);margin:10px 0 4px}.hero-copy p{margin:0;color:#53627b;line-height:1.6;max-width:520px;font-weight:700}
 
@@ -51,7 +51,7 @@
     </section>
 
     <nav class="quick-nav" aria-label="User guide topics">
-      <a href="#getting-started">Start Here</a><a href="#dashboard">Dashboard</a><a href="#documents">Documents</a><a href="#chat">Ask WINK</a><a href="#calendar">Calendar</a><a href="#practice">Practice</a><a href="#grades">Grades</a><a href="#progress">My Progress</a><a href="#language">Languages</a><a href="#profile">Profile</a><a href="#troubleshooting">Help</a>
+      <a href="#getting-started">Start Here</a><a href="#dashboard">Dashboard</a><a href="#documents">Documents</a><a href="#calendar">Calendar</a><a href="#chat">Ask WINK</a><a href="#practice">Practice</a><a href="#grades">Grades</a><a href="#progress">My Progress</a><a href="#language">Languages</a><a href="#profile">Profile</a><a href="#troubleshooting">Help</a>
     </nav>
     <div class="result-note" id="result-note"></div>
 
@@ -80,6 +80,11 @@
         </div>
       </article>
 
+      <article class="guide-card full" id="calendar" data-keywords="calendar deadlines due date confirm correct dismiss detected ai personal item recurring series complete check mark color course month day">
+        <div class="card-head"><div class="card-icon">📅</div><div><h2>Calendar</h2><p>Turn course material into an academic plan</p></div></div>
+        <div class="card-body"><p>WINK can display deadlines found in your course materials. Course colors help you see which class each item belongs to.</p><ul><li><strong>Confirm</strong> an AI-detected deadline that is correct.</li><li><strong>Correct</strong> the title or date if WINK found the right item but got something wrong.</li><li><strong>Dismiss</strong> something that is not actually a deadline.</li><li><strong>Mark items complete</strong> as you finish them.</li><li>Add and edit your own personal calendar items, including recurring items when available.</li></ul></div>
+      </article>
+
       <article class="guide-card full" id="chat" data-keywords="ask wink chat ai coach questions microphone voice speech read aloud text size recent chats new chat upload temporary permanent export share feedback thumbs up down web campus resources study plan summarize syllabus">
         <div class="card-head"><div class="card-icon">💬</div><div><h2>Ask WINK</h2><p>Your AI academic coach</p></div></div>
         <div class="card-body"><p>Ask WINK questions about your courses, deadlines, assignments, study needs, or campus resources. WINK uses your uploaded course material first when it is relevant.</p>
@@ -89,14 +94,9 @@
         </div>
       </article>
 
-      <article class="guide-card" id="calendar" data-keywords="calendar deadlines due date confirm correct dismiss detected ai personal item recurring series complete check mark color course month day">
-        <div class="card-head"><div class="card-icon">📅</div><div><h2>Calendar</h2><p>Turn course material into an academic plan</p></div></div>
-        <div class="card-body"><p>WINK can display deadlines found in your course materials. Course colors help you see which class each item belongs to.</p><ul><li><strong>Confirm</strong> an AI-detected deadline that is correct.</li><li><strong>Correct</strong> the title or date if WINK found the right item but got something wrong.</li><li><strong>Dismiss</strong> something that is not actually a deadline.</li><li><strong>Mark items complete</strong> as you finish them.</li><li>Add and edit your own personal calendar items, including recurring items when available.</li></ul></div>
-      </article>
-
       <article class="guide-card" id="practice" data-keywords="practice review flashcards questions quiz practice quiz assessment quiz summary handout spaced repetition due review generate study">
         <div class="card-head"><div class="card-icon">🧠</div><div><h2>Practice & Review</h2><p>Turn your course material into study tools</p></div></div>
-        <div class="card-body"><p>Choose a course, then attach a file for that session and let WINK generate study material from it. Practice does not read documents you've already uploaded to your course pages, so attach a copy of the material each time you want to practice from it.</p><ul><li>Flashcards</li><li>Review questions</li><li>Practice quizzes with automatic grading and explanations</li><li>Study summaries</li><li>Assessment-style quizzes when supported by the attached material</li></ul><div class="tip">The attached handout is used only for that one practice session and is not permanently saved to your account. Previously answered questions can still return later for review.</div></div>
+        <div class="card-body"><p>Choose a course, then attach a file for that session and let WINK generate study material from it. Practice does not read documents you've already uploaded to your course pages, so attach a copy of the material each time you want to practice from it.</p><ul><li>Flashcards</li><li>Review questions</li><li>Multiple choice questions with automatic grading and explanations</li><li>Study summaries</li><li>Assessment-style quizzes when supported by the attached material</li></ul><div class="tip">The attached handout is used only for that one practice session and is not permanently saved to your account. Previously answered questions can still return later for review.</div></div>
       </article>
 
       <article class="guide-card" id="grades" data-keywords="grades grade calculator grading weights syllabus current grade target grade what do i need categories scores course">
@@ -104,7 +104,7 @@
         <div class="card-body"><p>Pick a course and ask WINK to pull the grading breakdown from an uploaded syllabus. Enter your scores to calculate your current grade and explore what you need on remaining work to reach a target grade.</p><div class="tip">If WINK cannot find the grading weights, you can add or adjust the grading categories yourself.</div></div>
       </article>
 
-      <article class="guide-card" id="progress" data-keywords="my progress progress organization planning help seeking engagement practice growth over time active days on time completed wink noticed habits">
+      <article class="guide-card full" id="progress" data-keywords="my progress progress organization planning help seeking engagement practice growth over time active days on time completed wink noticed habits">
         <div class="card-head"><div class="card-icon">📈</div><div><h2>My Progress</h2><p>See the habits you are building</p></div></div>
         <div class="card-body"><p>My Progress turns your WINK activity into an easy-to-read picture of your academic habits. It is designed to show your own behavior over time, not give you a grade or a “success score.”</p><ul><li>Active days and questions asked</li><li>Tracked work completed and on-time completion when WINK has enough information</li><li>Organization and planning activity</li><li>Help-seeking and practice activity</li><li>Week-by-week growth patterns</li><li><strong>WINK noticed…</strong> observations about changes in your habits</li></ul></div>
       </article>

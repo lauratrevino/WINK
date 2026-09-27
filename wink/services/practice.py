@@ -48,7 +48,9 @@ def generate_practice_questions(material_text, assessment_text=None, count=8, qt
             '"correct_index": 0, "explanation": "..."}. "correct_index" is the 0-based index into '
             '"options" of the correct answer. "explanation" is 1-2 sentences on why that answer is '
             "correct — this is shown to students who pick a wrong option, so make it genuinely "
-            "explain the concept, not just restate the answer."
+            "explain the concept, not just restate the answer. Options are displayed numbered 1-4, so "
+            "don't put any letter or number prefix in the option text, and if the explanation refers "
+            "to an option, call it by its number (e.g. 'option 2')."
         )
     else:  
         format_instruction = (
@@ -74,7 +76,7 @@ def generate_practice_questions(material_text, assessment_text=None, count=8, qt
     try:
         resp = anthropic_client.messages.create(
             model=config.CHAT_MODEL,
-            max_tokens=4096 if is_mc else 2048,  
+            max_tokens=16000,  # room for Sonnet 5 thinking plus the answer; only used tokens are billed  
             system=system,
             messages=[{"role": "user", "content": user_content}],
         )
@@ -131,7 +133,7 @@ def generate_practice_summary(material_text, course, student_id=None):
     try:
         resp = anthropic_client.messages.create(
             model=config.CHAT_MODEL,
-            max_tokens=2048,
+            max_tokens=16000,  # room for Sonnet 5 thinking plus the answer
             system=system,
             messages=[{"role": "user", "content": f"COURSE MATERIAL:\n{material_text[:config.PRACTICE_MATERIAL_MAX_CHARS]}"}],
         )
@@ -184,7 +186,7 @@ def generate_study_plan(course, material_text, quiz_results, student_id=None):
     try:
         resp = anthropic_client.messages.create(
             model=config.CHAT_MODEL,
-            max_tokens=2048,
+            max_tokens=16000,  # room for Sonnet 5 thinking plus the answer
             system=system,
             messages=[{"role": "user", "content": user_content}],
         )
@@ -247,7 +249,7 @@ def record_attempt(student_id, question_id, correct, tz=None):
         return None
     try:
         with db_cursor(commit=True) as cur:
-            cur.execute("SELECT interval_days FROM practice_questions WHERE id=%s AND student_id=%s",
+            cur.execute("SELECT interval_days, course, qtype FROM practice_questions WHERE id=%s AND student_id=%s",
                         (question_id, student_id))
             row = cur.fetchone()
             if not row:
@@ -260,6 +262,7 @@ def record_attempt(student_id, question_id, correct, tz=None):
                            RETURNING id, interval_days, next_review_date, correct_streak""",
                         (new_interval, next_review, correct, question_id, student_id))
             updated = cur.fetchone()
+            _log_practice_attempt(cur, student_id, row, correct)
         if updated:
             updated = dict(updated)
             updated["next_review_date"] = updated["next_review_date"].isoformat()
@@ -296,12 +299,21 @@ def get_due_questions(student_id, course=None, limit=20, tz=None):
         return []
 
 
+def _log_practice_attempt(cur, student_id, row, correct):
+    """One event per answered practice question (course, type, right or
+    wrong) for Analytics > Insights > Practice Results. Written in the same
+    transaction as the answer itself."""
+    cur.execute("INSERT INTO events(student_id, event_type, payload) VALUES (%s, 'practice_attempt', %s)",
+                (student_id, json.dumps({"course": row.get("course") or "", "qtype": row.get("qtype") or "",
+                                         "correct": bool(correct)})))
+
+
 def grade_quiz_answer(student_id, question_id, selected_index, tz=None):
     if not config.DB_URL:
         return None
     try:
         with db_cursor(commit=True) as cur:
-            cur.execute("""SELECT interval_days, options, correct_index, explanation
+            cur.execute("""SELECT interval_days, options, correct_index, explanation, course, qtype
                            FROM practice_questions WHERE id=%s AND student_id=%s""",
                         (question_id, student_id))
             row = cur.fetchone()
@@ -316,6 +328,7 @@ def grade_quiz_answer(student_id, question_id, selected_index, tz=None):
                                correct_streak = CASE WHEN %s THEN correct_streak + 1 ELSE 0 END
                            WHERE id=%s AND student_id=%s""",
                         (new_interval, next_review, correct, question_id, student_id))
+            _log_practice_attempt(cur, student_id, row, correct)
         return {
             "correct": correct,
             "selected_index": selected_index,

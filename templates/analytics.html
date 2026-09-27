@@ -73,9 +73,8 @@
     <div class="tab-bar">
       <button class="tab-btn active" onclick="switchTab('students')">👥 Registered</button>
       <button class="tab-btn" onclick="switchTab('demo')">🧪 Demos</button>
-      <button class="tab-btn" onclick="switchTab('activity')">⚡ Activity Feed</button>
+      <button class="tab-btn" onclick="switchTab('activity')">📈 Engagement</button>
       <button class="tab-btn" onclick="switchTab('conversations')">💬 Conversations</button>
-      <button class="tab-btn" onclick="switchTab('deadlines')">📅 Deadlines</button>
       <button class="tab-btn" onclick="switchTab('distributions')">📊 Distributions</button>
       <button class="tab-btn" onclick="switchTab('insights')">🔎 Insights</button>
       <button class="tab-btn" onclick="switchTab('general-docs')">📁 General Docs</button>
@@ -94,15 +93,9 @@
               <th class="sortable" data-sort="major" data-type="str">Major</th>
               <th class="sortable" data-sort="first_generation" data-type="str">First Gen</th>
               <th class="sortable" data-sort="joined" data-type="date">Joined</th>
-              <th class="sortable" data-sort="sessions" data-type="num">Sessions</th>
-              <th class="sortable" data-sort="questions" data-type="num">Questions</th>
-              <th class="sortable" data-sort="uploads" data-type="num">Uploads</th>
-              <th class="sortable" data-sort="time_spent_minutes" data-type="num">Time Spent</th>
-              <th class="sortable" data-sort="total_tokens" data-type="num">Tokens</th>
-              <th class="sortable" data-sort="estimated_cost_usd" data-type="num">Est. Cost</th>
               <th class="sortable" data-sort="status" data-type="str">Status</th>
             </tr></thead>
-            <tbody id="students-tbody"><tr><td colspan="13" style="text-align:center;padding:32px;color:#6b7a99;">Loading…</td></tr></tbody>
+            <tbody id="students-tbody"><tr><td colspan="8" class="empty-cell">Loading…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -143,10 +136,35 @@
     </div>
 
     <div class="tab-panel" id="tab-activity">
+      <div class="card ins-card">
+        <div class="card-header"><h2>Students to Check On</h2><span class="card-header-note">No activity in 7+ days, or past-due deadlines not checked off</span></div>
+        <div class="card-body" id="check-on"><div class="empty-cell">Loading…</div></div>
+      </div>
       <div class="card">
-        <div class="card-header"><h2>Recent Activity</h2><span style="font-size:13px;color:#6b7a99;">Last 60 events</span></div>
-        <div class="card-body">
-          <div class="event-feed" id="event-feed"><div style="color:#6b7a99;text-align:center;padding:24px;">Loading…</div></div>
+        <div class="card-header"><h2>Student Engagement</h2>
+          <div class="eng-actions">
+            <span class="card-header-note">Click Time on Pages for the page-by-session view</span>
+            <a class="tab-btn eng-export" href="/analytics-export.csv?anonymize=1" title="All students, with participant codes instead of names; the research_consent column shows who agreed">⬇ Spreadsheet (anonymized)</a>
+            <a class="tab-btn eng-export" href="/analytics-export.csv?anonymize=0" title="All students, with names and emails, for course management">⬇ All students with names</a>
+          </div></div>
+        <div class="eng-table-wrap">
+          <table class="eng-table">
+            <thead><tr>
+              <th class="eng-sortable" data-esort="name" data-type="str">Student</th>
+              <th class="eng-sortable" data-esort="sessions" data-type="num">Sessions</th>
+              <th class="eng-sortable" data-esort="questions" data-type="num">Questions</th>
+              <th class="eng-sortable" data-esort="uploads" data-type="num">Uploads</th>
+              <th class="eng-sortable" data-esort="time_spent_minutes" data-type="num">Time Spent</th>
+              <th class="eng-sortable" data-esort="page_time_minutes" data-type="num">Time on Pages</th>
+              <th class="eng-sortable" data-esort="top_page" data-type="str">Most-Used Page</th>
+              <th class="eng-sortable" data-esort="deadlines_completed" data-type="num" title="Past-due course deadlines checked off">Deadlines Done</th>
+              <th class="eng-sortable" data-esort="on_time_pct" data-type="num" title="Share of past-due deadlines checked off by the due date">On Time</th>
+              <th class="eng-sortable" data-esort="total_tokens" data-type="num">Tokens</th>
+              <th class="eng-sortable" data-esort="estimated_cost_usd" data-type="num">Est. Cost</th>
+            </tr></thead>
+            <tbody id="engagement-tbody"><tr><td colspan="11" class="empty-cell">Loading…</td></tr></tbody>
+            <tfoot id="engagement-tfoot"></tfoot>
+          </table>
         </div>
       </div>
     </div>
@@ -155,18 +173,6 @@
       <div class="card">
         <div class="card-header"><h2>Student Q&amp;A Conversations</h2><span style="font-size:13px;color:#6b7a99;">Click to expand answers</span></div>
         <div class="card-body" id="convos-body"><div style="color:#6b7a99;text-align:center;padding:24px;">Loading…</div></div>
-      </div>
-    </div>
-
-    <div class="tab-panel" id="tab-deadlines">
-      <div class="card">
-        <div class="card-header"><h2>Upcoming Deadlines (All Students)</h2><span style="font-size:13px;color:#6b7a99;">Extracted automatically from uploaded documents</span></div>
-        <div style="overflow-x:auto;">
-          <table>
-            <thead><tr><th>Due</th><th>Title</th><th>Course</th><th>Student</th></tr></thead>
-            <tbody id="deadlines-tbody"><tr><td colspan="4" style="text-align:center;padding:32px;color:#6b7a99;">Loading…</td></tr></tbody>
-          </table>
-        </div>
       </div>
     </div>
 
@@ -181,9 +187,40 @@
           <div class="card-body"><div class="bar-chart" id="major-chart"><div style="color:#6b7a99;font-size:13px;">Loading…</div></div></div>
         </div>
       </div>
+      <div class="card page-dist-card">
+        <div class="card-header"><h2>Pages Used and Time Spent</h2><span class="card-header-note">All registered students</span></div>
+        <div class="card-body" id="page-dist"><div class="empty-cell">Loading…</div></div>
+      </div>
     </div>
 
     <div class="tab-panel" id="tab-insights">
+
+      <div class="ins-grid">
+        <div class="card ins-card">
+          <div class="card-header"><h2>Feature Adoption</h2><span class="card-header-note">How far students have explored WINK</span></div>
+          <div class="card-body" id="ins-adoption"><div class="empty-cell">Loading…</div></div>
+        </div>
+        <div class="card ins-card">
+          <div class="card-header"><h2>Question Topics</h2><span class="card-header-note" id="ins-topics-note">What students ask WINK about</span></div>
+          <div class="card-body" id="ins-topics"><div class="empty-cell">Loading…</div></div>
+        </div>
+      </div>
+
+      <div class="ins-grid">
+        <div class="card ins-card">
+          <div class="card-header"><h2>Practice Results by Course</h2><span class="card-header-note">Multiple choice and review answers</span></div>
+          <div class="card-body" id="ins-practice"><div class="empty-cell">Loading…</div></div>
+        </div>
+        <div class="card ins-card">
+          <div class="card-header"><h2>Cost Outlook</h2><span class="card-header-note">Based on actual pilot usage so far</span></div>
+          <div class="card-body" id="ins-cost"><div class="empty-cell">Loading…</div></div>
+        </div>
+      </div>
+
+      <div class="card ins-card">
+        <div class="card-header"><h2>Answers to Review</h2><span class="card-header-note" id="ins-review-note">Answers students rated 👎</span></div>
+        <div class="card-body" id="ins-review"><div class="empty-cell">Loading…</div></div>
+      </div>
 
       <div class="card" style="margin-bottom:20px;">
         <div class="card-header"><h2>Engagement at a Glance</h2></div>

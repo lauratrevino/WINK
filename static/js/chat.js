@@ -205,6 +205,81 @@
     }
 
 
+    // Inline markdown on one already-escaped line.
+    function renderInline(t) {
+      return t
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/(^|[^*\w])\*(?!\s)([^*\n]+?)\*(?!\w)/g, '$1<em>$2</em>')
+        .replace(/(^|[^_\w])_(?!\s)([^_\n]+?)_(?!\w)/g, '$1<em>$2</em>');
+    }
+
+    function renderBlocks(src) {
+      const lines = src.replace(/\r/g, '').split('\n');
+      const out = [];
+      let para = [];
+      const flush = () => {
+        if (para.length) { out.push('<p>' + para.map(renderInline).join('<br>') + '</p>'); para = []; }
+      };
+      const isRow = l => /^\s*\|.*\|\s*$/.test(l);
+      const isDivider = l => /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(l);
+      const cells = l => l.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => renderInline(c.trim()));
+      let i = 0;
+      while (i < lines.length) {
+        const line = lines[i];
+        let m;
+        if (!line.trim()) { flush(); i++; continue; }
+        // Stashed embed (diagram/map/image) on its own line: emit as-is
+        if (/^\s*\u0000EMBED\d+\u0000\s*$/.test(line)) { flush(); out.push(line.trim()); i++; continue; }
+        // Fenced code block (non-mermaid; mermaid was stashed earlier)
+        if (/^\s*```/.test(line)) {
+          flush(); const buf = []; i++;
+          while (i < lines.length && !/^\s*```/.test(lines[i])) { buf.push(lines[i]); i++; }
+          i++; out.push('<pre class="wink-code"><code>' + buf.join('\n') + '</code></pre>'); continue;
+        }
+        if ((m = line.match(/^\s*(#{1,4})\s+(.+?)\s*#*\s*$/))) {
+          flush(); const lvl = m[1].length + 1; // # -> h2 ... #### -> h5
+          out.push(`<h${lvl} class="wink-h">${renderInline(m[2])}</h${lvl}>`); i++; continue;
+        }
+        if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)) { flush(); out.push('<hr class="wink-hr">'); i++; continue; }
+        if (isRow(line) && i + 1 < lines.length && isDivider(lines[i + 1])) {
+          flush();
+          const head = cells(line); i += 2;
+          const rows = [];
+          while (i < lines.length && isRow(lines[i])) { rows.push(cells(lines[i])); i++; }
+          out.push('<div class="wink-table-wrap"><table class="wink-table"><thead><tr>' +
+            head.map(c => `<th>${c}</th>`).join('') + '</tr></thead><tbody>' +
+            rows.map(r => '<tr>' + r.map(c => `<td>${c}</td>`).join('') + '</tr>').join('') +
+            '</tbody></table></div>');
+          continue;
+        }
+        if (/^\s*&gt;\s?/.test(line)) {
+          flush(); const buf = [];
+          while (i < lines.length && /^\s*&gt;\s?/.test(lines[i])) { buf.push(renderInline(lines[i].replace(/^\s*&gt;\s?/, ''))); i++; }
+          out.push('<blockquote class="wink-quote">' + buf.join('<br>') + '</blockquote>'); continue;
+        }
+        const ul = /^(\s*)[-*•]\s+(.+)$/, ol = /^(\s*)\d+[.)]\s+(.+)$/;
+        if (ul.test(line) || ol.test(line)) {
+          flush();
+          const ordered = ol.test(line) && !ul.test(line);
+          const re = ordered ? ol : ul;
+          const items = [];
+          while (i < lines.length && (re.test(lines[i]) || (items.length && /^\s{2,}\S/.test(lines[i]) && !ul.test(lines[i]) && !ol.test(lines[i])))) {
+            const mm = lines[i].match(re);
+            if (mm) items.push({ indent: mm[1].length >= 2, text: renderInline(mm[2]) });
+            else items[items.length - 1].text += '<br>' + renderInline(lines[i].trim());
+            i++;
+          }
+          const tag = ordered ? 'ol' : 'ul';
+          out.push(`<${tag}>` + items.map(it => `<li${it.indent ? ' class="wink-li-sub"' : ''}>${it.text}</li>`).join('') + `</${tag}>`);
+          continue;
+        }
+        para.push(line); i++;
+      }
+      flush();
+      return out.join('');
+    }
+
     function formatMessage(text) {
       // Convert markdown-ish formatting to HTML
       let html = escapeHtml(text);
@@ -285,18 +360,10 @@
         return `<cite class="wink-citation" title="Mentioned by name — not an independently verified citation">${filename}</cite>`;
       });
 
-      // Bold
-      html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-      // Bullet lists
-      html = html.replace(/^[•\-\*] (.+)$/gm, '<li>$1</li>');
-      html = html.replace(/(<li>.*<\/li>\n?)+/g, m => `<ul>${m}</ul>`);
-      // Numbered lists
-      html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
-      // Paragraphs
-      html = html.replace(/\n\n+/g, '</p><p>');
-      html = html.replace(/\n/g, '<br>');
-      html = '<p>' + html + '</p>';
-      html = html.replace(/<p><\/p>/g, '');
+      // Block-level markdown: headings, tables, ordered/unordered lists,
+      // horizontal rules, blockquotes, fenced code. Runs on already-escaped
+      // text, so it can only ever emit the tags written here.
+      html = renderBlocks(html);
       // URLs (anything left over that wasn't part of a stashed embed)
       html = html.replace(/(https?:\/\/[^\s<>"]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
 
@@ -382,7 +449,29 @@
         // graphic gets inserted straight into the chat. This flag makes a
         // bad diagram actually reject/throw instead, so the existing
         // catch below can show the small, graceful fallback message.
-        mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'strict', suppressErrorRendering: true });
+        // UTEP navy/orange instead of mermaid's default gray.
+        mermaid.initialize({
+          startOnLoad: false, securityLevel: 'strict', suppressErrorRendering: true,
+          theme: 'base',
+          // Plain SVG text labels (not HTML) so diagrams can also be
+          // turned into images for the Word download.
+          flowchart: { htmlLabels: false },
+          // Always drawn at a fixed readable width; on phones the diagram
+          // box scrolls sideways instead of squeezing the chart.
+          gantt: { useMaxWidth: false, useWidth: 880, fontSize: 12, barHeight: 22, barGap: 6 },
+          themeVariables: {
+            fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif',
+            primaryColor: '#e8eef7', primaryTextColor: '#002855', primaryBorderColor: '#002855',
+            secondaryColor: '#fff3e6', tertiaryColor: '#f4f6fb', lineColor: '#002855',
+            taskBkgColor: '#002855', taskBorderColor: '#002855', taskTextColor: '#ffffff',
+            taskTextOutsideColor: '#002855', taskTextLightColor: '#ffffff', taskTextDarkColor: '#002855',
+            activeTaskBkgColor: '#FF8200', activeTaskBorderColor: '#cc6800',
+            doneTaskBkgColor: '#6b7a99', doneTaskBorderColor: '#6b7a99',
+            critBkgColor: '#FF8200', critBorderColor: '#cc6800',
+            sectionBkgColor: '#f4f6fb', altSectionBkgColor: '#ffffff', sectionBkgColor2: '#fff3e6',
+            gridColor: '#dde3f0', todayLineColor: '#FF8200'
+          }
+        });
         mermaidInitDone = true;
       }
       for (const el of pending) {
@@ -444,7 +533,74 @@
       return bubble;
     }
 
-    function addFeedbackButtons(container, convId, msgIndex) {
+    // Replies that read like a document (headings, tables, diagrams, or
+    // long) get a "Download as Word" button next to the rating buttons.
+    function looksLikeDocument(text) {
+      return /^#{1,4}\s/m.test(text) || /^\s*\|.*\|\s*$/m.test(text) || /```mermaid/.test(text) || text.length > 1500;
+    }
+
+    // Draws each rendered diagram in the bubble onto a canvas and returns
+    // PNG data URLs, in order, for the Word export.
+    async function diagramsToPng(bubble) {
+      const out = [];
+      for (const svg of bubble.querySelectorAll('.wink-diagram svg')) {
+        try {
+          const clone = svg.cloneNode(true);
+          const box = svg.getBoundingClientRect();
+          const vb = svg.viewBox && svg.viewBox.baseVal;
+          const w = Math.max(1, Math.round((vb && vb.width) || box.width));
+          const h = Math.max(1, Math.round((vb && vb.height) || box.height));
+          clone.setAttribute('width', w); clone.setAttribute('height', h);
+          clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+          const xml = new XMLSerializer().serializeToString(clone);
+          const img = new Image();
+          img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
+          await img.decode();
+          const scale = 2;
+          const canvas = document.createElement('canvas');
+          canvas.width = w * scale; canvas.height = h * scale;
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          out.push(canvas.toDataURL('image/png'));
+        } catch (e) {
+          out.push(null);
+        }
+      }
+      return out;
+    }
+
+    async function downloadAsWord(text, bubble, btn) {
+      const label = btn.textContent;
+      btn.disabled = true; btn.textContent = 'Preparing…';
+      try {
+        const images = await diagramsToPng(bubble);
+        const res = await fetch('/export-docx', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, images })
+        });
+        if (!res.ok) {
+          const d = await res.json().catch(() => ({}));
+          throw new Error(d.error || 'Could not create the Word file.');
+        }
+        const blob = await res.blob();
+        const cd = res.headers.get('Content-Disposition') || '';
+        const m = cd.match(/filename="([^"]+)"/);
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = m ? m[1] : 'WINK-document.docx';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+        btn.textContent = label;
+      } catch (e) {
+        btn.textContent = '⚠ Try again';
+        alert(e.message);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function addFeedbackButtons(container, convId, msgIndex, text) {
       if (!convId && convId !== 0) return;
       const fb = document.createElement('div');
       fb.className = 'msg-feedback';
@@ -458,6 +614,14 @@
       down.addEventListener('click', function() { submitFeedback(convId, msgIndex, 'down', down); });
       row.appendChild(up);
       row.appendChild(down);
+      if (text && looksLikeDocument(text)) {
+        const word = document.createElement('button');
+        word.type = 'button'; word.className = 'feedback-btn word-btn';
+        word.setAttribute('aria-label', 'Download this answer as a Word document');
+        word.textContent = '⬇ Word';
+        word.addEventListener('click', () => downloadAsWord(text, container, word));
+        row.appendChild(word);
+      }
       const label = document.createElement('div');
       label.className = 'feedback-label';
       label.textContent = 'Please rate the answer';
@@ -601,7 +765,7 @@
           if (m.role !== 'user' && bubble) {
             resolvePhotoMarkers(bubble);
             resolveDiagramMarkers(bubble);
-            addFeedbackButtons(bubble, currentConversationId, i);
+            addFeedbackButtons(bubble, currentConversationId, i, m.content);
           }
         });
         setToolbarEnabled(true);
@@ -729,7 +893,7 @@
         const res = await fetch('/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ messages, conversation_id: currentConversationId, temp_doc: currentTempDoc })
+          body: JSON.stringify({ messages: messages.slice(-16), conversation_id: currentConversationId, temp_doc: currentTempDoc })
         });
 
         if (!res.ok || !res.body) {
@@ -779,7 +943,7 @@
         messages.push({ role: 'assistant', content: fullText });
         resolvePhotoMarkers(bubble);
         resolveDiagramMarkers(bubble);
-        addFeedbackButtons(bubble, currentConversationId, messages.length - 1);
+        addFeedbackButtons(bubble, currentConversationId, messages.length - 1, fullText);
         setToolbarEnabled(true);
         if (isNewConversation) loadConversationList();
 
@@ -811,7 +975,7 @@
                   <button class="wink-modal-btn primary" id="wu-choose-permanent" style="width:100%;margin-bottom:8px;">📌 Save Permanently</button>
                   <button class="wink-modal-btn secondary" id="wu-choose-temp" style="width:100%;margin-bottom:8px;">💬 Just This Conversation</button>
                 </div>
-                <p style="font-size:12px;color:#6b7a99;margin-bottom:0;">Permanent uploads count toward your 20-document limit and show up in My Documents. This-conversation-only uploads don't count toward that limit and disappear when you leave this chat.</p>
+                <p style="font-size:12px;color:#6b7a99;margin-bottom:0;">Permanent uploads are saved to your account and show up in My Documents. This-conversation-only uploads don't count toward that limit and disappear when you leave this chat.</p>
                 <div class="wink-modal-actions" style="margin-top:14px;">
                   <button class="wink-modal-btn secondary" id="wu-cancel-1">Cancel</button>
                 </div>

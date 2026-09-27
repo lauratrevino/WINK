@@ -141,7 +141,7 @@
     .feature-card-body  { font-size: clamp(12px, 0.70vw, 13px); color: #445566; line-height: 1.45; }
 
     .landing-footer {
-      max-width: 900px;
+      max-width: 1052px;  /* matches the content width of every other page (1100px shell minus 24px side padding) */
       margin: 0 auto;
       padding: 13px 0 15px;
       display: flex; align-items: center; justify-content: space-between;

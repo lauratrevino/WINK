@@ -17,7 +17,7 @@
     .stat-loading { width: 48px; height: 36px; background: #eef0f6; border-radius: 6px; animation: shimmer 1.5s infinite; }
     @keyframes shimmer { 0%,100%{opacity:0.5} 50%{opacity:1} }
 
-    .tab-bar { display: flex; gap: 4px; margin-bottom: 20px; }
+    .tab-bar { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 20px; }
     .tab-btn {
       padding: 8px 18px; border-radius: 6px;
       font-size: 14px; font-weight: 600;
@@ -72,13 +72,6 @@
     }
     .btn-delete-gd:hover { color: #dc2626; background: #fef2f2; }
 
-    .event-feed { display: flex; flex-direction: column; gap: 8px; max-height: 400px; overflow-y: auto; }
-    .event-item { display: flex; align-items: flex-start; gap: 12px; padding: 10px 14px; border-radius: 8px; background: #f8f9ff; border: 1px solid #eef0f6; }
-    .event-icon { font-size: 18px; flex-shrink: 0; }
-    .event-body { flex: 1; }
-    .event-name { font-size: 13px; font-weight: 600; color: #002855; }
-    .event-detail { font-size: 12px; color: #6b7a99; margin-top: 2px; }
-    .event-time { font-size: 12px; color: #9ca3af; flex-shrink: 0; }
 
     .convo-item { border-radius: 8px; border: 1px solid #eef0f6; margin-bottom: 12px; overflow: hidden; }
     .convo-header { padding: 10px 14px; background: #f8f9ff; border-bottom: 1px solid #eef0f6; display: flex; align-items: center; gap: 10px; cursor: pointer; }
@@ -181,3 +174,73 @@
     .demo-convo-answer { background: #fff3e6; border-radius: 8px; padding: 10px 12px; }
     .demo-rating-up { color: #1a7f37; }
     .demo-rating-down { color: #b91c1c; }
+
+    /* Students tab > Time Spent > Time by page popup */
+    .time-by-page-btn {
+      background: none; border: 1px solid #dde3f0; border-radius: 6px; padding: 3px 8px;
+      color: #002855; font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap;
+    }
+    .time-by-page-btn:hover { border-color: #FF8200; color: #FF8200; }
+    .tbp-card { max-width: 680px; }
+    .tbp-summary { display: flex; gap: 12px; margin-bottom: 16px; }
+    .tbp-summary > div { flex: 1; background: #f4f6fb; border-radius: 10px; padding: 12px 14px; }
+    .tbp-big { display: block; font-size: 22px; font-weight: 800; color: #002855; }
+    .tbp-sub { font-size: 12px; color: #6b7a99; }
+    .tbp-section-title { font-size: 12px; font-weight: 700; color: #002855; text-transform: uppercase; letter-spacing: .04em; margin: 14px 0 6px; }
+    .tbp-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 6px; }
+    .tbp-table th { text-align: left; background: #002855; color: #fff; font-weight: 600; padding: 6px 10px; }
+    .tbp-table td { padding: 6px 10px; border-bottom: 1px solid #eef0f6; }
+    .tbp-table th:not(:first-child), .tbp-table td:not(:first-child) { text-align: right; }
+    .tbp-table tfoot td { font-weight: 700; color: #002855; border-top: 2px solid #FF8200; border-bottom: none; }
+    .tbp-session { border: 1px solid #eef0f6; border-radius: 8px; margin-bottom: 8px; }
+    .tbp-session summary { cursor: pointer; padding: 8px 12px; display: flex; justify-content: space-between; font-size: 13px; color: #002855; }
+    .tbp-session[open] summary { border-bottom: 1px solid #eef0f6; }
+    .tbp-session .tbp-table { margin: 8px 0; }
+    .tbp-session-total { font-weight: 700; }
+    .tbp-note { font-size: 11.5px; color: #6b7a99; margin-top: 12px; line-height: 1.5; }
+
+    /* Engagement tab */
+    .empty-cell { text-align: center; padding: 32px; color: #6b7a99; }
+    .card-header-note { font-size: 13px; color: #6b7a99; }
+    .eng-table-wrap { overflow-x: auto; }
+    .eng-table td:not(:first-child), .eng-table th:not(:first-child) { white-space: nowrap; }
+    .eng-table .muted-cell { color: #6b7a99; }
+    th.eng-sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+    th.eng-sortable:hover { color: #FF8200; }
+    th.eng-sortable::after { content: '↕'; margin-left: 4px; opacity: .4; font-size: 10px; }
+    th.eng-sortable.sort-asc::after { content: '↑'; opacity: 1; color: #FF8200; }
+    th.eng-sortable.sort-desc::after { content: '↓'; opacity: 1; color: #FF8200; }
+    .eng-table tfoot td { font-weight: 700; color: #002855; border-top: 2px solid #FF8200; padding: 10px 14px; background: #fafbfe; }
+
+    /* Distributions > Pages Used and Time Spent */
+    .page-dist-card { margin-top: 20px; }
+    .pd-head, .pd-row { display: grid; grid-template-columns: 140px minmax(160px, 1fr) 90px 70px 80px 90px; gap: 12px; align-items: center; font-size: 13px; }
+    .pd-head { font-size: 11px; font-weight: 700; color: #6b7a99; text-transform: uppercase; letter-spacing: .04em; padding-bottom: 8px; border-bottom: 1px solid #eef0f6; margin-bottom: 8px; }
+    .pd-row { padding: 6px 0; }
+    .pd-row > span:not(.pd-bar):not(.pd-label), .pd-head > span:nth-child(n+3) { text-align: right; }
+    .pd-label { font-weight: 600; color: #002855; }
+    .pd-bar { display: flex; align-items: center; gap: 8px; }
+    .pd-bar .bar-track { display: block; flex: 1; }
+    .pd-bar .bar-fill { display: block; }
+    .pd-pct { font-size: 12px; color: #6b7a99; font-weight: 600; width: 34px; text-align: right; }
+    @media (max-width: 760px) {
+      .pd-head { display: none; }
+      .pd-row { grid-template-columns: 1fr 1fr; row-gap: 4px; border-bottom: 1px solid #eef0f6; padding: 10px 0; }
+      .pd-label, .pd-bar { grid-column: 1 / -1; }
+      .pd-row > span[data-l] { text-align: left !important; }
+      .pd-row > span[data-l]::before { content: attr(data-l) ": "; color: #6b7a99; font-size: 12px; }
+    }
+
+    /* Insights additions */
+    .ins-card { margin-bottom: 20px; }
+    .ins-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .ins-grid .ins-card { margin-bottom: 20px; }
+    @media (max-width: 900px) { .ins-grid { grid-template-columns: 1fr; } }
+    .ins-bar-val { flex: 0 0 70px !important; white-space: nowrap; }
+    .ins-review-body { padding: 10px 12px; }
+    .ins-review-body .demo-convo-question { margin-bottom: 8px; }
+    .ins-model { color: #6b7a99; font-size: 11px; }
+    .eng-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    .eng-export { text-decoration: none; padding: 4px 10px !important; font-size: 12px !important; white-space: nowrap; }
+    .check-on-table th, .check-on-table td { text-align: left !important; }
+    .check-on-table td:last-child { text-align: right !important; }

@@ -25,7 +25,7 @@ def extract_deadlines(content, today=None, student_id=None):
     today = today or datetime.now(ZoneInfo(config.APP_TIMEZONE)).strftime("%Y-%m-%d")
     try:
         resp = anthropic_client.messages.create(
-            model=config.CHAT_MODEL,
+            model=config.EXTRACTION_MODEL,
             max_tokens=8192,
             system=(
                 "Extract EVERY dated schedule entry from the document text the user "
@@ -62,7 +62,7 @@ def extract_deadlines(content, today=None, student_id=None):
             messages=[{"role": "user", "content": content[:config.DEADLINE_EXTRACTION_MAX_CHARS]}],
         )
         if student_id is not None:
-            log_token_usage(student_id, "deadline_extraction", config.CHAT_MODEL, resp.usage)
+            log_token_usage(student_id, "deadline_extraction", config.EXTRACTION_MODEL, resp.usage)
         raw = "".join(b.text for b in resp.content if getattr(b, "type", None) == "text").strip()
         raw = strip_json_fence(raw)
         items = parse_json_array(raw)

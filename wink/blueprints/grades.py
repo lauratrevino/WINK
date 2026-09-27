@@ -59,7 +59,7 @@ def extract_grading_weights_route():
     if not course:
         return jsonify({"error": "course is required"}), 400
 
-    wait = rate_limited(f"extract-grades:{s['id']}", max_calls=10, window_seconds=3600)
+    wait = rate_limited(f"extract-grades:{s['id']}", max_calls=60, window_seconds=60)  # anti-bot ceiling only
     if wait:
         return jsonify({"error": "Please slow down a bit before extracting again.", "retry_after": wait}), 429
 

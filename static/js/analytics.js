@@ -2,7 +2,7 @@
 
     function switchTab(name) {
       document.querySelectorAll('.tab-btn').forEach((b, i) => {
-        const tabs = ['students','demo','activity','conversations','deadlines','distributions','insights','general-docs'];
+        const tabs = ['students','demo','activity','conversations','distributions','insights','general-docs'];
         b.classList.toggle('active', tabs[i] === name);
       });
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
@@ -21,11 +21,6 @@
       if (sr) sr.style.display = (name === 'demo') ? 'none' : '';
     }
 
-    const eventIcons = {
-      account_created: '🆕', login: '🔐', page_view: '👁',
-      file_uploaded: '📁', question_asked: '❓', answer_given: '💬',
-      file_deleted: '🗑'
-    };
 
     function formatTimeSpent(minutes) {
       const total = Math.round(Number(minutes) || 0);
@@ -76,7 +71,7 @@
       document.getElementById('student-count').textContent = students.length + ' registered';
       const tbody = document.getElementById('students-tbody');
       if (students.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="14" style="text-align:center;padding:32px;color:#6b7a99;">No one registered yet.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="empty-cell">No one registered yet.</td></tr>';
         return;
       }
       tbody.innerHTML = students.map(s => `
@@ -88,12 +83,6 @@
           <td>${escapeHtml(s.major)}</td>
           <td>${s.first_generation ? '<span class="badge badge-orange">Yes</span>' : '<span style="color:#6b7a99;">No</span>'}</td>
           <td style="color:#6b7a99;">${escapeHtml(s.joined)}</td>
-          <td>${s.sessions}</td>
-          <td><span class="badge badge-orange">${s.questions}</span></td>
-          <td>${s.uploads}</td>
-          <td style="color:#6b7a99;">${formatTimeSpent(s.time_spent_minutes)}</td>
-          <td style="color:#6b7a99;">${formatTokenCount(s.total_tokens)}</td>
-          <td style="color:#6b7a99;">${formatCostUsd(s.estimated_cost_usd)}</td>
           <td>${renderStudentStatusCell(s)}</td>
         </tr>`).join('');
       // Names are attached via dataset + addEventListener rather than baked into an
@@ -311,24 +300,8 @@
         currentStudents = d.students;
         renderStudentsTable(applySort(currentStudents));
 
-        // Activity feed
-        const feed = document.getElementById('event-feed');
-        feed.innerHTML = d.recent.map(e => {
-          const icon = eventIcons[e.event_type] || '📌';
-          const name = e.first_name ? `${escapeHtml(e.first_name)} ${escapeHtml(e.last_name)}` : 'Unknown';
-          let detail = escapeHtml(e.event_type.replace(/_/g,' '));
-          if (e.payload && e.payload.q) detail = '"' + escapeHtml(e.payload.q.substring(0,80)) + (e.payload.q.length > 80 ? '…' : '') + '"';
-          else if (e.payload && e.payload.page) detail = 'viewed ' + escapeHtml(e.payload.page);
-          else if (e.payload && e.payload.name) detail = escapeHtml(e.payload.name);
-          return `<div class="event-item">
-            <div class="event-icon">${icon}</div>
-            <div class="event-body">
-              <div class="event-name">${name}</div>
-              <div class="event-detail">${detail}</div>
-            </div>
-            <div class="event-time">${escapeHtml(e.ts)}</div>
-          </div>`;
-        }).join('') || '<div style="color:#6b7a99;font-size:13px;padding:12px;">No events yet.</div>';
+        // Engagement tab (replaces the old Activity Feed)
+        renderEngagementTable();
 
         // Conversations
         const cb = document.getElementById('convos-body');
@@ -350,20 +323,6 @@
             </div>`).join('');
         }
 
-        // Deadlines
-        const dtbody = document.getElementById('deadlines-tbody');
-        if (!d.upcoming_deadlines || d.upcoming_deadlines.length === 0) {
-          dtbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:32px;color:#6b7a99;">No upcoming deadlines found yet.</td></tr>';
-        } else {
-          dtbody.innerHTML = d.upcoming_deadlines.map(dl => `
-            <tr>
-              <td><span class="badge badge-orange">${escapeHtml(dl.due_date)}</span></td>
-              <td><strong>${escapeHtml(dl.title)}</strong></td>
-              <td>${escapeHtml(dl.course)}</td>
-              <td style="color:#6b7a99;">${escapeHtml(dl.first_name)} ${escapeHtml(dl.last_name)}</td>
-            </tr>`).join('');
-        }
-
         // Bar charts
         function renderBars(containerId, items, maxN, orange) {
           const max = Math.max(...items.map(x => x.n), 1);
@@ -379,6 +338,8 @@
         renderBars('class-chart', d.by_class, 8, false);
         renderBars('major-chart', d.by_major, 12, true);
 
+        renderPageDistribution(d.page_distribution || []);
+        loadInsightsExtra();
         renderMiniStats(d);
         renderDemoStats(d);
         renderUniversityTable(d);
@@ -468,6 +429,251 @@
       tbody.querySelectorAll('.demo-view-btn').forEach(btn => {
         btn.addEventListener('click', () => viewDemoConversation(parseInt(btn.dataset.sid, 10)));
       });
+    }
+
+    // Distributions > Pages Used and Time Spent. Bar length = share of all
+    // time on pages; CSS classes only (CSP), width set via data-w.
+    function renderPageDistribution(pages) {
+      const el = document.getElementById('page-dist');
+      if (!el) return;
+      if (!pages.length) { el.innerHTML = '<div class="empty-cell">No page visits recorded yet.</div>'; return; }
+      const max = Math.max(...pages.map(p => p.minutes), 1);
+      const t = m => (m > 0 && m < 1) ? '&lt;1m' : (m > 0 ? formatTimeSpent(m) : '0m');
+      el.innerHTML = `
+        <div class="pd-head"><span>Page</span><span>Share of total time</span><span>Total time</span><span>Visits</span><span>Students</span><span>Avg / visit</span></div>
+        ${pages.map((p, i) => `
+          <div class="pd-row">
+            <span class="pd-label">${escapeHtml(p.label)}</span>
+            <span class="pd-bar"><span class="bar-track"><span class="bar-fill ${i % 2 ? 'orange' : ''}" data-w="${Math.round(p.minutes / max * 100)}%"></span></span><span class="pd-pct">${p.share_pct}%</span></span>
+            <span data-l="Total">${t(p.minutes)}</span>
+            <span data-l="Visits">${p.visits}</span>
+            <span data-l="Students">${p.students}</span>
+            <span data-l="Avg / visit">${t(p.avg_minutes_per_visit)}</span>
+          </div>`).join('')}`;
+      applyPendingStyles(el);
+    }
+
+    // Insights additions + Engagement > Students to Check On
+    async function loadInsightsExtra() {
+      let x;
+      try {
+        const res = await fetch('/analytics-insights-extra');
+        x = await res.json();
+        if (!res.ok || x.error) throw new Error(x.error || 'Could not load');
+      } catch (e) {
+        ['check-on','ins-adoption','ins-topics','ins-practice','ins-cost','ins-review'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.innerHTML = `<div class="demo-convo-error">${escapeHtml(e.message)}</div>`;
+        });
+        return;
+      }
+      const bars = (items, label, val, note) => `<div class="bar-chart">${items.map((it, i) => `
+          <div class="bar-row">
+            <div class="bar-label" title="${escapeHtml(it[label])}">${escapeHtml(it[label])}</div>
+            <div class="bar-track"><div class="bar-fill ${i % 2 ? 'orange' : ''}" data-w="${it.pct}%"></div></div>
+            <div class="bar-val ins-bar-val">${val(it)}</div>
+          </div>`).join('')}</div>${note ? `<p class="tbp-note">${note}</p>` : ''}`;
+
+      // Students to check on
+      const co = document.getElementById('check-on');
+      co.innerHTML = x.check_on.length ? `
+        <table class="tbp-table check-on-table"><thead><tr><th>Student</th><th>Last active</th><th>Why</th><th></th></tr></thead>
+        <tbody>${x.check_on.map(s => `<tr>
+          <td><strong>${escapeHtml(s.name)}</strong></td>
+          <td>${escapeHtml(s.last_active)}</td>
+          <td>${s.reasons.map(escapeHtml).join('<br>')}</td>
+          <td><a class="tab-btn eng-export" href="mailto:${encodeURIComponent(s.email)}?subject=${encodeURIComponent('Checking in from WINK')}">Email</a></td>
+        </tr>`).join('')}</tbody></table>`
+        : '<div class="empty-cell">Everyone is active and caught up. ✅</div>';
+
+      // Feature adoption
+      const ad = document.getElementById('ins-adoption');
+      ad.innerHTML = bars(x.adoption, 'step', a => `${a.n} (${a.pct}%)`);
+
+      // Question topics
+      const tp = document.getElementById('ins-topics');
+      document.getElementById('ins-topics-note').textContent = `${x.topic_total} question${x.topic_total !== 1 ? 's' : ''} so far`;
+      tp.innerHTML = x.topics.length
+        ? bars(x.topics, 'topic', t => `${t.n} (${t.pct}%)`, 'Grouped by keywords in each question, so the same question always lands in the same topic.')
+        : '<div class="empty-cell">No questions yet.</div>';
+
+      // Practice results
+      const pr = document.getElementById('ins-practice');
+      pr.innerHTML = x.practice_by_course.length ? `
+        <table class="tbp-table"><thead><tr><th>Course</th><th>Answers</th><th>Accuracy</th><th>First week</th><th>Latest week</th></tr></thead>
+        <tbody>${x.practice_by_course.map(p => `<tr>
+          <td>${escapeHtml(p.course)}</td><td>${p.attempts}</td><td>${p.accuracy}%</td>
+          <td>${p.first_week_accuracy === null ? '—' : p.first_week_accuracy + '%'}</td>
+          <td>${p.weeks > 1 && p.latest_week_accuracy !== null ? p.latest_week_accuracy + '%' : '—'}</td>
+        </tr>`).join('')}</tbody></table>
+        <p class="tbp-note">Tracking of individual practice answers starts with this update, so earlier practice isn't included.</p>`
+        : '<div class="empty-cell">No practice answers recorded yet. Tracking starts with this update.</div>';
+
+      // Cost outlook
+      const c = x.cost_outlook;
+      document.getElementById('ins-cost').innerHTML = `
+        <div class="tbp-summary">
+          <div><span class="tbp-big">${formatCostUsd(c.total_cost)}</span><span class="tbp-sub">spent so far (${c.students_using_ai} student${c.students_using_ai !== 1 ? 's' : ''}, ${c.weeks} wk)</span></div>
+          <div><span class="tbp-big">$${c.per_student_per_week.toFixed(2)}</span><span class="tbp-sub">per active student per week</span></div>
+        </div>
+        <table class="tbp-table"><thead><tr><th>If WINK had…</th><th>Per week</th><th>Per 16-week semester</th></tr></thead>
+        <tbody>${c.projections.map(p => `<tr><td>${p.students.toLocaleString()} students</td>
+          <td>$${p.per_week.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+          <td>$${p.per_semester.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</td></tr>`).join('')}</tbody></table>
+        <p class="tbp-note">Assumes future students use WINK the way pilot students do now, at current model prices. AI cost only; hosting and email are separate.</p>`;
+
+      // Answers to review
+      const fb = x.feedback_totals || {};
+      document.getElementById('ins-review-note').textContent = `${fb.down || 0} 👎 and ${fb.up || 0} 👍 so far`;
+      const rv = document.getElementById('ins-review');
+      rv.innerHTML = x.answers_to_review.length ? x.answers_to_review.map(a => `
+        <details class="tbp-session">
+          <summary><span>${escapeHtml((a.question || '').slice(0, 110))}${(a.question || '').length > 110 ? '…' : ''}</span>
+            <span class="tbp-session-total">${escapeHtml(a.first_name)} ${escapeHtml(a.last_name)} · ${escapeHtml(a.ts)}</span></summary>
+          <div class="ins-review-body">
+            <div class="demo-convo-question"><strong>Question:</strong> ${escapeHtml(a.question || '')}</div>
+            <div class="demo-convo-answer"><strong>WINK's answer</strong> <span class="ins-model">(${escapeHtml(a.model || '')})</span>:<br>${escapeHtml(a.answer_text || '').replace(/\n/g, '<br>')}</div>
+          </div>
+        </details>`).join('')
+        : '<div class="empty-cell">No 👎 ratings yet.</div>';
+
+      [co, ad, tp, pr, rv].forEach(el => applyPendingStyles(el));
+    }
+
+    // Engagement tab: one row per student with usage, time, and AI cost,
+    // sortable, with a totals row. Replaces the old Activity Feed.
+    let engSort = { field: 'page_time_minutes', dir: 'desc' };
+    function renderEngagementTable() {
+      const tbody = document.getElementById('engagement-tbody');
+      const tfoot = document.getElementById('engagement-tfoot');
+      if (!tbody) return;
+      const list = (currentStudents || []).slice();
+      list.forEach(s => { s.on_time_pct = s.deadlines_past_due ? Math.round(100 * (s.deadlines_on_time || 0) / s.deadlines_past_due) : -1; });
+      if (!list.length) {
+        tbody.innerHTML = '<tr><td colspan="11" class="empty-cell">No students yet.</td></tr>';
+        tfoot.innerHTML = '';
+        return;
+      }
+      const th = document.querySelector(`th[data-esort="${engSort.field}"]`);
+      const isNum = th && th.dataset.type === 'num';
+      const val = s => engSort.field === 'name' ? `${s.last_name || ''} ${s.first_name || ''}`.toLowerCase()
+        : isNum ? Number(s[engSort.field]) || 0 : String(s[engSort.field] || '').toLowerCase();
+      list.sort((a, b) => {
+        const x = val(a), y = val(b);
+        const c = x < y ? -1 : x > y ? 1 : 0;
+        return engSort.dir === 'asc' ? c : -c;
+      });
+      document.querySelectorAll('th.eng-sortable').forEach(h => {
+        h.classList.toggle('sort-asc', h.dataset.esort === engSort.field && engSort.dir === 'asc');
+        h.classList.toggle('sort-desc', h.dataset.esort === engSort.field && engSort.dir === 'desc');
+      });
+      const pageTime = m => (m > 0 && m < 1) ? '&lt;1m' : formatTimeSpent(m);
+      tbody.innerHTML = list.map(s => `
+        <tr>
+          <td><strong>${escapeHtml(s.first_name)} ${escapeHtml(s.last_name)}</strong></td>
+          <td>${s.sessions}</td>
+          <td><span class="badge badge-orange">${s.questions}</span></td>
+          <td>${s.uploads}</td>
+          <td class="muted-cell">${formatTimeSpent(s.time_spent_minutes)}</td>
+          <td><button type="button" class="time-by-page-btn" data-id="${s.id}" title="See time on each page, by session">${pageTime(s.page_time_minutes)} ▸</button></td>
+          <td>${escapeHtml(s.top_page || '—')}</td>
+          <td>${s.deadlines_past_due ? `${s.deadlines_completed} of ${s.deadlines_past_due}` : '—'}</td>
+          <td>${s.deadlines_past_due ? s.on_time_pct + '%' : '—'}</td>
+          <td class="muted-cell">${formatTokenCount(s.total_tokens)}</td>
+          <td class="muted-cell">${formatCostUsd(s.estimated_cost_usd)}</td>
+        </tr>`).join('');
+      const sum = f => list.reduce((n, s) => n + (Number(s[f]) || 0), 0);
+      tfoot.innerHTML = `<tr>
+          <td>All students (${list.length})</td>
+          <td>${sum('sessions')}</td>
+          <td>${sum('questions')}</td>
+          <td>${sum('uploads')}</td>
+          <td>${formatTimeSpent(sum('time_spent_minutes'))}</td>
+          <td>${pageTime(sum('page_time_minutes'))}</td>
+          <td></td>
+          <td>${sum('deadlines_past_due') ? `${sum('deadlines_completed')} of ${sum('deadlines_past_due')}` : ''}</td>
+          <td>${sum('deadlines_past_due') ? Math.round(100 * sum('deadlines_on_time') / sum('deadlines_past_due')) + '%' : ''}</td>
+          <td>${formatTokenCount(sum('total_tokens'))}</td>
+          <td>${formatCostUsd(sum('estimated_cost_usd'))}</td>
+        </tr>`;
+      tbody.querySelectorAll('.time-by-page-btn').forEach(btn => {
+        const st = list.find(x => String(x.id) === btn.dataset.id) || {};
+        btn.addEventListener('click', () => viewTimeByPage(parseInt(btn.dataset.id, 10), `${st.first_name || ''} ${st.last_name || ''}`.trim()));
+      });
+    }
+    document.addEventListener('DOMContentLoaded', () => {
+      document.querySelectorAll('th.eng-sortable').forEach(h => {
+        h.addEventListener('click', () => {
+          const f = h.dataset.esort;
+          engSort = engSort.field === f ? { field: f, dir: engSort.dir === 'asc' ? 'desc' : 'asc' }
+                                        : { field: f, dir: h.dataset.type === 'num' ? 'desc' : 'asc' };
+          renderEngagementTable();
+        });
+      });
+    });
+
+    // Engagement > Time on Pages: minutes on each page, by
+    // session, with a total per session and a grand total. Built with
+    // CSS classes only (see the CSP note in viewDemoConversation).
+    async function viewTimeByPage(sid, name) {
+      let overlay = document.getElementById('time-by-page-overlay');
+      if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'time-by-page-overlay';
+        overlay.className = 'demo-convo-overlay';
+        overlay.innerHTML = `<div class="demo-convo-card tbp-card">
+          <div class="demo-convo-header">
+            <h3 id="tbp-title">Time by page</h3>
+            <button id="tbp-close" class="demo-convo-close" aria-label="Close">✕</button>
+          </div>
+          <div id="tbp-body" class="demo-convo-body"></div>
+        </div>`;
+        document.body.appendChild(overlay);
+        overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('open'); });
+        overlay.querySelector('#tbp-close').addEventListener('click', () => overlay.classList.remove('open'));
+      }
+      overlay.querySelector('#tbp-title').textContent = `Time by page${name ? ' — ' + name : ''}`;
+      overlay.classList.add('open');
+      const body = overlay.querySelector('#tbp-body');
+      body.innerHTML = '<p class="demo-convo-loading">Loading…</p>';
+      const mins = m => (m > 0 && m < 1) ? '&lt;1m' : (m > 0 ? formatTimeSpent(m) : '0m');
+      const pageTable = (pages, totalLabel, total) => `
+        <table class="tbp-table">
+          <thead><tr><th>Page</th><th>Visits</th><th>Time</th></tr></thead>
+          <tbody>${pages.map(p => `
+            <tr><td>${escapeHtml(p.label)}</td><td>${p.visits}</td><td>${mins(p.minutes)}</td></tr>`).join('')}
+          </tbody>
+          <tfoot><tr><td>${totalLabel}</td><td>${pages.reduce((n, p) => n + p.visits, 0)}</td><td>${mins(total)}</td></tr></tfoot>
+        </table>`;
+      try {
+        const res = await fetch(`/student-page-time/${sid}`);
+        const data = await res.json();
+        if (!res.ok || data.error) throw new Error(data.error || 'Could not load');
+        if (!data.sessions.length) {
+          body.innerHTML = '<p class="demo-convo-empty">No page visits recorded for this student yet.</p>';
+          return;
+        }
+        const when = s => {
+          const d = new Date(s.start_iso);
+          return isNaN(d) ? s.start : d.toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+        };
+        body.innerHTML = `
+          <div class="tbp-summary">
+            <div><span class="tbp-big">${mins(data.grand_total_minutes)}</span><span class="tbp-sub">total time on all pages</span></div>
+            <div><span class="tbp-big">${data.session_count}</span><span class="tbp-sub">session${data.session_count !== 1 ? 's' : ''}</span></div>
+          </div>
+          <div class="tbp-section-title">All sessions combined</div>
+          ${pageTable(data.totals_by_page, 'Grand total', data.grand_total_minutes)}
+          <div class="tbp-section-title">By session (newest first)</div>
+          ${data.sessions.map(s => `
+            <details class="tbp-session">
+              <summary><span>${escapeHtml(when(s))}</span><span class="tbp-session-total">${mins(s.total_minutes)}</span></summary>
+              ${pageTable(s.pages, 'Session total', s.total_minutes)}
+            </details>`).join('')}
+          <p class="tbp-note">A new session starts at each sign-in or after 30 minutes with no activity. Time on a page runs until the student opens another page, including everything they do there. Time after their last action in a session isn't known, so it isn't counted.</p>`;
+      } catch (e) {
+        body.innerHTML = `<p class="demo-convo-error">${escapeHtml(e.message || 'Could not load time by page.')}</p>`;
+      }
     }
 
     async function viewDemoConversation(sid) {

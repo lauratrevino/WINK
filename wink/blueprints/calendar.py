@@ -208,7 +208,7 @@ def study_plan():
 def reprocess_deadlines():
     s = g.student
     if not config.DB_URL: return jsonify({"error": "No database"}), 500
-    if rate_limited(f"reprocess:{s['id']}", max_calls=3, window_seconds=300):
+    if rate_limited(f"reprocess:{s['id']}", max_calls=30, window_seconds=60):  # anti-bot ceiling only
         return jsonify({"error": "Please wait a few minutes before doing this again."}), 429
     try:
         docs = get_docs(s["id"])

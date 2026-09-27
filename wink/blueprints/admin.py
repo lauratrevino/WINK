@@ -7,8 +7,10 @@ from ..extensions import generate_csrf_token, db_cursor
 from ..security import admin_page_required, admin_required
 from ..services.analytics import (anonymize_student_record, compute_engagement_insights,
                                    get_demo_session_summaries, get_demo_usage_stats, get_page_time_breakdown,
+                                   get_page_time_by_session, get_page_distribution,
                                    get_student_summaries, get_total_token_usage, log_event, safe_payload)
 from ..services.demo import purge_demo_data_before_today
+from ..services.insights import get_deadline_followthrough, get_export_rows, get_insights_extra
 from ..services.health import run_health_checks, overall_status
 from ..universities_list import UNIVERSITIES
 
@@ -36,7 +38,7 @@ def analytics_data():
             cur.execute("SELECT COUNT(*) as n FROM students WHERE is_demo IS NOT TRUE")
             total_s = cur.fetchone()["n"]
 
-            # These three, and the "recent" feed just below, are scoped to
+            # These three are scoped to
             # real students (JOIN + is_demo filter) for the same reason as
             # compute_engagement_insights in services/analytics.py: demo
             # accounts are never deleted now, so an unfiltered COUNT(*)
@@ -56,26 +58,17 @@ def analytics_data():
             total_up = cur.fetchone()["n"]
 
             students = get_student_summaries(cur)
+            _follow = get_deadline_followthrough(cur)
+            for _s in students:
+                _f = _follow.get(_s["id"], {})
+                _s["deadlines_past_due"] = _f.get("past_due", 0)
+                _s["deadlines_completed"] = _f.get("completed", 0)
+                _s["deadlines_on_time"] = _f.get("on_time", 0)
 
-            cur.execute("""
-                SELECT
-                    e.id, e.event_type, e.payload,
-                    to_char(e.created_at, 'Mon DD HH24:MI') as ts,
-                    s.first_name, s.last_name, s.email
-                FROM events e
-                LEFT JOIN students s ON s.id = e.student_id
-                WHERE s.is_demo IS NOT TRUE OR s.id IS NULL
-                ORDER BY e.created_at DESC
-                LIMIT 60
-            """)
-            recent = []
-            for r in cur.fetchall():
-                row = dict(r)
-                row["payload"] = safe_payload(row.get("payload"))
-                recent.append(row)
 
             cur.execute("SELECT major, COUNT(*) as n FROM students WHERE is_demo IS NOT TRUE GROUP BY major ORDER BY n DESC")
             by_major = [dict(r) for r in cur.fetchall()]
+            page_distribution = get_page_distribution(cur)
 
             cur.execute("SELECT classification, COUNT(*) as n FROM students WHERE is_demo IS NOT TRUE GROUP BY classification ORDER BY n DESC")
             by_class = [dict(r) for r in cur.fetchall()]
@@ -88,8 +81,8 @@ def analytics_data():
             "total_questions": total_q,
             "total_uploads": total_up,
             "students": students,
-            "recent": recent,
             "by_major": by_major,
+            "page_distribution": page_distribution,
             "by_class": by_class,
             **token_totals,
         })
@@ -122,6 +115,12 @@ def analytics_data_full():
             total_up = cur.fetchone()["n"]
 
             students = get_student_summaries(cur)
+            _follow = get_deadline_followthrough(cur)
+            for _s in students:
+                _f = _follow.get(_s["id"], {})
+                _s["deadlines_past_due"] = _f.get("past_due", 0)
+                _s["deadlines_completed"] = _f.get("completed", 0)
+                _s["deadlines_on_time"] = _f.get("on_time", 0)
 
             # Reads from answer_logs rather than pairing up question_asked/
             # answer_given events — same reasoning as student_conversations()
@@ -166,20 +165,10 @@ def analytics_data_full():
                 for r in cur.fetchall()
             ]
 
-            cur.execute("""
-                SELECT e.event_type, e.payload, to_char(e.created_at,'Mon DD HH24:MI') as ts,
-                       s.first_name, s.last_name, s.email
-                FROM events e LEFT JOIN students s ON s.id=e.student_id
-                WHERE s.is_demo IS NOT TRUE OR s.id IS NULL
-                ORDER BY e.created_at DESC LIMIT 100""")
-            recent = []
-            for r in cur.fetchall():
-                row = dict(r)
-                row["payload"] = safe_payload(row.get("payload"))
-                recent.append(row)
 
             cur.execute("SELECT major, COUNT(*) as n FROM students WHERE is_demo IS NOT TRUE GROUP BY major ORDER BY n DESC")
             by_major = [dict(r) for r in cur.fetchall()]
+            page_distribution = get_page_distribution(cur)
             cur.execute("SELECT classification, COUNT(*) as n FROM students WHERE is_demo IS NOT TRUE GROUP BY classification ORDER BY n DESC")
             by_class = [dict(r) for r in cur.fetchall()]
 
@@ -192,24 +181,7 @@ def analytics_data_full():
                 GROUP BY d.course ORDER BY n DESC""")
             by_course = [dict(r) for r in cur.fetchall()]
 
-            cur.execute("""
-                SELECT to_char(e.created_at,'Mon DD') as day, COUNT(*) as n
-                FROM events e JOIN students s ON s.id = e.student_id
-                WHERE e.created_at >= NOW() - INTERVAL '7 days' AND s.is_demo IS NOT TRUE
-                GROUP BY to_char(e.created_at,'Mon DD'), DATE(e.created_at)
-                ORDER BY DATE(e.created_at) ASC""")
-            daily = [dict(r) for r in cur.fetchall()]
 
-            cur.execute("""
-                SELECT d.title, d.course, d.due_date, s.first_name, s.last_name
-                FROM deadlines d JOIN students s ON s.id = d.student_id
-                WHERE d.due_date >= (NOW() AT TIME ZONE %s)::date AND s.is_demo IS NOT TRUE
-                ORDER BY d.due_date ASC LIMIT 100""", (config.APP_TIMEZONE,))
-            upcoming_deadlines = []
-            for r in cur.fetchall():
-                row = dict(r)
-                row["due_date"] = row["due_date"].isoformat() if row["due_date"] else None
-                upcoming_deadlines.append(row)
             cur.execute("""SELECT COUNT(*) as n FROM deadlines d JOIN students s ON s.id = d.student_id
                            WHERE d.due_date >= (NOW() AT TIME ZONE %s)::date AND s.is_demo IS NOT TRUE""",
                         (config.APP_TIMEZONE,))
@@ -228,12 +200,10 @@ def analytics_data_full():
             "total_deadlines": total_deadlines,
             "students": students,
             "conversations": conversations,
-            "recent": recent,
             "by_major": by_major,
+            "page_distribution": page_distribution,
             "by_class": by_class,
             "by_course": by_course,
-            "daily": daily,
-            "upcoming_deadlines": upcoming_deadlines,
             "demo_usage": demo_usage,
             "demo_sessions": demo_sessions,
             **insights,
@@ -275,6 +245,60 @@ def student_conversations(sid):
         return jsonify({"conversations": conversations, "pages": pages})
     except Exception as e:
         log_error("admin.student_conversations", e)
+        return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
+
+
+@bp.route("/student-page-time/<int:sid>")
+@admin_required
+def student_page_time(sid):
+    try:
+        if not config.DB_URL: return jsonify({"error": "No database"}), 500
+        with db_cursor() as cur:
+            return jsonify(get_page_time_by_session(cur, sid))
+    except Exception as e:
+        log_error("admin.student_page_time", e)
+        return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
+
+
+@bp.route("/analytics-insights-extra")
+@admin_required
+def analytics_insights_extra():
+    try:
+        if not config.DB_URL: return jsonify({"error": "No database"}), 500
+        with db_cursor() as cur:
+            data = get_insights_extra(cur)
+        return jsonify(data)
+    except Exception as e:
+        log_error("admin.analytics_insights_extra", e)
+        return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
+
+
+@bp.route("/analytics-export.csv")
+@admin_required
+def analytics_export_csv():
+    """Per-student engagement spreadsheet. Anonymized (participant codes,
+    no names or emails) unless ?anonymize=0."""
+    import csv
+    import io
+    from flask import Response
+    try:
+        if not config.DB_URL: return jsonify({"error": "No database"}), 500
+        anonymize = request.args.get("anonymize", "1") != "0"
+        with db_cursor() as cur:
+            rows = get_export_rows(cur, anonymize=anonymize)
+        log_event(g.student["id"], "research_export", {"kind": "engagement_csv", "anonymized": anonymize,
+                                                       "rows": len(rows)})
+        buf = io.StringIO()
+        if rows:
+            w = csv.DictWriter(buf, fieldnames=list(rows[0].keys()))
+            w.writeheader()
+            w.writerows(rows)
+        name = "wink_engagement_anonymized.csv" if anonymize else "wink_engagement_identified.csv"
+        return Response("\ufeff" + buf.getvalue(), mimetype="text/csv",
+                        headers={"Content-Disposition": f"attachment; filename={name}",
+                                 "Cache-Control": "no-store"})
+    except Exception as e:
+        log_error("admin.analytics_export_csv", e)
         return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
 
 

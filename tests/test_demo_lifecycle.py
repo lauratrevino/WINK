@@ -34,11 +34,42 @@ def _start_demo(client):
         return sess["sid"]
 
 
+def _use_ai(sid):
+    """Gives a demo real AI usage. Expired demos that never used the AI
+    are deleted outright (see services/demo.py end_demo_session); these
+    retention tests are about demos that DID use it, which are kept."""
+    conn = _db()
+    cur = conn.cursor()
+    cur.execute("""INSERT INTO token_usage(student_id, call_type, model, input_tokens, output_tokens)
+                   VALUES (%s, 'chat', 'claude-sonnet-5', 100, 50)""", (sid,))
+    cur.close(); conn.close()
+
+
 def _expire_demo(sid):
+    _use_ai(sid)
     conn = _db()
     cur = conn.cursor()
     cur.execute("UPDATE students SET demo_expires_at = NOW() - INTERVAL '1 hour' WHERE id=%s", (sid,))
     cur.close(); conn.close()
+
+
+class TestUnusedExpiredDemoIsDeleted:
+    def test_expired_demo_with_no_ai_usage_is_deleted(self, client):
+        sid = _start_demo(client)
+        conn = _db()
+        cur = conn.cursor()
+        cur.execute("UPDATE students SET demo_expires_at = NOW() - INTERVAL '1 hour' WHERE id=%s", (sid,))
+        cur.close(); conn.close()
+        client.get("/chat-page", follow_redirects=False)
+        conn = _db()
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM students WHERE id=%s", (sid,))
+        assert cur.fetchone()[0] == 0, "an expired demo that never used the AI should be deleted"
+        cur.execute("SELECT COUNT(*) FROM events WHERE student_id=%s", (sid,))
+        assert cur.fetchone()[0] == 0
+        cur.execute("SELECT COUNT(*) FROM demo_sessions WHERE student_id=%s", (sid,))
+        assert cur.fetchone()[0] == 0
+        cur.close(); conn.close()
 
 
 class TestExpiredDemoAccessDoesNotDestroyData:

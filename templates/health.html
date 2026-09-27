@@ -155,7 +155,21 @@
     margin-top: 8px;
   }
   .footer .accent { color: var(--orange); font-weight: 700; }
+  .card + .card { margin-top: 20px; }
+  .sup-head { padding: 20px 24px 8px; }
+  .sup-head h2 { font-size: 17px; color: #002855; margin: 0; }
+  .sup-head p { font-size: 13px; color: #6b7a99; margin: 4px 0 0; line-height: 1.5; }
+  .sup-body { padding: 8px 24px 20px; }
+  .sup-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f0f1f3; font-size: 13px; }
+  .sup-row:last-child { border-bottom: none; }
+  .sup-email { font-weight: 600; color: #002855; flex: 1; word-break: break-all; }
+  .sup-reason { color: #6b7a99; font-size: 12px; white-space: nowrap; }
+  .sup-btn { background: #fff; border: 1px solid #dde3f0; border-radius: 6px; padding: 5px 12px; font: inherit; font-size: 12px; color: #002855; cursor: pointer; }
+  .sup-btn:hover { border-color: #FF8200; color: #FF8200; }
+  .sup-empty { color: #6b7a99; font-size: 13px; padding: 8px 0; }
+  .sup-msg { font-size: 12px; margin-top: 8px; }
 </style>
+<meta name="csrf-token" content="{{ csrf_token() }}">
 </head>
 <body>
   <div class="card">
@@ -221,5 +235,17 @@
       <span>Checked <span class="accent">{{ checked_at }}</span></span>
     </div>
   </div>
+
+  <div class="card">
+    <div class="sup-head">
+      <h2>Blocked Email Addresses</h2>
+      <p>WINK stops emailing an address after Amazon SES reports a hard bounce or a spam complaint, so
+      verification, password-reset and reminder emails to it are skipped. If a student has fixed the
+      problem (for example, a full mailbox or a typo corrected), remove them here to start sending again.</p>
+    </div>
+    <div class="sup-body" id="sup-body"><div class="sup-empty">Loading…</div></div>
+  </div>
+  <script src="{{ static_url('js/csrf-fetch.js') }}"></script>
+  <script src="{{ static_url('js/health.js') }}"></script>
 </body>
 </html>

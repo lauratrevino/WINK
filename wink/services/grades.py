@@ -10,7 +10,7 @@ def extract_grading_weights(content, student_id=None):
         return []
     try:
         resp = anthropic_client.messages.create(
-            model=config.CHAT_MODEL,
+            model=config.EXTRACTION_MODEL,
             max_tokens=1024,
             system=(
                 "Extract the grading/weighting breakdown from the course material given to "
@@ -31,7 +31,7 @@ def extract_grading_weights(content, student_id=None):
             messages=[{"role": "user", "content": content[:config.PRACTICE_MATERIAL_MAX_CHARS]}],
         )
         if student_id is not None:
-            log_token_usage(student_id, "grade_extraction", config.CHAT_MODEL, resp.usage)
+            log_token_usage(student_id, "grade_extraction", config.EXTRACTION_MODEL, resp.usage)
         raw = "".join(b.text for b in resp.content if getattr(b, "type", None) == "text").strip()
         raw = strip_json_fence(raw)
         # parse_json_array salvages a complete-so-far array from a

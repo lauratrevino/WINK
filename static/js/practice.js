@@ -155,7 +155,8 @@
       wrap.className = 'question-card quiz-card';
       wrap.dataset.qid = q.id || '';
       const optionsHtml = (q.options || []).map((opt, i) =>
-        `<button class="quiz-option" data-idx="${i}">${escapeHtml(opt)}</button>`
+        // Numbered 1-4; strips any "A)" / "1." prefix the AI may have added itself
+        `<button class="quiz-option" data-idx="${i}"><span class="quiz-option-num">${i + 1}.</span> ${escapeHtml(String(opt).replace(/^\s*(?:[A-Da-d]|[1-4])\s*[.):-]\s+/, ''))}</button>`
       ).join('');
       wrap.innerHTML = `
         <div class="q-text">${escapeHtml(q.question)}<span class="grade-badge"></span></div>

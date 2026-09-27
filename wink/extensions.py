@@ -99,7 +99,7 @@ if config.DB_URL:
     try:
         _db_pool = _pg_pool.ThreadedConnectionPool(
             config.DB_POOL_MIN, config.DB_POOL_MAX, config.DB_URL,
-            cursor_factory=RealDictCursor
+            cursor_factory=RealDictCursor, options="-c timezone=UTC"
         )
     except Exception:
         logger.warning("DB pool init failed, falling back to per-request connections", exc_info=True)
@@ -134,7 +134,7 @@ def get_db():
         if conn is None:
             raise last_err
     else:
-        conn = psycopg2.connect(config.DB_URL, cursor_factory=RealDictCursor)
+        conn = psycopg2.connect(config.DB_URL, cursor_factory=RealDictCursor, options="-c timezone=UTC")
     g._db_conn = conn
     return conn
 

@@ -10,10 +10,10 @@ from .. import config
 from ..extensions import csrf, db_cursor
 from ..security import rate_limited
 from ..services.cron import cron_job
-from ..services.demo import end_demo_session
+from ..services.demo import delete_unused_expired_demos, end_demo_session
 
 bp = Blueprint("demo", __name__)
-DEMO_TTL_HOURS = 6
+DEMO_TTL_HOURS = 1
 
 
 def _purge_expired(cur):
@@ -30,6 +30,9 @@ def _purge_expired(cur):
     expired = [r["id"] for r in cur.fetchall()]
     for sid in expired:
         end_demo_session(cur, sid, "expired")
+    # Also clears out older expired demos that never used the AI (ones
+    # that ended before this rule existed, or via logout).
+    delete_unused_expired_demos(cur)
     return len(expired)
 
 

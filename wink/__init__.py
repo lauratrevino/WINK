@@ -25,7 +25,7 @@ def create_app():
         SESSION_COOKIE_SECURE=os.environ.get("FLASK_ENV") != "development",
         SESSION_COOKIE_SAMESITE="Lax",
         PERMANENT_SESSION_LIFETIME=timedelta(days=7),
-        MAX_CONTENT_LENGTH=16 * 1024 * 1024,
+        MAX_CONTENT_LENGTH=25 * 1024 * 1024,
     )
     os.makedirs(config.UPLOAD_FOLDER, exist_ok=True)
 
@@ -63,11 +63,12 @@ def create_app():
         is_admin = bool(s and s.get("email", "").lower() in config.ADMIN_EMAILS)
         return {"is_admin": is_admin}
 
-    _script_hashes, _style_hashes = csp_hashes.compute_hashes(Path(config.BASE_DIR) / "templates")
+    _script_hashes, _style_hashes = csp_hashes.compute_hashes(
+        Path(config.BASE_DIR) / "templates", Path(config.BASE_DIR) / "static" / "js")
     _script_src_attr = " ".join(f"'sha256-{h}'" for h in _script_hashes)
     _style_src_attr = " ".join(f"'sha256-{h}'" for h in _style_hashes)
     logger.info(
-        "CSP: %d event-handler hashes, %d style-attribute hashes computed from templates/",
+        "CSP: %d event-handler hashes, %d style-attribute hashes computed from templates/ and static/js/",
         len(_script_hashes), len(_style_hashes),
     )
 

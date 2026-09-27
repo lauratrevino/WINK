@@ -66,10 +66,9 @@ def current_student():
                 # events and account row right here, which silently threw
                 # away everything the moment anyone revisited an expired
                 # demo link, without even recording a demo_sessions row
-                # for it. Nothing is deleted now: the account, its
-                # documents, events, and conversations all stay in place
-                # for Analytics, just marked inactive so it stops being
-                # treated as a live demo session.
+                # for it. Now a demo that used the AI is kept for
+                # Analytics (just marked inactive); one that never used
+                # any tokens is deleted outright (see end_demo_session).
                 sid = s["id"]
                 cur = conn.cursor()
                 end_demo_session(cur, sid, "expired")

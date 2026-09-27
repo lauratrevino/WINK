@@ -113,7 +113,7 @@ def refresh_resource(university, resource_key, display_name):
         return False
     try:
         resp = anthropic_client.messages.create(
-            model=config.CHAT_MODEL,
+            model=config.EXTRACTION_MODEL,
             # Was 1024, then 4096 — both still too tight in practice.
             # web_search's own returned snippets count against this same
             # budget before the model reaches its actual answer, and a

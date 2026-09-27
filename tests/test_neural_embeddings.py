@@ -129,6 +129,10 @@ class TestEmbeddingStorageRealDB:
 
         fake = FakeVoyageClient()
         monkeypatch.setattr(retrieval, "voyage_client", fake)
+        # Full-document room is now 200k chars; shrink it so this upload
+        # still forces the retrieval (ranking) path this test is about.
+        from wink import config as wink_config
+        monkeypatch.setattr(wink_config, "MAX_DOC_CONTEXT_CHARS", 40000)
 
         register(client)
         huge_content = "Course policy detail. " * 5000  
