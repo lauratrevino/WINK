@@ -25,8 +25,14 @@ config = context.config
 # does not — it requires `postgresql://`. Only Alembic needs this
 # translation; the app's own direct psycopg2 connections are untouched.
 _db_url = app_config.DB_URL
+# Name the driver explicitly. SQLAlchemy 2.1 changed the default driver
+# for plain "postgresql://" URLs from psycopg2 (which WINK installs) to
+# psycopg 3 (which it doesn't), breaking every deploy's migration step
+# with "No module named 'psycopg'".
 if _db_url.startswith("postgres://"):
-    _db_url = _db_url.replace("postgres://", "postgresql://", 1)
+    _db_url = _db_url.replace("postgres://", "postgresql+psycopg2://", 1)
+elif _db_url.startswith("postgresql://"):
+    _db_url = _db_url.replace("postgresql://", "postgresql+psycopg2://", 1)
 if _db_url:
     config.set_main_option("sqlalchemy.url", _db_url)
 

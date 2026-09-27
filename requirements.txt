@@ -16,6 +16,7 @@ scikit-learn==1.9.0
 voyageai==0.5.0
 cryptography==50.0.0
 alembic==1.19.1
+SQLAlchemy==2.1.1
 pyotp==2.10.0
 qrcode==8.2
 pytest==9.0.3
