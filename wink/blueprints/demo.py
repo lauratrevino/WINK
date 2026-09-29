@@ -57,194 +57,89 @@ def _seed_demo(cur, sid):
     # inventing a category the rest of the app doesn't recognize.
     docs = [
         ("UNIV 1301", "10196", "UNIV1301FallSyllabus2026.docx", "syllabus",
-         """UNIV 1301: Seminar in Critical Inquiry
-"Designing Your College Experience with an Entrepreneurial Mindset"
-Instructor: Dr. Laura Treviño
-Email: lhall@utep.edu
-Office: Room 108, UGLC
-Office Hours: MWF 7:30–9:20 a.m. and 10:30 a.m.–12:20 p.m.
-Course Sections
-Instructional Team
-The UTEP Edge
-The UTEP Edge is our philosophy that acknowledges the many assets our students bring to the University. We provide a variety of high-impact experiences both in and out of the classroom through the work of our faculty, staff, alumni, and community partners that build on these assets and talents. Many of the assignments and discussions in this class will further develop the talents you bring to this class, such as communication skills, teamwork, critical thinking, and problem solving.
-UTEP Edge Learning Objectives
-The UTEP Edge is a university-wide initiative that helps you grow personally, academically, and professionally by building on your unique strengths. It connects you with high-impact experiences like research, internships, community service, and leadership roles. These opportunities are designed to boost your confidence, sharpen your skills, and prepare you for success after graduation — whether that means grad school, a great job, or launching your own path. You'll see UTEP Edge themes show up in this course and throughout your college journey.
-Throughout the semester, this course will:
-Integrate asset-based approaches into pedagogical practices, curricular and co-curricular programs, and advising
-Increase delivery of and participation in high-impact practices and other practices that lead to student success
-Promote student engagement in and understanding of the value of reflective practices inside and outside the classroom
-Embed professional preparation and readiness in curricular and co-curricular activities
+         """UNIV 1301: First-Year Seminar
+"Designing Your College Experience"
+Demo State University (a fictional school used for the My WINK demo)
+Instructor: Dr. Jordan Rivera
+Email: jrivera@demostate.example
+Office: Student Success Center, Room 210
+Office Hours: MWF 8:00-9:30 a.m. and 11:00 a.m.-12:00 p.m., or by appointment
 Course Description
-As part of the Entering Student Experience, UNIV 1301 supports students as they build a foundation for academic excellence, personal growth, and professional success. In this course, we approach that journey with an entrepreneurial mindset: identifying your strengths, leveraging resources, solving problems, and creating your future through intentional design.
-Students will engage in self-reflection, connect with the UTEP community, and develop key academic skills while also learning to think like innovators. Challenges are expected. Resourcefulness is essential. The classroom is your bootcamp for real-world skills, creative thinking, and growth-mindset development.
+UNIV 1301 helps first-year students build a foundation for academic success, personal growth, and professional readiness. Students explore four course themes, Identity, Agency, Belonging, and Aspirations, while developing study skills, teamwork, and an entrepreneurial mindset: identifying strengths, using resources, solving problems, and designing their own path.
 Learning Objectives
-The learning objectives in this course are designed to nurture an entrepreneurial mindset because they help students approach college not just as a series of tasks to complete, but as an opportunity to shape their own path with purpose and intention. By encouraging understanding of identity, agency, belonging, and aspirations, these objectives support students in developing the habits and confidence of innovators — people who know who they are, take initiative, build strong networks, and envision a meaningful future. They're not just about surviving college — they're about learning how to thrive in it and beyond.
-Identity Learning Objectives  ·  You, Inc.
-Explore your identity as a learner and its connection to your values, beliefs, and goals.
-Identify and apply your unique talents and strengths to academic and professional pursuits.
-Agency Learning Objectives  ·  Ownership Mindset
-Develop ownership over your educational path and decision-making.
-Acquire practical strategies to navigate university life and lead within your academic community.
-Enhance leadership, communication, and teamwork through collaborative action.
-Belonging Learning Objectives  ·  Your Support Ecosystem
-Reflect on what belonging means and how to foster it in your college experience.
-Build networks of support and connection at UTEP.
-Aspiration Learning Objectives  ·  Vision & Mission
-Clarify your academic and career goals and map the steps to achieve them.
-Envision a post-college future and the legacy you want to create.
-Use of AI Tools in the Classroom
-Policy Statement
-AI tools (including ChatGPT) are required in this course. You will use AI for idea generation, editing, organizing, project management, and productivity enhancement, while learning how to use these tools ethically and responsibly.
-Policy Rationale
-The purpose of this policy is to promote the integration of innovative AI tools in learning, encouraging students to explore, understand, and utilize these technologies to enhance their academic work. By developing the ability to navigate AI tools responsibly, effectively, and ethically, students not only strengthen their academic skills but also gain a competitive advantage in the workplace. This policy supports students in building the digital fluency and critical thinking needed to thrive in today's evolving professional environments.
-Violation of the Policy
-Violations of this policy, such as unethical use of AI tools or failure to appropriately cite AI-generated content, will be subject to penalties in accordance with the course and university's academic integrity policy.
-Student Responsibility
-It is each student's responsibility to understand this policy and to use AI tools responsibly and ethically. Questions or doubts about the use of AI tools should be directed to Dr. Treviño.
-Use AI for assignment preparation, ideation, and review.
-Properly cite AI-generated content.
-Avoid unethical use such as deception or plagiarism.
-Engage critically with AI, verifying and adapting outputs. Be aware of the limitations and potential biases of AI outputs.
-WINK (What I Need to Know)
-WINK is an AI-supported academic assistant used in this course for organization, course questions, studying, project management, and academic planning. Access instructions will be provided in Blackboard and during the WINK introduction listed on the course calendar.
-Use WINK as a learning partner: ask questions, clarify assignments, brainstorm, organize your work, review writing, plan study time, and explore course themes such as Identity, Agency, Belonging, and Aspirations.
+Identity: explore your strengths, values, and goals as a learner.
+Agency: take ownership of your academic path and decisions; practice leadership, communication, and teamwork.
+Belonging: build a network of support and connection on campus.
+Aspirations: clarify academic and career goals and map the steps to reach them.
+Use of AI Tools
+AI tools are required in this course. You will use AI for idea generation, editing, organizing, project management, and productivity, while learning to use these tools ethically and responsibly. Cite AI-generated content, verify AI output, and never submit AI work as entirely your own thinking. Unethical use of AI will be handled under the university academic integrity policy.
+WINK (What I Need to Know) is used in this course for organization, course questions, studying, project management, and planning.
 Required Text
-The Moth Presents: All These Wonders (edited by Catherine Burns)    DO NOT BUY
-All These Wonders: True Stories About Facing the Unknown is a collection of 45 real-life stories from The Moth, a nonprofit dedicated to the art of storytelling. The book features a wide range of voices — from well-known names to everyday people — sharing personal experiences about taking risks, facing uncertainty, and discovering new perspectives. Edited by Catherine Burns, the anthology highlights the power of storytelling to connect, inspire, and reveal the extraordinary in the everyday.
+The Moth Presents: All These Wonders (edited by Catherine Burns). Readings provided in class; do not buy.
 Major Assignments & Points
-Attendance
-Attendance and participation are essential parts of this class. Students are expected to attend each class period and participate in discussions, group projects, and in-class activities. Students are allowed a total of two class absences for mental health. You MUST have a doctor's note to excuse an absence. Unless arrangements are made with the instructor, students will be dropped on the 3rd class absence. Two late arrivals over 10 minutes = 1 absence.
-Common Read
-Students will read The Moth Presents: All These Wonders: True Stories About Facing the Unknown, edited by Catherine Burns. It is up to the instructor to design the assignments/activities upon which the grades are based.
-Entrepreneurial Mindset
-EM is a set of characteristics, attitudes, behaviors, and skills that help students identify and make the most of opportunities, overcome and learn from setbacks, and succeed in a variety of settings. These characteristics, attitudes, behaviors, and skills drive action and are essential for navigating the college experience and preparing for life after graduation.
-The domains of EM include:
-Identity and self-awareness
-Growth mindset
-Critical thinking
-Agency
-Aspirations
-Belonging
-Becoming a Miner Group Project — the major course project
-This 300-point team project is the most important assignment in the course. Your team will create a 10–15 minute video that tells the real story of the freshman experience at UTEP for future college students. You will build it in stages throughout the semester, with each deliverable aligned to the course themes of Identity, Agency, Belonging, and Aspirations. See the separate Fall 2026 Group Project Instructions for the complete requirements, checkpoints, peer-evaluation system, and showcase expectations.
-Grading Scale
-Course Policies — Written in Stone
-No late work. Late work will not be graded unless approved with medical documentation. Deadlines are Sundays at 5:00 p.m.
-Attendance is mandatory. Two late arrivals = 1 absence. Three absences will result in being dropped. Two mental health days are allowed.
-Use AI tools on all written work and emails.
-No phones/laptops during class lectures. Build your in-person collaboration skills.
-Emails must include your CRN in the subject line.
-Technology Requirements
-Access to Blackboard Ultra, UTEP email, Microsoft Word or PDF tools, and Adobe Express.
-Use a laptop or desktop computer for reliable access to assignments and uploads.
-A web browser that supports Blackboard, YouTube, TED Talks, Yuja, Kanopy, and other forms of media as needed throughout the course.
-Microsoft Office 365. Assignments must be submitted as a Word document (.doc or .docx) or PDF. Attachments in any other format will not be graded. You can download a free copy of Microsoft Office here.
-Course Management System
-Blackboard Ultra is the online course management system we will use throughout the semester. You can access Blackboard through my.utep.edu. In Blackboard, you can view the syllabus, course calendar, and other supplemental materials related to the course. You must check Blackboard daily for course announcements, assignments, and updates.
-The Blackboard app is great for course announcements, emails, and discussions. However, a desktop or laptop computer is recommended for downloading and/or reading course materials, uploading documents, or submitting assignments. Call the Help Desk at 747-5257 if you need help with access. Should Blackboard go down for maintenance or other interruptions, email your instructor for assistance.
-Course Policies
-Absence Policy
-Attendance is absolutely mandatory. You are expected to attend each class period and to participate in discussions, group projects, and in-class activities. You are allowed a total of two class absences for mental health. Unless arrangements are made with your instructor, you will be dropped on the 3rd class absence. Two late appearances equate to an absence.
-Late Work
-Absolutely no late work. Late work will not be graded. Deadlines are Sundays at 5:00 p.m.
-Course Drop / Withdrawal
-You may be dropped from this course if you exceed the required amount of absences and/or fail to keep current with assignments, unless arrangements are made with your instructor.
-Syllabus Change
-Except for changes that substantially affect the grading statement, this syllabus is a guide for the course and is subject to change. Any changes to the syllabus will be announced in class and/or on Blackboard. It is your responsibility to stay updated.
-Grievances
-If you have any concerns about the course, your grades, issues with other students, etc., please speak with your instructor. They are in the best position to help you.
-If you have made a good-faith effort but have not been able to resolve the issue, your next step is to speak to Alejandro Mena, Associate Director of the Entering Student Experience (alemena@utep.edu, (915) 747-6532, UGLC 308).
-If you have problems with registration, course documents, etc., please speak with UNIV 1301 Program Lead Sergio Contreras (scontreras@utep.edu, (915) 747-8444, UGLC 344).
-University Policies
-Accommodations
-The Americans with Disabilities Act requires that reasonable accommodations be provided for students with disabilities. Please contact CASS at 747-5148, Union East 106, or cass@utep.edu.
-Academic Integrity
-Scholastic dishonesty is never tolerated by UTEP or by the Entering Student Experience. All suspected cases are reported to the Office of Student Conduct and Conflict Resolution (OSCCR) for review. For more information, click here.
-Copyright and Fair Use
-The University requires all members of its community to follow copyright and fair use requirements. Students are individually and solely responsible for violations of copyright and fair use laws. The university will neither protect nor defend students nor assume any responsibility for student violations. Violations of copyright laws could subject students to federal and state civil penalties and criminal liability, as well as disciplinary action under university policies.
-Student Conduct
-From the Handbook of Operating Procedures: Student Conduct and Discipline. Each student is responsible for notice of and compliance with the provisions of the Regents' Rules and Regulations, which are available here.
-UTEP Financial Aid
-1. Financial Aid Acknowledgement Requirement (Mandatory)
-"Students receiving financial aid must complete the 'Financial Aid Acknowledgement Requirement' in Blackboard for each course within the first two weeks of the semester to confirm attendance and maintain full funding. Failure to do so may result in aid adjustments or cancellation."
-2. Academic Progress & Degree Eligibility
-"Financial aid eligibility requires enrollment in courses that apply toward your degree plan. Students taking courses for general improvement or specific certificates may not qualify."
-"If you are a graduate student or taking prerequisite courses, you may need to complete the 'Statement of Academic Intent' and submit it with required documents (degree evaluation/prerequisite letter) to the Financial Aid Office."
-3. Financial Aid Information & Resources
-"For questions about your award, viewing aid, or payment, visit my.utep.edu > Goldmine > Financial Aid, or contact studentfinancialaid@utep.edu."
-"Refer to the Office of Student Financial Aid for detailed policies on aid eligibility, cost of attendance, and other assistance."
-4. Optional: Low-Cost Materials (If Applicable)
-"This course is designated as low-cost. A detailed list of required materials will be provided during the first week of class."
-By including these points, this syllabus covers federal requirements, university policies, and essential student actions, ensuring clarity for students.
-Campus Resources
-Academic Advising Center
-Counseling and Psychological Services
-Center for Accommodations and Support Services
-Financial and Social Support Services (FSSS)
-Food Pantry
-Foster, Homeless, Adopted Resources (FHAR)
-History Tutoring Center
-Math Resource Center for Students (MaRCS)
-Miner Learning Center
-Student Financial Aid
-Student Health & Wellness Center
-Student Success Helpdesk
-University Career Center
-University Writing Center
-UTEP Edge
-UTEP Library
-UTEP Police Department
-Military Student Success Center
-Miner Support
-This syllabus is a living document and may be updated as needed. Changes will be announced via Blackboard and in class.
-FALL 2026  •  YOUR COLLEGE EXPERIENCE STARTS HERE
-CRN | Days / Time | Location
-CRN #10248 | MWF 9:30–10:20 a.m. | UGLC 208
-CRN #10196 | MWF 12:30–1:20 p.m. | Education 318
-CRN #10247 | TT 7:30–8:50 a.m. | UGLC 334
-Role | Course Section | Name | Email | Office Hours | Location
-CRN #10248 | MWF 9:30 a.m. | Sam Vazquez | savasquez5@miners.utep.edu | MW 11:30 a.m.-12:30 p.m. | UGLC 304
-CRN #10196 | MWF 12:30 a.m. | Emily Martinez | ermartinez9@miners.utep.edu | M 3 p.m. – 4 p.m.; T 9:00  a.m. -10:00 a.m.; W  11:30 a.m. – 12:30 p.m. | UGLC 304
-CRN #10247 | TT 7:30 a.m. | Emily Martinez | ermartinez9@miners.utep.edu | By arrangement | UGLC 304
-Librarian | Bob Klapthor | kklapthor@utep.edu
-Academic Advisor | Jorge Carmargo | jcamargosalaz@utep.edu
-Academic Advisor | Alexis Corona | acorona16@utep.edu
-Learning Outcome
-Students will demonstrate their ability to act ethically and responsibly for the benefit of society by articulating an awareness of social problems, exercising ethical leadership practices, engaging in civic, political, or community activities and/or advocating for social justice.
-WINK supports your work; it does not replace your thinking or your responsibility for assignments. Verify AI-generated information and follow the course academic-integrity requirements.
-Do not enter unnecessary sensitive or private information. Follow the WINK Terms of Agreement and any separate research consent materials that apply to you.
-MAJOR ASSIGNMENTS & POINTS | PTS
-CORE COURSE REQUIREMENTS | CORE COURSE REQUIREMENTS
 Attendance | 100
 Common Read Participation | 100
 Entrepreneurial Mindset Activities | 100
-Becoming a Miner Group Project | 300
-DISCRETIONARY ITEMS | DISCRETIONARY ITEMS
-Clifton Strengths | 25
+First-Year Story Group Project | 300
+Strengths Assessment | 25
 Survivor Series | 100
 Career Activity | 25
 Peer Leader Group Meeting | 20
 Syllabus Quiz | 10
 Syllabus Addendum | 10
-UTEP Edge | 100
+Campus Engagement Activity | 100
 Choices 360 | 25
 Course Evaluations | 10
-ESE Event | 75
+First-Year Event | 75
 TOTAL | 1000
-Your College Story Matters!
-What if you had the chance to go back in time and give your high school self a real, unfiltered look at what starting college is actually like? Would you warn yourself about the things no one tells you? Share the best parts of being a freshman? Show off the campus resources that helped you survive your first semester? Show the fun things to do? What would you say?
-That is EXACTLY what you are going to do for your Freshman Capstone Project!
-The Mission
-Your team of three will create a fun, creative, and informative video (10–15 minutes) that tells the real story of your freshman experience at UTEP. This is not just another class project — your video will be shared with actual high school students to help them make decisions about going to college. This is your chance to pay it forward and show future college students what they can really expect — the good, the unexpected, and everything in between!
-A | 900 – 1000
-B | 800 – 899
-C | 700 – 799
-D | 600 – 699
-F | 0 – 599"""),
+Grading Scale
+A | 900-1000
+B | 800-899
+C | 700-799
+D | 600-699
+F | 0-599
+First-Year Story Group Project (the major course project)
+This 300-point team project is the most important assignment in the course. Your team of three will create a 10-15 minute video that tells the real story of your first year of college for future students. You build it in stages, with each deliverable aligned to the course themes.
+Deliverable 1 (due Sunday, Sep. 20, 5:00 p.m.): Project management plan, including:
+1. A cover sheet (project title, course, section, instructor, team members, date)
+2. A work breakdown structure (WBS)
+3. A Gantt chart of the project schedule
+4. References for any use of AI tools (APA 7)
+5. A detailed task list for each team member
+6. The introduction and the first two slides of the video storyboard
+Later deliverables: Identity section, Agency section, Belonging section, Aspirations and final thoughts, final video, and a showcase presentation.
+Course Policies
+No late work. Late work is not graded unless approved with medical documentation. Deadlines are Sundays at 5:00 p.m.
+Attendance is mandatory. Two absences are allowed for mental health; students may be dropped on the third absence. Two late arrivals of more than 10 minutes equal one absence.
+No phones or laptops during lectures unless an activity calls for them.
+Emails to the instructor must include your CRN in the subject line.
+Assignments must be submitted as Word (.docx) or PDF files.
+The syllabus may change; changes are announced in class and on the course site.
+Grievances
+Talk with your instructor first. If a concern is not resolved, contact Dr. Morgan Lee, Director of First-Year Programs (mlee@demostate.example, 555-0142, Student Success Center Room 300).
+Course Sections and Team
+CRN #10248 | MWF 9:30-10:20 a.m. | Learning Center 208 | Peer Leader: Sam Lopez (slopez@demostate.example)
+CRN #10196 | MWF 12:30-1:20 p.m. | Education Building 318 | Peer Leader: Maya Chen (mchen@demostate.example)
+CRN #10247 | TR 7:30-8:50 a.m. | Learning Center 334 | Peer Leader: Maya Chen (mchen@demostate.example)
+Campus Resources (Demo State University)
+Academic Advising Center | advising@demostate.example | 555-0110 | Student Union 120 | Mon-Fri 8 a.m.-5 p.m.
+Counseling Center | counseling@demostate.example | 555-0120 (24/7 crisis line) | Health Building 200
+Accessibility Services | access@demostate.example | 555-0130 | Student Union 106
+Tutoring and Writing Center | tutoring@demostate.example | 555-0140 | Library 2nd floor | Mon-Thu 9 a.m.-8 p.m.
+Financial Aid Office | finaid@demostate.example | 555-0150 | Administration Building 101
+Career Center | careers@demostate.example | 555-0160 | Student Union 220
+Food Pantry | pantry@demostate.example | Student Union 015 | Tue and Thu 10 a.m.-2 p.m.
+Campus Police (non-emergency) | 555-0199 | Emergency: 911
+Accommodations
+Students with disabilities who need accommodations should contact Accessibility Services at 555-0130 or access@demostate.example.
+Academic Integrity
+Academic dishonesty is not tolerated. Suspected cases are reported to the Office of Student Conduct.
+Financial Aid Reminder
+Students receiving financial aid must confirm attendance in each course during the first two weeks of the semester to keep full funding."""),
         ("UNIV 1301", "10196", "UNIV_1301_Fall2026_CalendarMWF.docx", "course_calendar",
-         """CRN #10248   MWF, 9:30 – 10:20 a.m.   ·   Undergraduate Learning Center 208
+         """CRN #10248   MWF, 9:30 – 10:20 a.m.   ·   Learning Center 208
 CRN #10196   MWF, 12:30 – 1:20 p.m. - Education 318
-CRN #10247   TT, 7:30 – 8:50 a.m.   ·   Undergraduate Learning Center 334
+CRN #10247   TT, 7:30 – 8:50 a.m.   ·   Learning Center 334
 Course-theme color key above.  Red text = critical deadline.  Purple text = Peer Leader–led item.
 FALL SEMESTER CALENDAR 2026
 IDENTITY | AGENCY | ASPIRATION | BELONGING
@@ -255,10 +150,10 @@ IDENTITY | Wed. Aug. 26 | Intro – Peer Leader Intro (slides in PowerPoint Pres
 Fri. Aug. 28 | 🖥 Intro to ChatGPT – Download free version
 📅 Schedule PL Meeting (no later than Oct. 4; must meet in person)
 📝 Syllabus Quiz & Contract
-✨ UTEP Edge Test | In-Class | Sunday, Aug. 30th, 5:00 p.m.
+✨ Campus Engagement Quiz | In-Class | Sunday, Aug. 30th, 5:00 p.m.
 2 – IDENTITY | Mon. Aug. 31 | ChatGPT and Adobe Express Tutorials
 Wed. Sep. 2 | 💻 ChatGPT / Adobe Express Tutorials (Bring laptop) | In-Class
-3 – IDENTITY | Fri. Sep. 4 | 📅 Schedule ESE Event https://minetracker.utep.edu/events  You must attend one.
+3 – IDENTITY | Fri. Sep. 4 | 📅 Schedule First-Year Event on the campus events page. You must attend one.
 
 PEER LEADER ACTIVITIES – YOU MUST ATTEND ONE.  Do it early!!!!! | In-Class
 Mon. Sep. 7 | Labor Day!!  NO CLASS!! | In-Class
@@ -273,7 +168,7 @@ Wed Sep. 16 | WINK & Project Management Intro Slides and Project – Deliverable
 6 – AGENCY | Fri.
 Sep. 18 | Group Project Day – Identity Section | Sun. Sep. 27, 5 PM
 Mon Sep. 21 | 🎤 Elevator Pitch (Peer Leader)
-📅 Schedule ESE Event (minetracker.utep.edu/events?query=ESE)
+📅 Schedule First-Year Event (campus events page)
 PEER LEADER ACTIVITIES – YOU MUST ATTEND ONE.  Do it early!!!!! | In-Class
 7 – AGENCY | Wed. Sep. 23 | Group Project Day – Agency Section
 Agency slides due Oct. 11 | EM2 Due Sunday Sep. 27, 5:00 p.m.  Agency slides due Oct. 11
@@ -291,7 +186,7 @@ SURVIVOR SERIES | Sun. Oct. 11, 5 PM – EM5 Survey due
 Sun. Oct. 11, 5 PM – All sections due
 Fri. Oct. 9 | Group Project Day – Belonging | In-Class | Sun. Oct. 25, 5:00 P.M.
 Oct. 30 | DROP DAY | Oct. 30 – Last day to drop
-11 – BELONGING | Mon Oct. 12 | 📚 Book Club #4 | UGLC | Book Club Essay Due Oct. 25, 5:00 p.m.
+11 – BELONGING | Mon Oct. 12 | 📚 Book Club #4 | Learning Center | Book Club Essay Due Oct. 25, 5:00 p.m.
 Wed Oct. 14 | Due Sunday, Oct. 18
 Fri. Oct. 16 | Group Project Day…Aspirations & Final Thoughts
 Slides due Nov. 1st
@@ -303,7 +198,7 @@ Wed Oct. 28 | 💡 Entrepreneurial Mindset Post-Survey | Sun. Nov. 1, 5 PM – P
 Mon. Nov. 2 | Group Project  - Final Review | Nov. 8th MUST TURN IN FINAL
 14 – BELONGING | Wed. Nov. 4 | Book Club #2
 https://stories.phdproject.org/
-Fri. Nov. 6 | Clifton Strengths | Sunday, Nov. 8th, Group Project Review Due
+Fri. Nov. 6 | Strengths Assessment | Sunday, Nov. 8th, Group Project Review Due
 Mon. Nov. 9 | SURVIVOR SERIES – DO NOT ATTEND CLASS
 Wed. Nov. 11 | Book Club #3
 https://stories.phdproject.org/
@@ -362,8 +257,8 @@ Tue Dec. 15 | Grades Due | Tue Dec. 15 – Grades Due"""),
         (1,"UNIV 1301","Survivor Series — All Sections Due",date(2026,10,11),"confirmed",False,""),
         (1,"UNIV 1301","Belonging Slides & Book Club Essay",date(2026,10,25),"confirmed",False,""),
         (1,"UNIV 1301","Choices 360 & EM Post-Survey",date(2026,11,1),"confirmed",False,""),
-        (1,"UNIV 1301","Clifton Strengths Assessment",date(2026,11,8),"confirmed",False,""),
-        (1,"UNIV 1301","Becoming a Miner Group Project — Final Turn-In",date(2026,11,8),"confirmed",False,""),
+        (1,"UNIV 1301","Strengths Assessment",date(2026,11,8),"confirmed",False,""),
+        (1,"UNIV 1301","First-Year Story Group Project — Final Turn-In",date(2026,11,8),"confirmed",False,""),
     ]
 
     deadlines = [
@@ -402,10 +297,10 @@ Tue Dec. 15 | Grades Due | Tue Dec. 15 – Grades Due"""),
         # Matches the Fall 2026 UNIV 1301 syllabus's "Major Assignments &
         # Points" table (1000 points total), converted to percentages.
         "UNIV 1301":[("Attendance",10),("Common Read Participation",10),("Entrepreneurial Mindset Activities",10),
-                     ("Becoming a Miner Group Project",30),("Clifton Strengths",2.5),("Survivor Series",10),
+                     ("First-Year Story Group Project",30),("Strengths Assessment",2.5),("Survivor Series",10),
                      ("Career Activity",2.5),("Peer Leader Group Meeting",2),("Syllabus Quiz",1),
-                     ("Syllabus Addendum",1),("UTEP Edge",10),("Choices 360",2.5),
-                     ("Course Evaluations",1),("ESE Event",7.5)],
+                     ("Syllabus Addendum",1),("Campus Engagement Activity",10),("Choices 360",2.5),
+                     ("Course Evaluations",1),("First-Year Event",7.5)],
         "MATH 1324":[("Homework",25),("Quizzes",15),("Midterm Exams",35),("Final Exam",25)],
         "HIST 1301":[("Reading Responses",20),("Primary Source Analysis",25),("Midterm",25),("Final Project",30)],
         # BIOL 1305 was missing here — since the course dropdown is sorted
@@ -462,7 +357,7 @@ Tue Dec. 15 | Grades Due | Tue Dec. 15 – Grades Due"""),
 
     messages=json.dumps([
         {"role":"user","content":"What should I focus on this week?"},
-        {"role":"assistant","content":"You have a busy stretch coming up. Start with your UNIV 1301 Clifton Strengths assessment, then your MATH homework, and leave time to review for the biology quiz."}
+        {"role":"assistant","content":"You have a busy stretch coming up. Start with your UNIV 1301 Strengths Assessment, then your MATH homework, and leave time to review for the biology quiz."}
     ])
     cur.execute("INSERT INTO conversations(student_id,title,messages,updated_at) VALUES(%s,%s,%s,NOW())",
                 (sid,"Planning my week",messages))
@@ -491,7 +386,7 @@ def start_demo():
         token=secrets.token_hex(8)
         email=f"demo-{token}@wink-demo.invalid"
         cur.execute("""INSERT INTO students(email,password_hash,first_name,last_name,classification,major,university,preferred_language,email_verified,is_active,is_demo,demo_expires_at)
-                       VALUES(%s,%s,'DemoWINK','Demo','Freshman','Business','University of Texas at El Paso','',TRUE,TRUE,TRUE,NOW() + %s * INTERVAL '1 hour') RETURNING id""",
+                       VALUES(%s,%s,'DemoWINK','Demo','Freshman','Business','Demo State University','',TRUE,TRUE,TRUE,NOW() + %s * INTERVAL '1 hour') RETURNING id""",
                     (email,generate_password_hash(secrets.token_urlsafe(24)),DEMO_TTL_HOURS))
         sid=cur.fetchone()["id"]
         _seed_demo(cur,sid)

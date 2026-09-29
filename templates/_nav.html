@@ -26,6 +26,11 @@
     font-weight: 800 !important;
     color: #fff !important;
   }
+  .app-nav .nav-logo .nav-beta {
+    font-style: normal; font-size: 9px !important; font-weight: 800 !important; letter-spacing: .08em;
+    color: #002855 !important; background: #FF8200; border-radius: 999px; padding: 2px 6px;
+    margin-left: 6px; vertical-align: 5px;
+  }
   .app-nav .nav-logo span {
     color: #FF8200 !important;
   }
@@ -46,7 +51,7 @@
   }
 </style>
 <nav class="app-nav" id="app-nav">
-  <a href="/dashboard" class="nav-logo">WINK<span>.</span></a>
+  <a href="/dashboard" class="nav-logo">WINK<span>.</span><em class="nav-beta" title="My WINK is in Beta">BETA</em></a>
   <div class="nav-divider"></div>
   <button class="nav-toggle" onclick="toggleNav()" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="app-nav">☰</button>
   <div class="nav-links">

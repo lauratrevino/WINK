@@ -171,10 +171,9 @@
       const form = document.getElementById('register-form');
       const overlay = document.getElementById('terms-overlay');
       const termsCheck = document.getElementById('terms-check');
-      const researchCheck = document.getElementById('research-check');
       const agreeBtn = document.getElementById('terms-agree');
       const cancelBtn = document.getElementById('terms-cancel');
-      if (!form || !overlay || !termsCheck || !researchCheck || !agreeBtn) return;
+      if (!form || !overlay || !termsCheck || !agreeBtn) return;
 
       let approved = false;
       let submitting = false;
@@ -182,11 +181,10 @@
 
       function updateAgreeButton() {
         if (submitting) return; // don't re-enable mid-submit
-        agreeBtn.disabled = !(termsCheck.checked && researchCheck.checked);
+        agreeBtn.disabled = !termsCheck.checked;
       }
 
       termsCheck.addEventListener('change', updateAgreeButton);
-      researchCheck.addEventListener('change', updateAgreeButton);
 
       form.addEventListener('submit', function(e) {
         if (approved) return;
@@ -198,7 +196,7 @@
 
       agreeBtn.addEventListener('click', function() {
         if (submitting) return; // guard against double-clicks firing two submissions
-        if (!(termsCheck.checked && researchCheck.checked)) return;
+        if (!termsCheck.checked) return;
 
         submitting = true;
         approved = true;
@@ -250,7 +248,7 @@
           if (submitting) {
             submitting = false;
             approved = false;
-            agreeBtn.disabled = !(termsCheck.checked && researchCheck.checked);
+            agreeBtn.disabled = !termsCheck.checked;
             agreeBtn.textContent = agreeBtnDefaultText;
           }
         }, 8000);

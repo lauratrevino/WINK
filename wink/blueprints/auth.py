@@ -10,7 +10,8 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from .. import config
 from ..errors import log_error
 from ..extensions import db_cursor
-from ..security import login_required, rate_limited
+from ..security import (current_student, login_required, login_required_before_terms,
+                        needs_terms_acceptance, rate_limited)
 from ..services.analytics import _anonymize_student_sql, log_event
 from ..services.deadlines import extract_deadlines, insert_deadlines
 from ..services.email import send_email
@@ -23,6 +24,43 @@ bp = Blueprint("auth", __name__)
 logger = logging.getLogger(__name__)
 
 _DUMMY_PASSWORD_HASH = generate_password_hash(secrets.token_hex(32))
+
+
+def registrations_full():
+    """True when the Beta has reached MAX_REGISTRATIONS student accounts
+    (demo, deleted/anonymized and admin accounts don't count)."""
+    if not config.MAX_REGISTRATIONS or not config.DB_URL:
+        return False
+    with db_cursor() as cur:
+        cur.execute("""SELECT email FROM students
+                       WHERE is_demo IS NOT TRUE AND account_deleted_at IS NULL AND anonymized_at IS NULL""")
+        n = sum(1 for r in cur.fetchall() if (r["email"] or "").lower() not in config.ADMIN_EMAILS)
+    return n >= config.MAX_REGISTRATIONS
+
+
+def _register_page(**kw):
+    return render_template("register.html", classifications=config.CLASSIFICATIONS, majors=config.MAJORS,
+                           preferred_languages=config.PREFERRED_LANGUAGES, universities=UNIVERSITIES,
+                           access_code_required=bool(config.WINK_ACCESS_CODE), **kw)
+
+
+@bp.route("/waitlist", methods=["POST"])
+def join_waitlist():
+    email = request.form.get("email", "").strip().lower()
+    first_name = request.form.get("first_name", "").strip()[:100]
+    university = request.form.get("university", "").strip()[:200]
+    if rate_limited(f"waitlist:{request.remote_addr}", max_calls=10, window_seconds=3600):
+        return _register_page(beta_full=True, error="Too many attempts. Please try again later.")
+    if not config.EMAIL_RE.match(email):
+        return _register_page(beta_full=True, error="Please enter a valid email address.")
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute("""INSERT INTO waitlist(email, first_name, university) VALUES (%s, %s, %s)
+                           ON CONFLICT (email) DO NOTHING""", (email, first_name, university))
+        return _register_page(beta_full=True, waitlisted=True)
+    except Exception as e:
+        log_error("auth.join_waitlist", e)
+        return _register_page(beta_full=True, error="Something went wrong on our end. Please try again.")
 
 
 @bp.route("/register", methods=["GET", "POST"])
@@ -71,6 +109,9 @@ def register():
             # population has its own IRB approval). Checked before any other
             # field so a wrong/missing code fails fast without validating
             # (or revealing anything about) the rest of the submission.
+            if registrations_full():
+                return err("The My WINK Beta is full right now. Refresh this page to join the waitlist, "
+                           "and you'll be invited as spots open.")
             if config.WINK_ACCESS_CODE:
                 submitted_code = request.form.get("access_code", "").strip()
                 if not secrets.compare_digest(submitted_code.upper(), config.WINK_ACCESS_CODE.upper()):
@@ -99,13 +140,15 @@ def register():
             timezone_raw = request.form.get("timezone", "").strip()
             student_timezone = timezone_raw if is_valid_timezone(timezone_raw) else None
             terms_agree = request.form.get("terms_agree") == "on"
-            research_agree = request.form.get("research_agree") == "on"
+            # One agreement now covers the Beta data collection notice, so
+            # the stored consent flag simply records that same agreement.
+            research_agree = terms_agree
             age_confirm = request.form.get("age_confirm") == "on"
             first_generation = request.form.get("first_generation") == "yes"
             if not all([email, pw, fn, ln, cl, major, university]):
                 return err("All fields are required, including your university.")
             if not (terms_agree and research_agree):
-                return err("You must agree to the Terms of Use/Privacy Policy and the research data notice to create an account.")
+                return err("You must agree to the My WINK Beta Terms of Use and Privacy Policy to create an account.")
             if not age_confirm:
                 return err("You must confirm that you are 18 years of age or older to create an account.")
             if preferred_language and preferred_language not in config.PREFERRED_LANGUAGES:
@@ -206,10 +249,7 @@ def register():
             if is_ajax:
                 return jsonify(success=True, redirect=redirect_url, email=email)
             return redirect(redirect_url)
-        return render_template("register.html", error=None,
-                               classifications=config.CLASSIFICATIONS, majors=config.MAJORS,
-                               preferred_languages=config.PREFERRED_LANGUAGES,
-                               universities=UNIVERSITIES, access_code_required=bool(config.WINK_ACCESS_CODE))
+        return _register_page(error=None, beta_full=registrations_full())
     except Exception as e:
         log_error("auth.register", e)
         return err("Something went wrong on our end. Please try again in a moment.")
@@ -515,7 +555,7 @@ def _generate_backup_codes(n=8):
 
 
 @bp.route("/mfa/setup", methods=["GET", "POST"])
-@login_required
+@login_required_before_terms
 def mfa_setup():
     import pyotp
     s = g.student
@@ -559,7 +599,7 @@ def mfa_setup():
 
 
 @bp.route("/mfa/qr-code")
-@login_required
+@login_required_before_terms
 def mfa_qr_code():
     import io
     import pyotp
@@ -578,7 +618,7 @@ def mfa_qr_code():
 
 
 @bp.route("/mfa/verify", methods=["GET", "POST"])
-@login_required
+@login_required_before_terms
 def mfa_verify_page():
     import pyotp
     s = g.student
@@ -638,7 +678,7 @@ def mfa_verify_page():
 
 
 @bp.route("/mfa/disable", methods=["POST"])
-@login_required
+@login_required_before_terms
 def mfa_disable():
     s = g.student
     if not s.get("mfa_enabled"):
@@ -656,3 +696,31 @@ def mfa_disable():
                        WHERE id=%s""", (s["id"],))
     log_event(s["id"], "mfa_disabled")
     return jsonify({"ok": True})
+
+
+@bp.route("/accept-terms", methods=["GET", "POST"])
+def accept_terms():
+    """One-time screen for students who agreed to an older version of the
+    Terms/Privacy Policy: they read the current My WINK Beta summary and
+    accept it before continuing. Everyone else is sent straight on."""
+    s = current_student()
+    if not s:
+        return redirect(url_for("auth.login"))
+    if not needs_terms_acceptance(s):
+        return redirect("/dashboard")
+    if request.method == "POST":
+        if request.form.get("terms_agree") != "on":
+            return render_template("accept_terms.html", admin_email=config.ADMIN_EMAIL,
+                                   error="Please check the box to accept the My WINK Beta terms.")
+        try:
+            with db_cursor(commit=True) as cur:
+                cur.execute("""UPDATE students SET terms_accepted_at=NOW(), terms_version=%s,
+                                      research_consent=TRUE, research_consent_at=NOW(), research_consent_version=%s
+                               WHERE id=%s""", (config.TERMS_VERSION, config.TERMS_VERSION, s["id"]))
+            log_event(s["id"], "terms_accepted", {"version": config.TERMS_VERSION})
+            return redirect("/dashboard")
+        except Exception as e:
+            log_error("auth.accept_terms", e)
+            return render_template("accept_terms.html", admin_email=config.ADMIN_EMAIL,
+                                   error="Something went wrong on our end. Please try again.")
+    return render_template("accept_terms.html", admin_email=config.ADMIN_EMAIL)

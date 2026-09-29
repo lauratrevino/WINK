@@ -521,6 +521,15 @@ def init_db():
         cur.execute("CREATE INDEX IF NOT EXISTS idx_cron_runs_job_started ON cron_runs(job_name, started_at DESC)")
 
         cur.execute("""
+            CREATE TABLE IF NOT EXISTS waitlist (
+                id SERIAL PRIMARY KEY,
+                email TEXT UNIQUE NOT NULL,
+                first_name TEXT DEFAULT '',
+                university TEXT DEFAULT '',
+                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            )
+        """)
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS email_suppressions (
                 id SERIAL PRIMARY KEY,
                 email TEXT UNIQUE NOT NULL,

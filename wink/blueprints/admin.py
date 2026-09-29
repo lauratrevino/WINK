@@ -260,6 +260,41 @@ def student_page_time(sid):
         return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
 
 
+@bp.route("/analytics-waitlist")
+@admin_required
+def analytics_waitlist():
+    """Beta capacity (accounts used vs. MAX_REGISTRATIONS) plus everyone on
+    the waitlist, newest first."""
+    try:
+        if not config.DB_URL: return jsonify({"error": "No database"}), 500
+        with db_cursor() as cur:
+            cur.execute("""SELECT email FROM students
+                           WHERE is_demo IS NOT TRUE AND account_deleted_at IS NULL AND anonymized_at IS NULL""")
+            used = sum(1 for r in cur.fetchall() if (r["email"] or "").lower() not in config.ADMIN_EMAILS)
+            cur.execute("""SELECT email, first_name, university, to_char(created_at, 'Mon DD, YYYY') AS joined
+                           FROM waitlist ORDER BY created_at DESC""")
+            rows = [dict(r) for r in cur.fetchall()]
+        return jsonify({"used": used, "cap": config.MAX_REGISTRATIONS, "waitlist": rows})
+    except Exception as e:
+        log_error("admin.analytics_waitlist", e)
+        return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
+
+
+@bp.route("/analytics-waitlist/remove", methods=["POST"])
+@admin_required
+def analytics_waitlist_remove():
+    try:
+        email = ((request.get_json() or {}).get("email") or "").strip().lower()
+        if not email:
+            return jsonify({"error": "Missing email"}), 400
+        with db_cursor(commit=True) as cur:
+            cur.execute("DELETE FROM waitlist WHERE email=%s", (email,))
+        return jsonify({"success": True})
+    except Exception as e:
+        log_error("admin.analytics_waitlist_remove", e)
+        return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
+
+
 @bp.route("/analytics-insights-extra")
 @admin_required
 def analytics_insights_extra():

@@ -50,7 +50,11 @@ logger.info("ADMIN_EMAILS loaded as %r", ADMIN_EMAILS)
 # address is needed (e.g. the mailto link on Privacy/Terms). Never used for
 # authorization; every access check below goes through ADMIN_EMAILS.
 ADMIN_EMAIL = ADMIN_EMAILS[0]
-MAX_DOCS_PER_STUDENT = int(os.environ.get("MAX_DOCS_PER_STUDENT", "200"))
+MAX_DOCS_PER_STUDENT = int(os.environ.get("MAX_DOCS_PER_STUDENT", "20"))
+# Beta capacity: once this many student accounts exist, registration closes
+# and the sign-up page offers a waitlist instead. Raise it on Render
+# (MAX_REGISTRATIONS) to let more people in; 0 means no cap.
+MAX_REGISTRATIONS = int(os.environ.get("MAX_REGISTRATIONS", "150"))
 EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 DEBUG_SHOW_RESET_LINKS = os.environ.get("DEBUG_SHOW_RESET_LINKS", "false").lower() == "true"
 
@@ -58,7 +62,10 @@ SMTP_HOST = os.environ.get("SMTP_HOST", "").strip()
 SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
 SMTP_USER = os.environ.get("SMTP_USER", "").strip()
 SMTP_PASS = os.environ.get("SMTP_PASS", "").strip()
-FROM_EMAIL = os.environ.get("FROM_EMAIL", SMTP_USER or "wink@utep.edu").strip()
+FROM_EMAIL = os.environ.get("FROM_EMAIL", SMTP_USER or "noreply@mywink.ai").strip()
+# Where students send feedback and problem reports; shown in the Terms,
+# Privacy Policy and sign-up summary. Override on Render with SUPPORT_EMAIL.
+SUPPORT_EMAIL = os.environ.get("SUPPORT_EMAIL", "lhall@elp.rr.com").strip()
 EMAIL_CONFIGURED = bool(SMTP_HOST and SMTP_USER and SMTP_PASS)
 logger.info(
     "EMAIL_CONFIGURED=%s SMTP_HOST=%r SMTP_USER=%r SMTP_PORT=%r",
@@ -193,7 +200,7 @@ DOC_TYPES = ["syllabus", "course_calendar", "assignment_instructions", "notes", 
 
 from .universities_list import UNIVERSITIES  # noqa: E402 — see that file for why this is separate
 
-TERMS_VERSION = "2026-09-01"
+TERMS_VERSION = "2026-10-01"
 
 PRACTICE_MATERIAL_MAX_CHARS = 30000
 PRACTICE_ASSESSMENT_MAX_CHARS = 8000

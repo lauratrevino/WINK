@@ -175,7 +175,7 @@
         title: 'Anonymize this student?',
         message: "This is IRREVERSIBLE — their name/email will be replaced with an " +
           "untraceable label, and they won't be able to log in again. Their " +
-          "conversations, documents, and research data stay intact for analysis, " +
+          "conversations, documents, and activity data stay intact for analysis, " +
           "just no longer tied to an identifiable name.",
         confirmLabel: 'Anonymize',
         danger: true
@@ -201,8 +201,8 @@
         title: 'Permanently delete this student?',
         message: `This is IRREVERSIBLE and different from Anonymize — the entire row ` +
           `for ${email} is erased, along with their conversations, documents, deadlines, ` +
-          `grades, and research data. Only use this for test/junk accounts so the email ` +
-          `can be reused to register — never for a real pilot participant (use Anonymize ` +
+          `grades, and activity data. Only use this for test/junk accounts so the email ` +
+          `can be reused to register — never for a real student (use Anonymize ` +
           `for those, to honor the data retention consent they agreed to).`,
         confirmLabel: 'Continue',
         danger: true
@@ -292,7 +292,7 @@
         });
 
         const sr = document.getElementById('stats-row');
-        const labels = ['Total Registered','Total Sessions','Questions Asked','Files Uploaded','Upcoming Deadlines','Est. AI Cost (Pilot)'];
+        const labels = ['Total Registered','Total Sessions','Questions Asked','Files Uploaded','Upcoming Deadlines','Est. AI Cost (Beta)'];
         const tops = ['','navy-top','','green-top','navy-top',''];
         sr.innerHTML = vals.map((v,i) => `<div class="stat-card ${tops[i]}"><div class="stat-value">${v}</div><div class="stat-label">${labels[i]}</div></div>`).join('');
 
@@ -339,6 +339,7 @@
         renderBars('major-chart', d.by_major, 12, true);
 
         renderPageDistribution(d.page_distribution || []);
+        loadWaitlist();
         loadInsightsExtra();
         renderMiniStats(d);
         renderDemoStats(d);
@@ -453,6 +454,45 @@
       applyPendingStyles(el);
     }
 
+    // Registered tab > Beta Capacity & Waitlist
+    let waitlistEmails = [];
+    async function loadWaitlist() {
+      const body = document.getElementById('wl-body');
+      if (!body) return;
+      try {
+        const res = await fetch('/analytics-waitlist');
+        const d = await res.json();
+        if (!res.ok || d.error) throw new Error(d.error || 'Could not load the waitlist.');
+        document.getElementById('wl-capacity').textContent = d.cap
+          ? `${d.used} of ${d.cap} Beta spots used · raise MAX_REGISTRATIONS on Render to add room`
+          : `${d.used} students · no registration cap`;
+        waitlistEmails = d.waitlist.map(w => w.email);
+        body.innerHTML = d.waitlist.length ? `
+          <div class="eng-table-wrap"><table class="tbp-table check-on-table"><thead><tr><th>Email</th><th>Name</th><th>School</th><th>Joined</th><th></th></tr></thead>
+          <tbody>${d.waitlist.map(w => `<tr><td>${escapeHtml(w.email)}</td><td>${escapeHtml(w.first_name || '')}</td>
+            <td>${escapeHtml(w.university || '')}</td><td>${escapeHtml(w.joined)}</td>
+            <td><button type="button" class="tab-btn eng-export wl-remove" data-email="${escapeHtml(w.email)}">Remove</button></td></tr>`).join('')}</tbody></table></div>`
+          : '<div class="empty-cell">No one is on the waitlist.</div>';
+        body.querySelectorAll('.wl-remove').forEach(btn => btn.addEventListener('click', async () => {
+          if (!confirm(`Remove ${btn.dataset.email} from the waitlist?`)) return;
+          await fetch('/analytics-waitlist/remove', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                                      body: JSON.stringify({ email: btn.dataset.email }) });
+          loadWaitlist();
+        }));
+      } catch (e) {
+        body.innerHTML = `<div class="demo-convo-error">${escapeHtml(e.message)}</div>`;
+      }
+    }
+    document.addEventListener('DOMContentLoaded', () => {
+      const btn = document.getElementById('wl-copy');
+      if (btn) btn.addEventListener('click', async () => {
+        if (!waitlistEmails.length) return;
+        try { await navigator.clipboard.writeText(waitlistEmails.join(', ')); btn.textContent = 'Copied ✓'; }
+        catch (e) { prompt('Copy these emails:', waitlistEmails.join(', ')); }
+        setTimeout(() => { btn.textContent = 'Copy waitlist emails'; }, 2000);
+      });
+    });
+
     // Insights additions + Engagement > Students to Check On
     async function loadInsightsExtra() {
       let x;
@@ -477,13 +517,13 @@
       // Students to check on
       const co = document.getElementById('check-on');
       co.innerHTML = x.check_on.length ? `
-        <table class="tbp-table check-on-table"><thead><tr><th>Student</th><th>Last active</th><th>Why</th><th></th></tr></thead>
+        <div class="eng-table-wrap"><table class="tbp-table check-on-table"><thead><tr><th>Student</th><th>Last active</th><th>Why</th><th></th></tr></thead>
         <tbody>${x.check_on.map(s => `<tr>
           <td><strong>${escapeHtml(s.name)}</strong></td>
           <td>${escapeHtml(s.last_active)}</td>
           <td>${s.reasons.map(escapeHtml).join('<br>')}</td>
           <td><a class="tab-btn eng-export" href="mailto:${encodeURIComponent(s.email)}?subject=${encodeURIComponent('Checking in from WINK')}">Email</a></td>
-        </tr>`).join('')}</tbody></table>`
+        </tr>`).join('')}</tbody></table></div>`
         : '<div class="empty-cell">Everyone is active and caught up. ✅</div>';
 
       // Feature adoption
@@ -520,7 +560,7 @@
         <tbody>${c.projections.map(p => `<tr><td>${p.students.toLocaleString()} students</td>
           <td>$${p.per_week.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
           <td>$${p.per_semester.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</td></tr>`).join('')}</tbody></table>
-        <p class="tbp-note">Assumes future students use WINK the way pilot students do now, at current model prices. AI cost only; hosting and email are separate.</p>`;
+        <p class="tbp-note">Assumes future students use WINK the way Beta students do now, at current model prices. AI cost only; hosting and email are separate.</p>`;
 
       // Answers to review
       const fb = x.feedback_totals || {};

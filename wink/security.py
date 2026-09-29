@@ -98,7 +98,38 @@ def _auth_unavailable_page():
             "please wait a moment and reload the page.</p>", 503)
 
 
+def needs_terms_acceptance(s):
+    """True when a signed-in student accepted an older version of the
+    Terms/Privacy Policy and must accept the current one before using
+    WINK. Demo accounts and admins are exempt (demos never accept terms;
+    admins must never be locked out of the admin tools)."""
+    if not s or s.get("is_demo"):
+        return False
+    if (s.get("email") or "").lower() in config.ADMIN_EMAILS:
+        return False
+    return (s.get("terms_version") or "") != config.TERMS_VERSION
+
+
 def login_required(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        try:
+            s = current_student()
+        except AuthCheckUnavailable:
+            return _auth_unavailable_json()
+        if not s:
+            return jsonify({"error": "Not logged in"}), 401
+        if needs_terms_acceptance(s):
+            return jsonify({"error": "Please accept the My WINK Beta terms to continue.",
+                            "redirect": "/accept-terms"}), 403
+        g.student = s
+        return f(*args, **kwargs)
+    return wrapper
+
+
+def login_required_before_terms(f):
+    """Like login_required, but for steps that must work before a student
+    can reach the accept-updated-terms screen (two-factor sign-in)."""
     @wraps(f)
     def wrapper(*args, **kwargs):
         try:
@@ -121,6 +152,8 @@ def page_login_required(f):
             return _auth_unavailable_page()
         if not s:
             return redirect(url_for("auth.login"))
+        if needs_terms_acceptance(s):
+            return redirect("/accept-terms")
         g.student = s
         return f(*args, **kwargs)
     return wrapper

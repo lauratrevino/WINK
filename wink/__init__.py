@@ -53,6 +53,7 @@ def create_app():
         return f"{url_for('static', filename=filename)}?v={version}"
 
     app.jinja_env.globals["static_url"] = static_url
+    app.jinja_env.globals["support_email"] = config.SUPPORT_EMAIL
 
     @app.context_processor
     def _inject_is_admin():

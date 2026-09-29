@@ -38,7 +38,7 @@ def classify_question(q):
 
 def _real_students(cur):
     cur.execute("""SELECT id, first_name, last_name, email, classification, major, university,
-                          first_generation, research_consent, created_at, is_active
+                          first_generation, research_consent, terms_version, created_at, is_active
                    FROM students WHERE is_demo IS NOT TRUE AND anonymized_at IS NULL
                    ORDER BY id""")
     # Admin accounts (you) aren't study participants, so they're left out
@@ -255,7 +255,7 @@ def get_export_rows(cur, anonymize=True):
             row["last_name"] = s["last_name"]
             row["email"] = s["email"]
         row.update({
-            "research_consent": "yes" if s.get("research_consent") else "no",
+            "terms_accepted": s.get("terms_version") or "",
             "classification": s.get("classification") or "",
             "major": s.get("major") or "",
             "first_generation": "yes" if s.get("first_generation") else "no",

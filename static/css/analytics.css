@@ -244,3 +244,4 @@
     .eng-export { text-decoration: none; padding: 4px 10px !important; font-size: 12px !important; white-space: nowrap; }
     .check-on-table th, .check-on-table td { text-align: left !important; }
     .check-on-table td:last-child { text-align: right !important; }
+    .waitlist-card { margin-top: 20px; }

@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="{{ static_url('images/favicon.ico') }}" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ static_url('images/favicon-32.png') }}">
+  <link rel="apple-touch-icon" href="{{ static_url('images/favicon-180.png') }}">
+<title>My WINK Beta Terms</title>
+<style nonce="{{ csp_nonce() }}">
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; background: #f0f2f8; color: #26364f; }
+  .at-shell { max-width: 760px; margin: 40px auto; padding: 0 16px 48px; }
+  .at-card { background: #fff; border-radius: 16px; box-shadow: 0 8px 30px rgba(0,40,85,.10); overflow: hidden; }
+  .at-head { background: #002855; color: #fff; padding: 22px 26px; border-bottom: 4px solid #FF8200; }
+  .at-kicker { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #FF8200; }
+  .at-head h1 { margin: 4px 0 6px; font-size: 22px; }
+  .at-head p { margin: 0; font-size: 14px; line-height: 1.5; color: #dbe4f2; }
+  .terms-scroll { padding: 20px 26px; max-height: 55vh; overflow-y: auto; line-height: 1.55; font-size: 14px; }
+  .terms-scroll h3 { color: #002855; font-size: 15px; margin: 18px 0 6px; }
+  .terms-scroll h3:first-of-type { margin-top: 0; }
+  .terms-scroll ul { padding-left: 20px; }
+  .terms-scroll a { color: #c25f00; }
+  .terms-data-box { background: #fff7ec; border: 2px solid #FF8200; border-radius: 12px; padding: 14px 16px; margin: 12px 0; }
+  .terms-data-box strong { color: #002855; }
+  .at-foot { padding: 16px 26px 22px; border-top: 1px solid #e5e9f2; background: #f8f9ff; }
+  .at-check { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; line-height: 1.45; }
+  .at-check input { width: 18px; height: 18px; margin-top: 2px; accent-color: #FF8200; flex: 0 0 auto; }
+  .at-actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 14px; flex-wrap: wrap; }
+  .at-btn { background: #FF8200; color: #fff; border: none; border-radius: 10px; padding: 11px 20px; font: inherit; font-weight: 700; cursor: pointer; }
+  .at-btn:disabled { opacity: .5; cursor: not-allowed; }
+  .at-link { font-size: 13px; color: #6b7a99; background: none; border: none; font: inherit; text-decoration: underline; cursor: pointer; padding: 0; }
+  .at-error { color: #b91c1c; font-size: 13px; margin-top: 10px; }
+  .at-note { color: #6b7a99; font-size: 13px; margin: 12px 0 0; }
+  .at-note a { color: #c25f00; }
+</style>
+</head>
+<body>
+  <main class="at-shell">
+    <div class="at-card">
+      <div class="at-head">
+        <span class="at-kicker">My WINK Beta</span>
+        <h1>Welcome to the My WINK Beta</h1>
+        <p>Please review the My WINK Beta terms below, including how Beta usage data is collected, and accept them to continue.</p>
+      </div>
+      <div class="terms-scroll">
+{% include "_beta_terms_summary.html" %}
+      </div>
+      <div class="at-foot">
+        <form method="POST" action="/accept-terms" id="accept-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <label class="at-check">
+            <input type="checkbox" name="terms_agree" id="at-agree">
+            <span><strong>I have read and agree to the My WINK Beta Terms of Use and Privacy Policy, including the Beta data collection described above.</strong></span>
+          </label>
+          {% if error %}<div class="at-error">{{ error }}</div>{% endif %}
+          <div class="at-actions">
+            <button type="submit" class="at-btn" id="at-submit" disabled>Accept and Continue →</button>
+          </div>
+        </form>
+        <form method="POST" action="/logout">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <p class="at-note">Not ready to accept? <button type="submit" class="at-link">Sign out</button> for now. To have your account deleted instead, email <a href="mailto:{{ support_email }}">{{ support_email }}</a>.</p>
+        </form>
+      </div>
+    </div>
+  </main>
+  <script src="{{ static_url('js/accept-terms.js') }}"></script>
+</body>
+</html>

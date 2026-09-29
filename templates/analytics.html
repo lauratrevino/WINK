@@ -67,7 +67,7 @@
       <div class="stat-card"><div class="stat-loading"></div><div class="stat-label">Questions Asked</div></div>
       <div class="stat-card green-top"><div class="stat-loading"></div><div class="stat-label">Files Uploaded</div></div>
       <div class="stat-card navy-top"><div class="stat-loading"></div><div class="stat-label">Upcoming Deadlines</div></div>
-      <div class="stat-card"><div class="stat-loading"></div><div class="stat-label">Est. AI Cost (Pilot)</div></div>
+      <div class="stat-card"><div class="stat-loading"></div><div class="stat-label">Est. AI Cost (Beta)</div></div>
     </div>
 
     <div class="tab-bar">
@@ -98,6 +98,12 @@
             <tbody id="students-tbody"><tr><td colspan="8" class="empty-cell">Loading…</td></tr></tbody>
           </table>
         </div>
+      </div>
+      <div class="card ins-card waitlist-card">
+        <div class="card-header"><h2>Beta Capacity &amp; Waitlist</h2>
+          <div class="eng-actions"><span class="card-header-note" id="wl-capacity"></span>
+            <button type="button" class="tab-btn eng-export" id="wl-copy">Copy waitlist emails</button></div></div>
+        <div class="card-body" id="wl-body"><div class="empty-cell">Loading…</div></div>
       </div>
     </div>
 
@@ -144,7 +150,7 @@
         <div class="card-header"><h2>Student Engagement</h2>
           <div class="eng-actions">
             <span class="card-header-note">Click Time on Pages for the page-by-session view</span>
-            <a class="tab-btn eng-export" href="/analytics-export.csv?anonymize=1" title="All students, with participant codes instead of names; the research_consent column shows who agreed">⬇ Spreadsheet (anonymized)</a>
+            <a class="tab-btn eng-export" href="/analytics-export.csv?anonymize=1" title="All students, with participant codes instead of names">⬇ Spreadsheet (anonymized)</a>
             <a class="tab-btn eng-export" href="/analytics-export.csv?anonymize=0" title="All students, with names and emails, for course management">⬇ All students with names</a>
           </div></div>
         <div class="eng-table-wrap">
@@ -212,7 +218,7 @@
           <div class="card-body" id="ins-practice"><div class="empty-cell">Loading…</div></div>
         </div>
         <div class="card ins-card">
-          <div class="card-header"><h2>Cost Outlook</h2><span class="card-header-note">Based on actual pilot usage so far</span></div>
+          <div class="card-header"><h2>Cost Outlook</h2><span class="card-header-note">Based on actual Beta usage so far</span></div>
           <div class="card-body" id="ins-cost"><div class="empty-cell">Loading…</div></div>
         </div>
       </div>

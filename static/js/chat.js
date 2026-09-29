@@ -975,7 +975,7 @@
                   <button class="wink-modal-btn primary" id="wu-choose-permanent" style="width:100%;margin-bottom:8px;">📌 Save Permanently</button>
                   <button class="wink-modal-btn secondary" id="wu-choose-temp" style="width:100%;margin-bottom:8px;">💬 Just This Conversation</button>
                 </div>
-                <p style="font-size:12px;color:#6b7a99;margin-bottom:0;">Permanent uploads are saved to your account and show up in My Documents. This-conversation-only uploads don't count toward that limit and disappear when you leave this chat.</p>
+                <p style="font-size:12px;color:#6b7a99;margin-bottom:0;">Permanent uploads count toward your 20-document limit and show up in My Documents. This-conversation-only uploads don't count toward that limit and disappear when you leave this chat.</p>
                 <div class="wink-modal-actions" style="margin-top:14px;">
                   <button class="wink-modal-btn secondary" id="wu-cancel-1">Cancel</button>
                 </div>
