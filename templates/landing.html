@@ -69,6 +69,8 @@
       position: relative;
       z-index: 2;
       width: auto;
+      left: 0;            /* landing.css's "left: 3.5%" pushed this past the screen edge */
+      margin-left: 3.5%;  /* same visual indent, without the overflow */
       padding: 2.5% 3.5% 2%;
       box-sizing: border-box;
     }
@@ -95,7 +97,8 @@
       }
       .hero-text {
         width: 100%;
-        left: 0;  /* landing.css's desktop offset pushed this 14px off-screen on phones */
+        left: 0;
+        margin-left: 0;
         padding: 18px 5% 28px;
       }
       .hero-demo-cta {
@@ -303,6 +306,32 @@
       flex-wrap: wrap;
       row-gap: 10px;
     }
+
+    /* Snug one-line feature cards */
+    .card-bar .feature-grid { gap: 8px; grid-template-columns: minmax(0, 1fr); }
+    @media (min-width: 600px) { .card-bar .feature-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (min-width: 1100px) { .card-bar .feature-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+    .card-bar .feature-card { padding: 9px 12px; align-items: center; gap: 10px; background: rgba(255,255,255,0.94); }
+    .card-bar .feature-card-icon { margin-top: 0; font-size: 20px; }
+    .card-bar .feature-card-title { font-size: 13px; }
+    .card-bar .feature-card-body { font-size: 12px; }
+    .card-bar .feature-card-text { min-width: 0; }
+    .card-bar .feature-card-title { margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .card-bar .feature-card-body { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    /* Desktop: demo button sits higher, and the cards plus footer links
+       float over the bottom of the hero picture. */
+    @media (min-width: 1100px) {
+      .hero { padding-bottom: 122px; }  /* room at the bottom of the picture for the cards and links */
+      .hero-demo-cta { top: -24px; }
+      .card-bar { position: relative; z-index: 4; margin-top: -104px; }
+      .landing-footer {
+        position: relative; z-index: 4; margin-top: 8px;
+        background: rgba(255,255,255,0.92); border-radius: 10px;
+        padding: 8px 14px; box-shadow: 0 3px 14px rgba(0,40,85,0.09);
+        backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+      }
+    }
     .footer-links {
       flex-wrap: wrap;
       row-gap: 6px;
@@ -493,29 +522,29 @@
       <div class="feature-card">
         <div class="feature-card-icon">🧠</div>
         <div class="feature-card-text">
-          <div class="feature-card-title">Sharpen Critical Thinking Skills</div>
-          <div class="feature-card-body">Prompts that show you how to reason through problems.</div>
+          <div class="feature-card-title">Sharpen Critical Thinking</div>
+          <div class="feature-card-body">Reason through tough problems.</div>
         </div>
       </div>
       <div class="feature-card">
         <div class="feature-card-icon">✍️</div>
         <div class="feature-card-text">
-          <div class="feature-card-title">Study Materials/Grade Calculator</div>
-          <div class="feature-card-body">Makes flashcards, practice quizzes, or study guides. Includes custom grade calculator.</div>
+          <div class="feature-card-title">Study Tools &amp; Grades</div>
+          <div class="feature-card-body">Flashcards, quizzes, grade planner.</div>
         </div>
       </div>
       <div class="feature-card">
         <div class="feature-card-icon">🎓</div>
         <div class="feature-card-text">
-          <div class="feature-card-title">Navigate University Resources</div>
-          <div class="feature-card-body">Advising, mental health support, career center, financial aid, just ask!</div>
+          <div class="feature-card-title">Navigate Campus Resources</div>
+          <div class="feature-card-body">Advising, counseling and more.</div>
         </div>
       </div>
       <div class="feature-card">
         <div class="feature-card-icon">📅</div>
         <div class="feature-card-text">
-          <div class="feature-card-title">Intelligent Academic Calendar</div>
-          <div class="feature-card-body">Never miss a deadline again. WINK builds your personalized schedule.</div>
+          <div class="feature-card-title">Smart Academic Calendar</div>
+          <div class="feature-card-body">Never miss a deadline again.</div>
         </div>
       </div>
     </div>
