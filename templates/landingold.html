@@ -749,24 +749,6 @@
     });
 
 
-
-    // Desktop: shrink the whole landing page just enough that the picture,
-    // cards and footer links fit on screen without scrolling (laptops with
-    // display scaling have short browser windows).
-    (function fitLandingToScreen() {
-      const body = document.body;
-      function fit() {
-        body.style.zoom = '';
-        if (window.innerWidth < 960) return;
-        const needed = document.documentElement.scrollHeight;
-        const avail = window.innerHeight;
-        if (needed > avail) body.style.zoom = String(Math.max(0.55, (avail - 6) / needed));
-      }
-      fit();
-      window.addEventListener('load', fit);
-      let t = null;
-      window.addEventListener('resize', () => { clearTimeout(t); t = setTimeout(fit, 80); });
-    })();
   </script>
 
 </body>
