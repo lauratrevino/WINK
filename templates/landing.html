@@ -310,7 +310,7 @@
     /* Snug one-line feature cards */
     .card-bar .feature-grid { gap: 8px; grid-template-columns: minmax(0, 1fr); }
     @media (min-width: 600px) { .card-bar .feature-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-    @media (min-width: 1100px) { .card-bar .feature-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+    @media (min-width: 960px) { .card-bar .feature-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
     .card-bar .feature-card { padding: 9px 12px; align-items: center; gap: 10px; background: rgba(255,255,255,0.94); }
     .card-bar .feature-card-icon { margin-top: 0; font-size: 20px; }
     .card-bar .feature-card-title { font-size: 13px; }
@@ -318,10 +318,16 @@
     .card-bar .feature-card-text { min-width: 0; }
     .card-bar .feature-card-title { margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .card-bar .feature-card-body { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    @media (min-width: 960px) and (max-width: 1179px) {
+      .card-bar .feature-card { padding: 8px 9px; gap: 7px; }
+      .card-bar .feature-card-icon { font-size: 17px; }
+      .card-bar .feature-card-title { font-size: 12px; }
+      .card-bar .feature-card-body { font-size: 11px; }
+    }
 
     /* Desktop: demo button sits higher, and the cards plus footer links
        float over the bottom of the hero picture. */
-    @media (min-width: 1100px) {
+    @media (min-width: 960px) {
       .hero { padding-bottom: 122px; }  /* room at the bottom of the picture for the cards and links */
       .hero-demo-cta { top: -24px; }
       .card-bar { position: relative; z-index: 4; margin-top: -104px; }
@@ -331,6 +337,9 @@
         padding: 8px 14px; box-shadow: 0 3px 14px rgba(0,40,85,0.09);
         backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
       }
+    }
+    @media (min-width: 960px) and (max-width: 1179px) {
+      .card-bar { margin-top: -100px; }  /* compact cards are shorter; keep the strip flush with the picture */
     }
     .footer-links {
       flex-wrap: wrap;
