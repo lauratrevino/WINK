@@ -471,6 +471,46 @@ def get_total_token_usage(cur):
     return {"total_tokens": total_tokens, "total_estimated_cost_usd": round(total_cost, 4)}
 
 
+def get_admin_token_usage(cur):
+    """AI cost of admin accounts' own use, shown on its own tile because
+    admins are left out of every other statistic."""
+    cur.execute("""
+        SELECT t.model, SUM(t.input_tokens) as input_tokens, SUM(t.output_tokens) as output_tokens,
+               SUM(t.cache_creation_input_tokens) as cache_creation_input_tokens,
+               SUM(t.cache_read_input_tokens) as cache_read_input_tokens
+        FROM token_usage t JOIN students s ON s.id = t.student_id
+        WHERE s.is_admin IS TRUE
+        GROUP BY t.model
+    """)
+    total_tokens = 0
+    total_cost = 0.0
+    for r in cur.fetchall():
+        total_tokens += (r["input_tokens"] or 0) + (r["output_tokens"] or 0)
+        total_cost += estimate_cost_usd(
+            r["model"], r["input_tokens"], r["output_tokens"],
+            r["cache_creation_input_tokens"], r["cache_read_input_tokens"],
+        )
+    return {"admin_tokens": total_tokens, "admin_estimated_cost_usd": round(total_cost, 4)}
+
+
+def get_all_token_usage(cur):
+    """AI cost of everyone together: students, admins and demos."""
+    cur.execute("""
+        SELECT model, SUM(input_tokens) as input_tokens, SUM(output_tokens) as output_tokens,
+               SUM(cache_creation_input_tokens) as cache_creation_input_tokens,
+               SUM(cache_read_input_tokens) as cache_read_input_tokens
+        FROM token_usage
+        GROUP BY model
+    """)
+    total_cost = 0.0
+    for r in cur.fetchall():
+        total_cost += estimate_cost_usd(
+            r["model"], r["input_tokens"], r["output_tokens"],
+            r["cache_creation_input_tokens"], r["cache_read_input_tokens"],
+        )
+    return {"all_estimated_cost_usd": round(total_cost, 4)}
+
+
 def get_student_summaries(cur):
     cur.execute("""
         WITH event_counts AS (

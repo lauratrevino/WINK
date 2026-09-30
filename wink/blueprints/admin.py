@@ -8,7 +8,7 @@ from ..security import admin_page_required, admin_required
 from ..services.analytics import (anonymize_student_record, compute_engagement_insights,
                                    get_demo_session_summaries, get_demo_usage_stats, get_page_time_breakdown,
                                    get_page_time_by_session, get_page_distribution,
-                                   get_student_summaries, get_total_token_usage, log_event, safe_payload)
+                                   get_student_summaries, get_total_token_usage, get_admin_token_usage, get_all_token_usage, log_event, safe_payload)
 from ..services.demo import purge_demo_data_before_today
 from ..services.insights import get_deadline_followthrough, get_export_rows, get_insights_extra
 from ..services.health import run_health_checks, overall_status
@@ -189,6 +189,8 @@ def analytics_data_full():
 
             insights = compute_engagement_insights(cur)
             token_totals = get_total_token_usage(cur)
+            admin_usage = get_admin_token_usage(cur)
+            all_usage = get_all_token_usage(cur)
             demo_usage = get_demo_usage_stats(cur)
             demo_sessions = get_demo_session_summaries(cur)
 
@@ -208,6 +210,8 @@ def analytics_data_full():
             "demo_sessions": demo_sessions,
             **insights,
             **token_totals,
+            **admin_usage,
+            **all_usage,
         })
     except Exception as e:
         log_error("admin.analytics_data_full", e)

@@ -266,3 +266,23 @@ class TestAdminAnalytics:
         client.post("/logout")
         login_resp = login(client, email="s1@utep.edu")
         assert "suspended" in login_resp.get_data(as_text=True)
+
+
+class TestAdminCostTile:
+    def test_admin_cost_reported_separately(self, client, app):
+        from wink.extensions import get_db
+        register(client, email="s1@utep.edu")
+        client.post("/logout")
+        register(client, email="admin@utep.edu")
+        with app.app_context():
+            conn = get_db(); cur = conn.cursor()
+            cur.execute("SELECT id FROM students WHERE email=%s", ("admin@utep.edu",))
+            aid = cur.fetchone()["id"]
+            cur.execute("""INSERT INTO token_usage(student_id, call_type, model, input_tokens, output_tokens,
+                           cache_creation_input_tokens, cache_read_input_tokens)
+                           VALUES(%s, 'chat', 'claude-sonnet-5', 100000, 10000, 0, 0)""", (aid,))
+            conn.commit(); cur.close()
+        d = client.get("/analytics-data-full").get_json()
+        assert d["admin_estimated_cost_usd"] > 0
+        assert d["total_estimated_cost_usd"] == 0
+        assert d["all_estimated_cost_usd"] == d["admin_estimated_cost_usd"]
