@@ -223,16 +223,30 @@ class TestAdminAnalytics:
         register(client, email="admin@utep.edu")
 
         data = client.get("/analytics-data").get_json()
-        # Faculty/admin accounts are registered users too (there's no
-        # separate is_admin column, and there's no "faculty" account type
-        # distinct from a student row) -- the Students tab and its totals
-        # are meant to reflect everyone registered, not just accounts with
-        # a student-sounding role, so the admin's own account counts here
-        # same as any other registered user. Only demo accounts (is_demo)
-        # are excluded.
-        assert data["total_students"] == 2
+        # Admin accounts are kept out of every usage statistic, like demos.
+        assert data["total_students"] == 1
         emails = {s["email"] for s in data["students"]}
-        assert emails == {"s1@utep.edu", "admin@utep.edu"}
+        assert emails == {"s1@utep.edu"}
+
+    def test_delete_student_removes_their_events(self, client, app):
+        from wink.extensions import get_db
+        register(client, email="s1@utep.edu")
+        client.post("/logout")
+        register(client, email="admin@utep.edu")
+        with app.app_context():
+            conn = get_db(); cur = conn.cursor()
+            cur.execute("SELECT id FROM students WHERE email=%s", ("s1@utep.edu",))
+            sid = cur.fetchone()["id"]
+            cur.execute("SELECT COUNT(*) AS n FROM events WHERE student_id=%s", (sid,))
+            assert cur.fetchone()["n"] > 0
+            cur.close()
+        resp = client.post("/delete-student", json={"student_id": sid, "confirm_email": "s1@utep.edu"})
+        assert resp.get_json()["success"] is True
+        with app.app_context():
+            conn = get_db(); cur = conn.cursor()
+            cur.execute("SELECT COUNT(*) AS n FROM events WHERE student_id=%s", (sid,))
+            assert cur.fetchone()["n"] == 0
+            cur.close()
 
     def test_toggle_student_active_persists_to_real_db(self, client, app):
         from wink.extensions import get_db

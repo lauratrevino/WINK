@@ -39,7 +39,7 @@ def classify_question(q):
 def _real_students(cur):
     cur.execute("""SELECT id, first_name, last_name, email, classification, major, university,
                           first_generation, research_consent, terms_version, created_at, is_active
-                   FROM students WHERE is_demo IS NOT TRUE AND anonymized_at IS NULL
+                   FROM students WHERE is_demo IS NOT TRUE AND is_admin IS NOT TRUE AND anonymized_at IS NULL
                    ORDER BY id""")
     # Admin accounts (you) aren't study participants, so they're left out
     # of check-ins, adoption numbers, and the research export.
@@ -57,7 +57,7 @@ def get_deadline_followthrough(cur):
                                            AND d.completed_at::date <= d.due_date) AS on_time,
                           COUNT(*) FILTER (WHERE NOT d.completed) AS overdue_open
                    FROM deadlines d JOIN students s ON s.id = d.student_id
-                   WHERE s.is_demo IS NOT TRUE AND d.is_personal IS NOT TRUE
+                   WHERE s.is_demo IS NOT TRUE AND s.is_admin IS NOT TRUE AND d.is_personal IS NOT TRUE
                      AND d.due_date IS NOT NULL AND d.due_date < CURRENT_DATE
                    GROUP BY d.student_id""")
     return {r["student_id"]: dict(r) for r in cur.fetchall()}
@@ -65,7 +65,7 @@ def get_deadline_followthrough(cur):
 
 def get_practice_by_student(cur):
     cur.execute("""SELECT e.student_id, e.payload FROM events e JOIN students s ON s.id = e.student_id
-                   WHERE s.is_demo IS NOT TRUE AND e.event_type = 'practice_attempt'""")
+                   WHERE s.is_demo IS NOT TRUE AND s.is_admin IS NOT TRUE AND e.event_type = 'practice_attempt'""")
     out = {}
     for r in cur.fetchall():
         p = safe_payload(r["payload"])
@@ -95,7 +95,7 @@ def get_insights_extra(cur):
                           BOOL_OR(e.event_type IN ('deadline_completed_toggled','deadline_status_changed','personal_item_added')
                                   OR (e.event_type = 'page_view' AND e.payload LIKE '%%"calendar"%%')) AS calendar
                    FROM events e JOIN students s ON s.id = e.student_id
-                   WHERE s.is_demo IS NOT TRUE
+                   WHERE s.is_demo IS NOT TRUE AND s.is_admin IS NOT TRUE
                    GROUP BY e.student_id""")
     last_active, used = {}, {}
     for r in cur.fetchall():
@@ -143,7 +143,7 @@ def get_insights_extra(cur):
 
     # ---- 4. question topics ----
     cur.execute("""SELECT a.question FROM answer_logs a JOIN students s ON s.id = a.student_id
-                   WHERE s.is_demo IS NOT TRUE""")
+                   WHERE s.is_demo IS NOT TRUE AND s.is_admin IS NOT TRUE""")
     topic_counts = {}
     total_q = 0
     for r in cur.fetchall():
@@ -157,17 +157,17 @@ def get_insights_extra(cur):
     cur.execute("""SELECT a.id, a.question, a.answer_text, a.model, a.faculty_rating,
                           to_char(a.created_at, 'Mon DD, YYYY') AS ts, s.first_name, s.last_name
                    FROM answer_logs a JOIN students s ON s.id = a.student_id
-                   WHERE s.is_demo IS NOT TRUE AND a.student_feedback = 'down'
+                   WHERE s.is_demo IS NOT TRUE AND s.is_admin IS NOT TRUE AND a.student_feedback = 'down'
                    ORDER BY a.created_at DESC LIMIT 100""")
     review = [dict(r) for r in cur.fetchall()]
     cur.execute("""SELECT COUNT(*) FILTER (WHERE student_feedback = 'up') AS up,
                           COUNT(*) FILTER (WHERE student_feedback = 'down') AS down
-                   FROM answer_logs a JOIN students s ON s.id = a.student_id WHERE s.is_demo IS NOT TRUE""")
+                   FROM answer_logs a JOIN students s ON s.id = a.student_id WHERE s.is_demo IS NOT TRUE AND s.is_admin IS NOT TRUE""")
     fb = dict(cur.fetchone())
 
     # ---- 7. practice results by course ----
     cur.execute("""SELECT e.payload, e.created_at FROM events e JOIN students s ON s.id = e.student_id
-                   WHERE s.is_demo IS NOT TRUE AND e.event_type = 'practice_attempt'
+                   WHERE s.is_demo IS NOT TRUE AND s.is_admin IS NOT TRUE AND e.event_type = 'practice_attempt'
                    ORDER BY e.created_at ASC""")
     by_course = {}
     for r in cur.fetchall():
@@ -200,7 +200,7 @@ def get_insights_extra(cur):
     total_cost = sum(v["cost_usd"] for sid, v in usage.items() if sid in set(ids))
     users_with_cost = sum(1 for sid, v in usage.items() if sid in set(ids) and v["cost_usd"] > 0)
     cur.execute("""SELECT MIN(t.created_at) AS first FROM token_usage t JOIN students s ON s.id = t.student_id
-                   WHERE s.is_demo IS NOT TRUE""")
+                   WHERE s.is_demo IS NOT TRUE AND s.is_admin IS NOT TRUE""")
     first_use = cur.fetchone()["first"]
     weeks = max(1.0, (now - first_use).days / 7.0) if first_use else 1.0
     per_student_week = (total_cost / users_with_cost / weeks) if users_with_cost else 0.0
@@ -232,7 +232,7 @@ def get_export_rows(cur, anonymize=True):
                           COUNT(*) FILTER (WHERE e.event_type = 'file_uploaded') AS uploads,
                           MAX(e.created_at) AS last
                    FROM events e JOIN students s ON s.id = e.student_id
-                   WHERE s.is_demo IS NOT TRUE GROUP BY e.student_id""")
+                   WHERE s.is_demo IS NOT TRUE AND s.is_admin IS NOT TRUE GROUP BY e.student_id""")
     counts = {r["student_id"]: dict(r) for r in cur.fetchall()}
     page_time = _all_page_time(cur)
 

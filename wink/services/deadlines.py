@@ -298,7 +298,9 @@ def get_deadline_confirmation_stats():
         return None
     try:
         with db_cursor() as cur:
-            cur.execute("SELECT status, COUNT(*) as n FROM deadlines GROUP BY status")
+            cur.execute("""SELECT status, COUNT(*) as n FROM deadlines
+                           WHERE NOT EXISTS (SELECT 1 FROM students xs WHERE xs.id = deadlines.student_id AND xs.is_admin)
+                           GROUP BY status""")
             counts = {r["status"]: r["n"] for r in cur.fetchall()}
         confirmed, corrected = counts.get("confirmed", 0), counts.get("corrected", 0)
         reviewed = confirmed + corrected

@@ -289,6 +289,11 @@ def init_db():
         cur.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS mfa_backup_codes TEXT DEFAULT '[]'")
         cur.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS is_demo BOOLEAN DEFAULT FALSE")
         cur.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS demo_expires_at TIMESTAMP")
+        # Admin accounts are kept out of every usage statistic. Also defined
+        # by an Alembic migration; mirrored here like first_generation.
+        # Re-synced from ADMIN_EMAILS on every startup.
+        cur.execute("ALTER TABLE students ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE")
+        cur.execute("UPDATE students SET is_admin = (LOWER(email) = ANY(%s))", (list(config.ADMIN_EMAILS),))
         cur.execute("""CREATE TABLE IF NOT EXISTS documents (
             id SERIAL PRIMARY KEY,
             student_id INTEGER REFERENCES students(id) ON DELETE CASCADE,

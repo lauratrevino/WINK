@@ -35,7 +35,7 @@ def analytics_data():
     try:
         if not config.DB_URL: return jsonify({"error": "No database"}), 500
         with db_cursor() as cur:
-            cur.execute("SELECT COUNT(*) as n FROM students WHERE is_demo IS NOT TRUE")
+            cur.execute("SELECT COUNT(*) as n FROM students WHERE is_demo IS NOT TRUE AND is_admin IS NOT TRUE")
             total_s = cur.fetchone()["n"]
 
             # These three are scoped to
@@ -46,15 +46,15 @@ def analytics_data():
             # seeded fake activity. Demo has its own numbers on the Demo
             # Usage tab.
             cur.execute("""SELECT COUNT(*) as n FROM events e JOIN students s ON s.id=e.student_id
-                           WHERE e.event_type IN ('login','account_created') AND s.is_demo IS NOT TRUE""")
+                           WHERE e.event_type IN ('login','account_created') AND s.is_demo IS NOT TRUE AND s.is_admin IS NOT TRUE""")
             total_sess = cur.fetchone()["n"]
 
             cur.execute("""SELECT COUNT(*) as n FROM events e JOIN students s ON s.id=e.student_id
-                           WHERE e.event_type='question_asked' AND s.is_demo IS NOT TRUE""")
+                           WHERE e.event_type='question_asked' AND s.is_demo IS NOT TRUE AND s.is_admin IS NOT TRUE""")
             total_q = cur.fetchone()["n"]
 
             cur.execute("""SELECT COUNT(*) as n FROM events e JOIN students s ON s.id=e.student_id
-                           WHERE e.event_type='file_uploaded' AND s.is_demo IS NOT TRUE""")
+                           WHERE e.event_type='file_uploaded' AND s.is_demo IS NOT TRUE AND s.is_admin IS NOT TRUE""")
             total_up = cur.fetchone()["n"]
 
             students = get_student_summaries(cur)
@@ -66,11 +66,11 @@ def analytics_data():
                 _s["deadlines_on_time"] = _f.get("on_time", 0)
 
 
-            cur.execute("SELECT major, COUNT(*) as n FROM students WHERE is_demo IS NOT TRUE GROUP BY major ORDER BY n DESC")
+            cur.execute("SELECT major, COUNT(*) as n FROM students WHERE is_demo IS NOT TRUE AND is_admin IS NOT TRUE GROUP BY major ORDER BY n DESC")
             by_major = [dict(r) for r in cur.fetchall()]
             page_distribution = get_page_distribution(cur)
 
-            cur.execute("SELECT classification, COUNT(*) as n FROM students WHERE is_demo IS NOT TRUE GROUP BY classification ORDER BY n DESC")
+            cur.execute("SELECT classification, COUNT(*) as n FROM students WHERE is_demo IS NOT TRUE AND is_admin IS NOT TRUE GROUP BY classification ORDER BY n DESC")
             by_class = [dict(r) for r in cur.fetchall()]
 
             token_totals = get_total_token_usage(cur)
@@ -97,7 +97,7 @@ def analytics_data_full():
     try:
         if not config.DB_URL: return jsonify({"error": "No database"}), 500
         with db_cursor() as cur:
-            cur.execute("SELECT COUNT(*) as n FROM students WHERE is_demo IS NOT TRUE"); total_s = cur.fetchone()["n"]
+            cur.execute("SELECT COUNT(*) as n FROM students WHERE is_demo IS NOT TRUE AND is_admin IS NOT TRUE"); total_s = cur.fetchone()["n"]
             # See compute_engagement_insights()'s docstring in
             # services/analytics.py: these all need an explicit is_demo
             # exclusion now that demo accounts (and their seeded fake
@@ -105,13 +105,13 @@ def analytics_data_full():
             # deleted at the end of each session. Demo has its own tab
             # with its own real numbers.
             cur.execute("""SELECT COUNT(*) as n FROM events e JOIN students s ON s.id=e.student_id
-                           WHERE e.event_type IN ('login','account_created') AND s.is_demo IS NOT TRUE""")
+                           WHERE e.event_type IN ('login','account_created') AND s.is_demo IS NOT TRUE AND s.is_admin IS NOT TRUE""")
             total_sess = cur.fetchone()["n"]
             cur.execute("""SELECT COUNT(*) as n FROM events e JOIN students s ON s.id=e.student_id
-                           WHERE e.event_type='question_asked' AND s.is_demo IS NOT TRUE""")
+                           WHERE e.event_type='question_asked' AND s.is_demo IS NOT TRUE AND s.is_admin IS NOT TRUE""")
             total_q = cur.fetchone()["n"]
             cur.execute("""SELECT COUNT(*) as n FROM events e JOIN students s ON s.id=e.student_id
-                           WHERE e.event_type='file_uploaded' AND s.is_demo IS NOT TRUE""")
+                           WHERE e.event_type='file_uploaded' AND s.is_demo IS NOT TRUE AND s.is_admin IS NOT TRUE""")
             total_up = cur.fetchone()["n"]
 
             students = get_student_summaries(cur)
@@ -150,7 +150,7 @@ def analytics_data_full():
                 SELECT al.question, al.answer_text, to_char(al.created_at,'Mon DD HH24:MI') as ts,
                        s.first_name, s.last_name, s.email, s.id as sid
                 FROM answer_logs al LEFT JOIN students s ON s.id = al.student_id
-                WHERE s.is_demo IS NOT TRUE OR s.id IS NULL
+                WHERE s.is_demo IS NOT TRUE AND s.is_admin IS NOT TRUE OR s.id IS NULL
                 ORDER BY al.created_at DESC LIMIT 200""")
             conversations = [
                 {
@@ -166,10 +166,10 @@ def analytics_data_full():
             ]
 
 
-            cur.execute("SELECT major, COUNT(*) as n FROM students WHERE is_demo IS NOT TRUE GROUP BY major ORDER BY n DESC")
+            cur.execute("SELECT major, COUNT(*) as n FROM students WHERE is_demo IS NOT TRUE AND is_admin IS NOT TRUE GROUP BY major ORDER BY n DESC")
             by_major = [dict(r) for r in cur.fetchall()]
             page_distribution = get_page_distribution(cur)
-            cur.execute("SELECT classification, COUNT(*) as n FROM students WHERE is_demo IS NOT TRUE GROUP BY classification ORDER BY n DESC")
+            cur.execute("SELECT classification, COUNT(*) as n FROM students WHERE is_demo IS NOT TRUE AND is_admin IS NOT TRUE GROUP BY classification ORDER BY n DESC")
             by_class = [dict(r) for r in cur.fetchall()]
 
             # documents.student_id is NULL for global reference docs (not
@@ -177,13 +177,13 @@ def analytics_data_full():
             # only a demo account's own seeded/uploaded docs are excluded.
             cur.execute("""
                 SELECT d.course, COUNT(*) as n FROM documents d LEFT JOIN students s ON s.id = d.student_id
-                WHERE s.is_demo IS NOT TRUE OR s.id IS NULL
+                WHERE s.is_demo IS NOT TRUE AND s.is_admin IS NOT TRUE OR s.id IS NULL
                 GROUP BY d.course ORDER BY n DESC""")
             by_course = [dict(r) for r in cur.fetchall()]
 
 
             cur.execute("""SELECT COUNT(*) as n FROM deadlines d JOIN students s ON s.id = d.student_id
-                           WHERE d.due_date >= (NOW() AT TIME ZONE %s)::date AND s.is_demo IS NOT TRUE""",
+                           WHERE d.due_date >= (NOW() AT TIME ZONE %s)::date AND s.is_demo IS NOT TRUE AND s.is_admin IS NOT TRUE""",
                         (config.APP_TIMEZONE,))
             total_deadlines = cur.fetchone()["n"]
 
@@ -269,7 +269,7 @@ def analytics_waitlist():
         if not config.DB_URL: return jsonify({"error": "No database"}), 500
         with db_cursor() as cur:
             cur.execute("""SELECT email FROM students
-                           WHERE is_demo IS NOT TRUE AND account_deleted_at IS NULL AND anonymized_at IS NULL""")
+                           WHERE is_demo IS NOT TRUE AND is_admin IS NOT TRUE AND account_deleted_at IS NULL AND anonymized_at IS NULL""")
             used = sum(1 for r in cur.fetchall() if (r["email"] or "").lower() not in config.ADMIN_EMAILS)
             cur.execute("""SELECT email, first_name, university, to_char(created_at, 'Mon DD, YYYY') AS joined
                            FROM waitlist ORDER BY created_at DESC""")
@@ -434,9 +434,8 @@ def delete_student():
     """Permanently and irreversibly removes a student row from the database
     (not the same as Anonymize, which keeps a scrubbed record for research
     retention). Every table with a foreign key to students.id cascades on
-    delete except events/document_chunks, which have no FK constraint and
-    are simply left with a dangling student_id — harmless, but a reminder
-    this is a real delete, not a soft one.
+    delete; events and document_chunks (no FK) are deleted explicitly, so
+    nothing of the student is left in the usage statistics.
 
     Intended for test/junk accounts (e.g. so a real email can be reused to
     register again), NOT for real pilot participants — use Anonymize for
@@ -462,6 +461,11 @@ def delete_student():
         if not confirm_email or confirm_email != target["email"].strip().lower():
             return jsonify({"error": "Typed email doesn't match this student's email."}), 400
         with db_cursor(commit=True) as cur:
+            # events and document_chunks have no foreign key to students,
+            # so remove them explicitly: a deleted student's activity must
+            # not linger in any usage statistic.
+            cur.execute("DELETE FROM events WHERE student_id=%s", (target_id,))
+            cur.execute("DELETE FROM document_chunks WHERE student_id=%s", (target_id,))
             cur.execute("DELETE FROM students WHERE id=%s", (target_id,))
         log_event(s["id"], "student_deleted", {"target_id": target_id, "target_email": target["email"]})
         return jsonify({"success": True, "email": target["email"]})

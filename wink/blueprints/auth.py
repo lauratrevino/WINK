@@ -180,6 +180,8 @@ def register():
                 verify_token = secrets.token_urlsafe(32)
                 verify_token_hash = hashlib.sha256(verify_token.encode()).hexdigest()
                 cur.execute("UPDATE students SET verification_token=%s WHERE id=%s", (verify_token_hash, new_id))
+                if email in config.ADMIN_EMAILS:
+                    cur.execute("UPDATE students SET is_admin=TRUE WHERE id=%s", (new_id,))
 
             # From here on, the account is fully created and functional — nothing
             # below this point should be able to turn a successful registration
@@ -300,6 +302,12 @@ def login():
                             cur.execute("UPDATE students SET timezone=%s WHERE id=%s", (submitted_tz, s["id"]))
                     except Exception as e:
                         log_error("auth.login.timezone_refresh", e, student_id=s["id"])
+                if email in config.ADMIN_EMAILS and not s.get("is_admin"):
+                    try:
+                        with db_cursor(commit=True) as cur:
+                            cur.execute("UPDATE students SET is_admin=TRUE WHERE id=%s", (s["id"],))
+                    except Exception as e:
+                        log_error("auth.login.mark_admin", e, student_id=s["id"])
                 if s.get("mfa_enabled"):
                     # Password alone isn't enough for this account — the
                     # session is real (sid is set) but mfa_verified is

@@ -73,7 +73,7 @@ def get_feedback_vs_accuracy_gap():
         with db_cursor() as cur:
             cur.execute("""SELECT student_feedback, faculty_rating, COUNT(*) as n
                            FROM answer_logs
-                           WHERE student_feedback IS NOT NULL AND faculty_rating IS NOT NULL
+                           WHERE NOT EXISTS (SELECT 1 FROM students xs WHERE xs.id = answer_logs.student_id AND xs.is_admin) AND student_feedback IS NOT NULL AND faculty_rating IS NOT NULL
                            GROUP BY student_feedback, faculty_rating""")
             rows = {(r["student_feedback"], r["faculty_rating"]): r["n"] for r in cur.fetchall()}
         if not rows:
@@ -114,17 +114,17 @@ def get_answer_log_stats(days=30):
         with db_cursor() as cur:
             cur.execute("""SELECT COUNT(*) as n, COUNT(DISTINCT student_id) as students,
                                   AVG(latency_ms) as avg_latency, AVG(chunk_count) as avg_chunks
-                           FROM answer_logs WHERE created_at >= NOW() - (%s * INTERVAL '1 day')""",
+                           FROM answer_logs WHERE NOT EXISTS (SELECT 1 FROM students xs WHERE xs.id = answer_logs.student_id AND xs.is_admin) AND created_at >= NOW() - (%s * INTERVAL '1 day')""",
                         (days,))
             base = cur.fetchone()
 
             cur.execute("""SELECT retrieval_backend, COUNT(*) as n FROM answer_logs
-                           WHERE created_at >= NOW() - (%s * INTERVAL '1 day')
+                           WHERE NOT EXISTS (SELECT 1 FROM students xs WHERE xs.id = answer_logs.student_id AND xs.is_admin) AND created_at >= NOW() - (%s * INTERVAL '1 day')
                            GROUP BY retrieval_backend""", (days,))
             backend_breakdown = {r["retrieval_backend"]: r["n"] for r in cur.fetchall()}
 
             cur.execute("""SELECT faculty_rating, COUNT(*) as n FROM answer_logs
-                           WHERE faculty_rating IS NOT NULL GROUP BY faculty_rating""")
+                           WHERE NOT EXISTS (SELECT 1 FROM students xs WHERE xs.id = answer_logs.student_id AND xs.is_admin) AND faculty_rating IS NOT NULL GROUP BY faculty_rating""")
             rating_breakdown = {r["faculty_rating"]: r["n"] for r in cur.fetchall()}
 
         correct, incorrect = rating_breakdown.get("correct", 0), rating_breakdown.get("incorrect", 0)
@@ -152,7 +152,7 @@ def get_unrated_sample(limit=20):
         with db_cursor() as cur:
             cur.execute("""SELECT id, student_id, question, answer_text, model, retrieval_backend,
                                   chunk_count, document_ids, latency_ms, created_at
-                           FROM answer_logs WHERE faculty_rating IS NULL
+                           FROM answer_logs WHERE NOT EXISTS (SELECT 1 FROM students xs WHERE xs.id = answer_logs.student_id AND xs.is_admin) AND faculty_rating IS NULL
                            ORDER BY created_at DESC LIMIT %s""", (limit,))
             rows = [dict(r) for r in cur.fetchall()]
         for r in rows:
@@ -172,7 +172,7 @@ def get_rated_sample(limit=500):
             cur.execute("""SELECT id, student_id, question, answer_text, model, retrieval_backend,
                                   chunk_count, document_ids, latency_ms, prompt_version,
                                   faculty_rating, faculty_notes, rated_by, rated_at, created_at
-                           FROM answer_logs WHERE faculty_rating IS NOT NULL
+                           FROM answer_logs WHERE NOT EXISTS (SELECT 1 FROM students xs WHERE xs.id = answer_logs.student_id AND xs.is_admin) AND faculty_rating IS NOT NULL
                            ORDER BY created_at DESC LIMIT %s""", (limit,))
             rows = [dict(r) for r in cur.fetchall()]
         for r in rows:
@@ -206,6 +206,7 @@ def get_full_sample(limit=100000):
                                   student_feedback, faculty_rating, faculty_notes, rated_by, rated_at,
                                   created_at, retrieved_context, unverified_citations
                            FROM answer_logs
+                           WHERE NOT EXISTS (SELECT 1 FROM students xs WHERE xs.id = answer_logs.student_id AND xs.is_admin)
                            ORDER BY created_at ASC LIMIT %s""", (limit,))
             rows = [dict(r) for r in cur.fetchall()]
         for r in rows:
