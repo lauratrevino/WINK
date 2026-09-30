@@ -14,7 +14,7 @@
   <style nonce="{{ csp_nonce() }}">
     .stats-row {
       display: grid;
-      grid-template-columns: repeat(8, 1fr);
+      grid-template-columns: repeat(9, 1fr);
       gap: 10px;
     }
     .stats-row .stat-card {
@@ -24,7 +24,7 @@
     .stats-row .stat-value { font-size: 22px; }
     .stats-row .stat-label { font-size: 12px; line-height: 1.25; }
     @media (max-width: 720px) {
-      .stats-row { gap: 6px; grid-template-columns: repeat(4, 1fr); }
+      .stats-row { gap: 6px; grid-template-columns: repeat(3, 1fr); }
       .stats-row .stat-card { padding: 8px 4px; }
       .stats-row .stat-value { font-size: 16px; }
       .stats-row .stat-label { font-size: 12px; }
@@ -69,6 +69,7 @@
       <div class="stat-card navy-top"><div class="stat-loading"></div><div class="stat-label">Upcoming Deadlines</div></div>
       <div class="stat-card"><div class="stat-loading"></div><div class="stat-label">Est. AI Cost (Beta)</div></div>
       <div class="stat-card navy-top" title="Your own admin use of WINK. Not included in any other statistic."><div class="stat-loading"></div><div class="stat-label">Est. AI Cost (Admin)</div></div>
+      <div class="stat-card" title="All demo sessions. Details are on the Demo tab."><div class="stat-loading"></div><div class="stat-label">Est. AI Cost (Demo)</div></div>
       <div class="stat-card green-top" title="Students, admin and demos together."><div class="stat-loading"></div><div class="stat-label">Est. AI Cost (All)</div></div>
     </div>
 

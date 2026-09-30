@@ -285,15 +285,15 @@
         analyticsData = d;
 
         const cards = document.querySelectorAll('.stat-card');
-        const vals = [d.total_students, d.total_sessions, d.total_questions, d.total_uploads, d.total_deadlines, formatCostUsd(d.total_estimated_cost_usd), formatCostUsd(d.admin_estimated_cost_usd || 0), formatCostUsd(d.all_estimated_cost_usd || 0)];
+        const vals = [d.total_students, d.total_sessions, d.total_questions, d.total_uploads, d.total_deadlines, formatCostUsd(d.total_estimated_cost_usd), formatCostUsd(d.admin_estimated_cost_usd || 0), formatCostUsd((d.demo_usage && d.demo_usage.total_estimated_cost_usd) || 0), formatCostUsd(d.all_estimated_cost_usd || 0)];
         cards.forEach((c, i) => {
           c.querySelector('.stat-loading') && (c.innerHTML = `<div class="stat-value">${vals[i]}</div><div class="stat-label">${c.querySelector('.stat-label').textContent}</div>`);
           c.querySelector('.stat-value') && (c.querySelector('.stat-value').textContent = vals[i]);
         });
 
         const sr = document.getElementById('stats-row');
-        const labels = ['Total Registered','Total Sessions','Questions Asked','Files Uploaded','Upcoming Deadlines','Est. AI Cost (Beta)','Est. AI Cost (Admin)','Est. AI Cost (All)'];
-        const tops = ['','navy-top','','green-top','navy-top','','navy-top','green-top'];
+        const labels = ['Total Registered','Total Sessions','Questions Asked','Files Uploaded','Upcoming Deadlines','Est. AI Cost (Beta)','Est. AI Cost (Admin)','Est. AI Cost (Demo)','Est. AI Cost (All)'];
+        const tops = ['','navy-top','','green-top','navy-top','','navy-top','','green-top'];
         sr.innerHTML = vals.map((v,i) => `<div class="stat-card ${tops[i]}"><div class="stat-value">${v}</div><div class="stat-label">${labels[i]}</div></div>`).join('');
 
         // Students table
