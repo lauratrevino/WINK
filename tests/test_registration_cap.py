@@ -5,7 +5,7 @@ import re
 
 import psycopg2
 
-from test_access_code_gate import _register_payload
+from test_open_registration import _register_payload
 
 
 def _csrf(client, path="/register"):

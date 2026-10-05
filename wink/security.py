@@ -58,8 +58,8 @@ def current_student():
                 session.clear()
                 return None
         if s and s.get("is_demo") and s.get("demo_expires_at"):
-            from datetime import datetime
-            if s["demo_expires_at"] <= datetime.utcnow():
+            from .timeutil import utcnow_naive
+            if s["demo_expires_at"] <= utcnow_naive():
                 # Ends the session the same non-destructive way logout and
                 # the daily purge cron do (see services/demo.py's
                 # end_demo_session) — this used to hard-delete the demo's

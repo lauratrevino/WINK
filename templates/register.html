@@ -335,13 +335,6 @@
         <form method="POST" action="/register" id="register-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <input type="hidden" name="timezone" id="register-timezone-field">
-          {% if access_code_required %}
-          <div class="form-group">
-            <label for="access_code">Access Code<span class="required-marker" aria-hidden="true">*</span><span class="sr-only"> (required)</span></label>
-            <input type="text" id="access_code" name="access_code" placeholder="Provided by your instructor" required aria-required="true" autocomplete="off" autocapitalize="characters" spellcheck="false">
-            <p class="field-hint">Registration currently requires an access code. Ask the person who invited you for it.</p>
-          </div>
-          {% endif %}
           <h2 class="form-section-label">Your Info</h2>
           <div class="form-row">
             <div class="form-group">

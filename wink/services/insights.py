@@ -3,7 +3,8 @@ question topics, answers to review, practice results, cost outlook) and
 the per-student research export. Everything here covers real (non-demo)
 students only."""
 import re
-from datetime import datetime
+
+from ..timeutil import utcnow_naive
 
 from .. import config
 from .analytics import (_all_page_time, _get_time_spent_by_student, _get_token_usage_by_student,
@@ -80,7 +81,7 @@ def get_practice_by_student(cur):
 def get_insights_extra(cur):
     students = _real_students(cur)
     ids = [s["id"] for s in students]
-    now = datetime.utcnow()
+    now = utcnow_naive()
 
     # ---- activity per student (last active, features used), aggregated in SQL ----
     cur.execute("""SELECT e.student_id,

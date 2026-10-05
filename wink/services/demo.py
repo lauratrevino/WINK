@@ -1,4 +1,5 @@
-from datetime import datetime
+
+from ..timeutil import utcnow_naive
 
 from .. import config
 from ..errors import log_error
@@ -37,7 +38,7 @@ def log_demo_session_ended(cur, student_id, reason):
         cur.execute("SELECT payload FROM events WHERE student_id=%s AND event_type='question_asked'",
                     (student_id,))
         questions_asked = sum(1 for r in cur.fetchall() if not safe_payload(r["payload"]).get("seeded"))
-        duration_seconds = max(0, int((datetime.utcnow() - started_at).total_seconds()))
+        duration_seconds = max(0, int((utcnow_naive() - started_at).total_seconds()))
         cur.execute("""INSERT INTO demo_sessions(started_at, ended_at, duration_seconds, questions_asked, ended_reason, student_id)
                        VALUES (%s, NOW(), %s, %s, %s, %s)""",
                     (started_at, duration_seconds, questions_asked, reason, student_id))

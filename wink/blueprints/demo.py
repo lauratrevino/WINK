@@ -3,13 +3,14 @@ import secrets
 import os
 from datetime import date, datetime, timedelta
 
-from flask import Blueprint, jsonify, redirect, request, session, url_for
+from flask import Blueprint, redirect, session, url_for
 from werkzeug.security import generate_password_hash
 
 from .. import config
 from ..extensions import csrf, db_cursor
 from ..security import rate_limited
 from ..services.cron import cron_job
+from ..timeutil import utcnow_naive
 from ..services.demo import delete_unused_expired_demos, end_demo_session
 
 bp = Blueprint("demo", __name__)
@@ -339,7 +340,7 @@ Tue Dec. 15 | Grades Due | Tue Dec. 15 – Grades Due"""),
     # asked 25).
     event_rows=[]
     for weeks_ago in range(7,-1,-1):
-        base=datetime.utcnow()-timedelta(weeks=weeks_ago)
+        base=utcnow_naive()-timedelta(weeks=weeks_ago)
         for dayoff in (0,2,4):
             at=base+timedelta(days=dayoff)
             event_rows.extend([
