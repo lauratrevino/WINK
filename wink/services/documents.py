@@ -7,6 +7,7 @@ from psycopg2.extras import execute_values
 from .. import config
 from ..errors import log_error
 from ..extensions import db_cursor
+from . import vision
 from .retrieval import chunk_text, embed_texts, rank_chunks
 
 logger = logging.getLogger(__name__)
@@ -60,34 +61,44 @@ def _check_budget(deadline):
         raise _ExtractionBudgetExceeded()
 
 
-def _extract_image_text(filepath, orig_name):
+def _ocr_image_text(filepath, orig_name):
+    """Tesseract fallback, used only when vision is unavailable or failed."""
     if not _OCR_AVAILABLE:
         return f"[Image file: {orig_name}]"
     try:
         img = Image.open(filepath)
-        pixels = (img.size[0] or 0) * (img.size[1] or 0)
-        if pixels > _MAX_OCR_PIXELS:
-            logger.warning(
-                "OCR skipped: %s decodes to %d pixels, exceeds the %d-pixel cap",
-                orig_name, pixels, _MAX_OCR_PIXELS,
-            )
-            return f"[Image file: {orig_name} — too large to run OCR on]"
         # timeout= runs tesseract as a subprocess with a hard kill after
-        # this many seconds, raising RuntimeError on expiry — this is a
-        # real ceiling on OCR time, unlike the cooperative budget checks
-        # used elsewhere in this module, which can't interrupt a call
-        # that's already blocking inside a C extension.
+        # this many seconds, raising RuntimeError on expiry.
         text = pytesseract.image_to_string(img, timeout=_OCR_TIMEOUT_SECONDS).strip()
         if not text:
             return f"[Image file: {orig_name} — no readable text found by OCR]"
         return text
     except RuntimeError as e:
-        # pytesseract raises plain RuntimeError for its own timeout.
         log_error("services.documents.ocr_timeout", e, orig_name=orig_name)
         return f"[Image file: {orig_name} — OCR took too long and was stopped]"
     except Exception as e:
         log_error("services.documents.ocr_failed", e, orig_name=orig_name)
         return f"[Image file: {orig_name}]"
+
+
+def _extract_image_text(filepath, orig_name):
+    """Photos/images: Claude vision (text + description) first, OCR fallback."""
+    if _OCR_AVAILABLE:
+        try:
+            with Image.open(filepath) as probe:
+                pixels = (probe.size[0] or 0) * (probe.size[1] or 0)
+            if pixels > _MAX_OCR_PIXELS:
+                logger.warning(
+                    "Image skipped: %s decodes to %d pixels, exceeds the %d-pixel cap",
+                    orig_name, pixels, _MAX_OCR_PIXELS,
+                )
+                return f"[Image file: {orig_name} — too large to run OCR on]"
+        except Exception:
+            pass  # unreadable by PIL (e.g. HEIC without plugin): fall through
+    described = vision.describe_image_file(filepath, orig_name)
+    if described:
+        return f"[Image: {orig_name}]\n{described}"
+    return _ocr_image_text(filepath, orig_name)
 
 
 def _zip_bomb_safe(filepath):
@@ -112,6 +123,61 @@ def _zip_bomb_safe(filepath):
             return True
     except zipfile.BadZipFile:
         return False
+
+
+def _iter_shapes(shapes):
+    """Yield every shape, descending into groups."""
+    for shape in shapes:
+        yield shape
+        if getattr(shape, "shape_type", None) == 6 and hasattr(shape, "shapes"):  # GROUP
+            yield from _iter_shapes(shape.shapes)
+
+
+def _extract_pptx(filepath, orig_name):
+    """Slide text (incl. tables, groups, notes) plus Claude-vision
+    descriptions of the pictures on each slide."""
+    from pptx import Presentation
+    prs = Presentation(filepath)
+    deadline = time.monotonic() + config.MEDIA_TIME_BUDGET_SECONDS
+    images_left = config.PPTX_MAX_IMAGES_DESCRIBED
+    use_vision = vision.vision_available()
+    slides = []
+    for i, slide in enumerate(prs.slides):
+        parts = []
+        pictures = []
+        for shape in _iter_shapes(slide.shapes):
+            try:
+                if getattr(shape, "has_text_frame", False) and shape.text_frame.text.strip():
+                    parts.append(shape.text_frame.text.strip())
+                elif getattr(shape, "has_table", False) and shape.has_table:
+                    for row in shape.table.rows:
+                        cells = [c.text.strip() for c in row.cells if c.text.strip()]
+                        if cells:
+                            parts.append(" | ".join(cells))
+                if getattr(shape, "shape_type", None) == 13 and hasattr(shape, "image"):  # PICTURE
+                    pictures.append(shape)
+            except Exception as e:
+                log_error("services.documents.pptx_shape_failed", e, slide=i + 1)
+        if use_vision:
+            for pic in pictures:
+                if images_left <= 0 or time.monotonic() > deadline:
+                    break
+                images_left -= 1
+                try:
+                    desc = vision.describe_image_bytes(pic.image.blob, f"{orig_name} slide {i+1}")
+                except Exception as e:
+                    log_error("services.documents.pptx_image_failed", e, slide=i + 1)
+                    desc = ""
+                if desc:
+                    parts.append(f"[Picture on this slide: {desc}]")
+        try:
+            if slide.has_notes_slide and slide.notes_slide.notes_text_frame.text.strip():
+                parts.append("[Speaker notes: " + slide.notes_slide.notes_text_frame.text.strip() + "]")
+        except Exception:
+            pass
+        if parts:
+            slides.append(f"[Slide {i+1}]\n" + "\n".join(parts))
+    return "\n\n".join(slides)
 
 
 def extract_text(filepath, orig_name):
@@ -178,23 +244,8 @@ def extract_text(filepath, orig_name):
                 log_error("services.documents.docx_extract_failed", e)
         elif ext == "pptx":
             try:
-                from pptx import Presentation
-                prs = Presentation(filepath)
-                slides = []
-                try:
-                    for i, slide in enumerate(prs.slides):
-                        _check_budget(deadline)
-                        parts = []
-                        for shape in slide.shapes:
-                            if hasattr(shape, "text") and shape.text.strip():
-                                parts.append(shape.text.strip())
-                        if parts:
-                            slides.append(f"[Slide {i+1}]\n" + "\n".join(parts))
-                except _ExtractionBudgetExceeded:
-                    budget_hit = True
-                    slides.append(f"[...extraction stopped early after {_EXTRACTION_TIME_BUDGET_SECONDS}s — remaining slides not processed...]")
-                text = "\n\n".join(slides)
-                logger.info("PPTX extracted %d chars%s", len(text), " (budget exceeded)" if budget_hit else "")
+                text = _extract_pptx(filepath, orig_name)
+                logger.info("PPTX extracted %d chars", len(text))
             except Exception as e:
                 log_error("services.documents.pptx_extract_failed", e)
         elif ext == "xlsx":
@@ -225,8 +276,10 @@ def extract_text(filepath, orig_name):
                             " (budget exceeded)" if budget_hit else "")
             except Exception as e:
                 log_error("services.documents.xlsx_extract_failed", e)
-        elif ext in ("jpg", "jpeg", "png"):
+        elif ext in config.IMAGE_EXTS:
             text = _extract_image_text(filepath, orig_name)
+        elif ext in config.VIDEO_EXTS:
+            text = vision.describe_video_file(filepath, orig_name)
         else:
             try:
                 with open(filepath, "r", encoding="utf-8", errors="ignore") as f:

@@ -18,13 +18,33 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # services/health.py's upload_storage check, which warns if this is
 # still pointing at the BASE_DIR fallback while ENV=production.
 UPLOAD_FOLDER = os.environ.get("UPLOAD_FOLDER") or os.path.join(BASE_DIR, "uploads")
-ALLOWED_EXT = {"pdf", "docx", "txt", "pptx", "xlsx", "png", "jpg", "jpeg"}
+# Photos/images and videos are understood through Claude vision (see
+# services/vision.py), not just OCR. "ppt"/"key" are accepted so a student
+# can attach them, but only pptx text/images can be read directly.
+IMAGE_EXTS = {"png", "jpg", "jpeg", "gif", "webp", "bmp", "tif", "tiff", "heic", "heif"}
+VIDEO_EXTS = {"mp4", "mov", "m4v", "webm", "avi", "mkv", "mpg", "mpeg", "wmv", "3gp"}
+ALLOWED_EXT = {"pdf", "docx", "txt", "pptx", "xlsx", "csv", "md", "rtf"} | IMAGE_EXTS | VIDEO_EXTS
 
-MAX_ZIP_UNCOMPRESSED_BYTES = 200 * 1024 * 1024  
+# No upload size limit by default. Set WINK_MAX_UPLOAD_MB to a number to
+# re-impose one (Flask rejects anything larger with a 413).
+_max_mb = os.environ.get("WINK_MAX_UPLOAD_MB", "").strip()
+MAX_UPLOAD_BYTES = int(float(_max_mb) * 1024 * 1024) if _max_mb else None
+
+# Vision (images, slide images, video frames)
+VISION_MODEL = os.environ.get("WINK_VISION_MODEL", "claude-haiku-4-5-20251001")
+VISION_MAX_EDGE_PX = 1568
+VISION_MAX_IMAGE_BYTES = 4 * 1024 * 1024
+PPTX_MAX_IMAGES_DESCRIBED = int(os.environ.get("WINK_PPTX_MAX_IMAGES", "40"))
+VIDEO_MAX_FRAMES = int(os.environ.get("WINK_VIDEO_MAX_FRAMES", "16"))
+MEDIA_TIME_BUDGET_SECONDS = int(os.environ.get("WINK_MEDIA_BUDGET_SECONDS", "300"))
+
+# Zip-bomb ceiling for docx/pptx/xlsx. Raised so large slide decks with
+# embedded photos/video still extract; the per-entry ratio check remains.
+MAX_ZIP_UNCOMPRESSED_BYTES = int(os.environ.get("WINK_MAX_ZIP_BYTES", str(8 * 1024 * 1024 * 1024)))
 MAX_ZIP_COMPRESSION_RATIO = 100  
 MAX_ZIP_ENTRY_COUNT = 5000  
 MAX_PDF_PAGES = 500  
-IMAGE_EXTS_NO_OCR = {"png", "jpg", "jpeg"}
+IMAGE_EXTS_NO_OCR = IMAGE_EXTS  # kept for older callers; set only when vision is unavailable
 
 DB_URL = os.environ.get("DATABASE_URL", "")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
@@ -202,6 +222,8 @@ FILE_SIGNATURES = {
     "png":  [b"\x89PNG\r\n\x1a\n"],
     "jpg":  [b"\xff\xd8\xff"],
     "jpeg": [b"\xff\xd8\xff"],
+    "gif":  [b"GIF87a", b"GIF89a"],
+    "bmp":  [b"BM"],
 }
 
 SECRET_KEY = os.environ.get("SECRET_KEY")

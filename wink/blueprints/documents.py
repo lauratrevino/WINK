@@ -12,6 +12,7 @@ from ..extensions import generate_csrf_token, db_cursor, run_in_background
 from ..security import login_required, page_login_required, admin_required, file_signature_valid, rate_limited, verified_required
 from ..services.analytics import log_event
 from ..services.course_colors import ensure_course_colors, purge_course_data_if_gone
+from ..services.vision import vision_available
 from ..services.deadlines import extract_deadlines, insert_deadlines
 from ..services.documents import (
     extract_text, get_docs, get_global_docs, group_docs_by_course,
@@ -122,7 +123,7 @@ def upload_file():
                 "success": True, "temporary": True,
                 "name": file.filename, "content": content,
                 "chars_extracted": len(content),
-                "no_ocr_warning": ext in config.IMAGE_EXTS_NO_OCR
+                "no_ocr_warning": ext in config.IMAGE_EXTS and not vision_available()
             })
 
         # Demo accounts already start with seeded sample documents (see
@@ -245,7 +246,7 @@ def upload_file():
         return jsonify({
             "success": True, "docs": get_docs(s["id"]), "chars_extracted": len(content),
             "replaced": replaced,
-            "no_ocr_warning": ext in config.IMAGE_EXTS_NO_OCR
+            "no_ocr_warning": ext in config.IMAGE_EXTS and not vision_available()
         })
     except Exception as e:
         log_error("documents.upload", e)
