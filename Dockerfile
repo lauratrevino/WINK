@@ -4,7 +4,7 @@ FROM python:3.11-slim
 # (see wink/services/documents.py). Without it, image uploads still work —
 # extract_text() falls back to a placeholder — but no text gets pulled out
 # of them.
-RUN apt-get update && apt-get install -y --no-install-recommends tesseract-ocr \
+RUN apt-get update && apt-get install -y --no-install-recommends tesseract-ocr ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -42,6 +42,6 @@ EXPOSE 10000
 CMD gunicorn --bind 0.0.0.0:10000 \
     --workers ${WEB_CONCURRENCY:-2} \
     --worker-class gthread --threads 8 \
-    --timeout 120 \
+    --timeout 900 \
     --max-requests 1000 --max-requests-jitter 100 \
     app:app

@@ -355,7 +355,7 @@
       // starting with "/") is the same approach as the backend's
       // _extract_citation_filenames() in wink/blueprints/chat.py — the
       // two are meant to agree on what counts as a citation.
-      html = html.replace(/\b(\S+\.(?:docx|pdf|pptx|xlsx|txt|png|jpe?g))\b/gi, (m, filename) => {
+      html = html.replace(/\b(\S+\.(?:docx|pdf|pptx|xlsx|txt|csv|md|rtf|png|jpe?g|gif|webp|bmp|tiff?|heic|heif|mp4|mov|m4v|webm|avi|mkv))\b/gi, (m, filename) => {
         if (filename.includes('/')) return m;
         return `<cite class="wink-citation" title="Mentioned by name — not an independently verified citation">${filename}</cite>`;
       });

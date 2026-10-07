@@ -34,7 +34,7 @@ bp = Blueprint("chat", __name__)
 # sync deliberately — this is what decides whether a filename the model
 # wrote actually corresponds to a real document, so it needs to recognize
 # the same things the frontend highlights as a citation in the first place).
-_CITATION_FILENAME_RE = re.compile(r"\b(\S+\.(?:docx|pdf|pptx|xlsx|txt|png|jpe?g))\b", re.IGNORECASE)
+_CITATION_FILENAME_RE = re.compile(r"\b(\S+\.(?:docx|pdf|pptx|xlsx|txt|csv|md|rtf|png|jpe?g|gif|webp|bmp|tiff?|heic|heif|mp4|mov|m4v|webm|avi|mkv))\b", re.IGNORECASE)
 
 
 def _extract_citation_filenames(text):

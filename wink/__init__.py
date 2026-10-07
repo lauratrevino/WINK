@@ -25,7 +25,7 @@ def create_app():
         SESSION_COOKIE_SECURE=os.environ.get("FLASK_ENV") != "development",
         SESSION_COOKIE_SAMESITE="Lax",
         PERMANENT_SESSION_LIFETIME=timedelta(days=7),
-        MAX_CONTENT_LENGTH=25 * 1024 * 1024,
+        MAX_CONTENT_LENGTH=config.MAX_UPLOAD_BYTES,  # None = no limit
     )
     os.makedirs(config.UPLOAD_FOLDER, exist_ok=True)
 
