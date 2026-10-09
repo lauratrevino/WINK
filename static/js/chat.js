@@ -607,6 +607,129 @@
       }
     }
 
+    // ---- Preview before download (Word and PowerPoint) ----
+    function richText(el, text) {
+      String(text || '').split(/(\*\*[^*]+\*\*|`[^`]+`|\*[^*\s][^*]*\*)/).forEach(part => {
+        if (!part) return;
+        let node;
+        if (part.startsWith('**') && part.endsWith('**') && part.length > 4) { node = document.createElement('strong'); node.textContent = part.slice(2, -2); }
+        else if (part.startsWith('`') && part.endsWith('`') && part.length > 2) { node = document.createElement('code'); node.textContent = part.slice(1, -1); }
+        else if (part.startsWith('*') && part.endsWith('*') && part.length > 2) { node = document.createElement('em'); node.textContent = part.slice(1, -1); }
+        else node = document.createTextNode(part);
+        el.appendChild(node);
+      });
+    }
+
+    function closePreview() {
+      const o = document.getElementById('preview-overlay');
+      if (o) o.remove();
+      document.removeEventListener('keydown', previewKeys);
+    }
+    let previewNav = null;
+    function previewKeys(e) {
+      if (e.key === 'Escape') closePreview();
+      else if (previewNav && e.key === 'ArrowRight') previewNav(1);
+      else if (previewNav && e.key === 'ArrowLeft') previewNav(-1);
+    }
+
+    function openPreviewShell(titleText, onDownload) {
+      closePreview();
+      const overlay = document.createElement('div');
+      overlay.id = 'preview-overlay'; overlay.className = 'preview-overlay';
+      overlay.setAttribute('role', 'dialog'); overlay.setAttribute('aria-modal', 'true');
+      const box = document.createElement('div'); box.className = 'preview-box';
+      const head = document.createElement('div'); head.className = 'preview-head';
+      const h = document.createElement('strong'); h.textContent = titleText;
+      const dl = document.createElement('button'); dl.type = 'button'; dl.className = 'preview-dl'; dl.textContent = '⬇ Download';
+      dl.addEventListener('click', onDownload);
+      const x = document.createElement('button'); x.type = 'button'; x.className = 'preview-x'; x.textContent = '✕';
+      x.setAttribute('aria-label', 'Close preview'); x.addEventListener('click', closePreview);
+      head.appendChild(h); head.appendChild(dl); head.appendChild(x);
+      const body = document.createElement('div'); body.className = 'preview-body';
+      box.appendChild(head); box.appendChild(body); overlay.appendChild(box);
+      overlay.addEventListener('click', e => { if (e.target === overlay) closePreview(); });
+      document.body.appendChild(overlay);
+      document.addEventListener('keydown', previewKeys);
+      previewNav = null;
+      return body;
+    }
+
+    function previewAsWord(text, bubble, btn) {
+      const body = openPreviewShell('Word preview', () => downloadAsWord(text, bubble, btn));
+      const page = document.createElement('div'); page.className = 'preview-page';
+      const clone = bubble.cloneNode(true);
+      clone.querySelectorAll('.msg-feedback').forEach(n => n.remove());
+      clone.className = 'preview-page-content';
+      page.appendChild(clone); body.appendChild(page);
+    }
+
+    async function previewAsDeck(text, bubble, btn) {
+      const label = btn.textContent;
+      btn.disabled = true; btn.textContent = 'Loading…';
+      let slides;
+      try {
+        const res = await fetch('/preview-pptx', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) });
+        const d = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(d.error || 'Could not build the preview.');
+        slides = d.slides || [];
+      } catch (e) { alert(e.message); return; }
+      finally { btn.disabled = false; btn.textContent = label; }
+      if (!slides.length) { alert('Nothing to preview.'); return; }
+      const diagrams = Array.from(bubble.querySelectorAll('.wink-diagram'));
+      let dIdx = 0;
+      slides.forEach(s => { s._svg = s.diagram ? (diagrams[dIdx++] || null) : null; });
+
+      const body = openPreviewShell('PowerPoint preview', () => downloadAsWord(text, bubble, btn, 'pptx'));
+      const stage = document.createElement('div'); stage.className = 'preview-stage';
+      const notes = document.createElement('div'); notes.className = 'preview-notes';
+      const nav = document.createElement('div'); nav.className = 'preview-nav';
+      const prev = document.createElement('button'); prev.type = 'button'; prev.textContent = '‹ Prev';
+      const next = document.createElement('button'); next.type = 'button'; next.textContent = 'Next ›';
+      const count = document.createElement('span');
+      nav.appendChild(prev); nav.appendChild(count); nav.appendChild(next);
+      body.appendChild(stage); body.appendChild(nav); body.appendChild(notes);
+
+      let cur = 0;
+      function render() {
+        const s = slides[cur];
+        stage.textContent = '';
+        const slide = document.createElement('div');
+        slide.className = 'pv-slide' + (s.cover ? ' pv-cover' : '');
+        const t = document.createElement('div'); t.className = 'pv-title'; richText(t, s.title); slide.appendChild(t);
+        const inner = document.createElement('div'); inner.className = 'pv-body';
+        const n = s.bullets.length;
+        inner.classList.add(n <= 4 ? 'pv-l' : n <= 6 ? 'pv-m' : n <= 9 ? 'pv-s' : 'pv-xs');
+        if (s.table) {
+          const tbl = document.createElement('table'); tbl.className = 'pv-table';
+          s.table.forEach((row, r) => {
+            const tr = document.createElement('tr');
+            row.forEach(c => { const cell = document.createElement(r === 0 ? 'th' : 'td'); richText(cell, c); tr.appendChild(cell); });
+            tbl.appendChild(tr);
+          });
+          inner.appendChild(tbl);
+        }
+        if (s._svg) inner.appendChild(s._svg.cloneNode(true));
+        else s.bullets.forEach(b => {
+          const li = document.createElement('div');
+          li.className = 'pv-bullet' + (b.level ? ' pv-sub' : '');
+          const isHead = /^\*\*[^*]+\*\*$/.test(b.text);
+          if (!isHead && !s.cover) li.dataset.mark = b.level ? '–' : '•';
+          if (isHead) li.classList.add('pv-head');
+          richText(li, b.text); inner.appendChild(li);
+        });
+        slide.appendChild(inner);
+        const f = document.createElement('div'); f.className = 'pv-foot'; f.textContent = 'WINK  |  ' + (cur + 1); slide.appendChild(f);
+        stage.appendChild(slide);
+        count.textContent = (cur + 1) + ' / ' + slides.length;
+        prev.disabled = cur === 0; next.disabled = cur === slides.length - 1;
+        notes.textContent = s.notes ? 'Speaker notes: ' + s.notes : '';
+      }
+      previewNav = d => { cur = Math.min(slides.length - 1, Math.max(0, cur + d)); render(); };
+      prev.addEventListener('click', () => previewNav(-1));
+      next.addEventListener('click', () => previewNav(1));
+      render();
+    }
+
     function addFeedbackButtons(container, convId, msgIndex, text) {
       if (!convId && convId !== 0) return;
       const fb = document.createElement('div');
@@ -628,6 +751,12 @@
         word.textContent = '⬇ Word';
         word.addEventListener('click', () => downloadAsWord(text, container, word));
         row.appendChild(word);
+        const pvw = document.createElement('button');
+        pvw.type = 'button'; pvw.className = 'feedback-btn word-btn';
+        pvw.setAttribute('aria-label', 'Preview this answer as a Word document');
+        pvw.textContent = '👁 Preview';
+        pvw.addEventListener('click', () => previewAsWord(text, container, word));
+        row.insertBefore(pvw, word);
         if (looksLikeDeck(text)) {
           const ppt = document.createElement('button');
           ppt.type = 'button'; ppt.className = 'feedback-btn word-btn';
@@ -635,6 +764,12 @@
           ppt.textContent = '⬇ PowerPoint';
           ppt.addEventListener('click', () => downloadAsWord(text, container, ppt, 'pptx'));
           row.appendChild(ppt);
+          const pvp = document.createElement('button');
+          pvp.type = 'button'; pvp.className = 'feedback-btn word-btn';
+          pvp.setAttribute('aria-label', 'Preview this answer as slides');
+          pvp.textContent = '👁 Slides';
+          pvp.addEventListener('click', () => previewAsDeck(text, container, ppt));
+          row.insertBefore(pvp, ppt);
         }
       }
       const label = document.createElement('div');
@@ -918,7 +1053,7 @@
             addMessage('wink', '⏳ ' + (data.error || "You're asking questions faster than I can keep up."));
             startRateLimitCountdown(data.retry_after || 15);
           } else {
-            addMessage('wink', '❌ Error: ' + (data.error || 'Something went wrong.'));
+            addMessage('wink', '❌ ' + (data.error || 'Something went wrong. Please click + New Chat and ask again. That usually fixes it.'));
             document.getElementById('send-btn').disabled = false;
           }
           return;
@@ -964,7 +1099,7 @@
 
       } catch(e) {
         typing.style.display = 'none';
-        addMessage('wink', '\u274c Connection error. Please try again.');
+        addMessage('wink', '\u274c Connection error. Please click + New Chat and ask again. That usually fixes it.');
       }
       document.getElementById('send-btn').disabled = false;
       document.getElementById('chat-input').focus();

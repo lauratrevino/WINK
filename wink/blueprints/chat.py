@@ -542,13 +542,13 @@ def chat():
                 if is_credit_issue:
                     yield "\n\nWINK is temporarily unavailable. Your information is safe — please try again shortly."
                 else:
-                    yield "\n\nSomething went wrong on our end — please try asking again."
+                    yield "\n\nSomething went wrong on our end. Please click **+ New Chat** and ask again. That usually fixes it."
             except (anthropic.APIConnectionError, anthropic.InternalServerError) as e:
                 log_error("chat.stream", e, category="AI_PROVIDER_DOWN")
                 yield "\n\nWINK's AI service is temporarily unavailable. Your information is safe — please try again shortly."
             except Exception as e:
                 log_error("chat.stream", e, category="AI_UNKNOWN")
-                yield "\n\nSomething went wrong on our end — please try asking again."
+                yield "\n\nSomething went wrong on our end. Please click **+ New Chat** and ask again. That usually fixes it."
             reply = "".join(full_reply) or "I had trouble finding an answer — please try again."
             # Deliberately NOT storing the full answer text here — it's
             # already stored in full in both the conversations table (the
@@ -634,7 +634,7 @@ def chat():
         return resp
     except Exception as e:
         log_error("chat.chat", e)
-        return jsonify({"error": "Something went wrong on our end. Please try again."}), 500
+        return jsonify({"error": "Something went wrong on our end. Please click + New Chat and ask again. That usually fixes it."}), 500
 
 
 @bp.route("/generate-practice", methods=["POST"])
@@ -947,6 +947,21 @@ def export_pptx():
     except Exception as e:
         log_error("chat.export_pptx", e)
         return jsonify({"error": "Something went wrong creating the PowerPoint. Please try again."}), 500
+
+
+@bp.route("/preview-pptx", methods=["POST"])
+@login_required
+def preview_pptx():
+    """Slide-by-slide preview data for a deck, from the same parser as the download."""
+    from ..services.pptx_export import preview_slides
+    try:
+        text = str((request.get_json() or {}).get("text") or "")
+        if not text.strip() or len(text) > 500000:
+            return jsonify({"error": "Nothing to preview."}), 400
+        return jsonify({"slides": preview_slides(_strip_apology_opener(text))})
+    except Exception as e:
+        log_error("chat.preview_pptx", e)
+        return jsonify({"error": "Could not build the preview. Please try again."}), 500
 
 
 @bp.route("/conversations/<int:conv_id>/export")

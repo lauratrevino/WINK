@@ -211,3 +211,19 @@ def build_pptx(markdown_text, images=None):
     prs.save(out)
     slug = re.sub(r"[^A-Za-z0-9]+", "-", title or slides[0]["title"] or "WINK-slides").strip("-")[:60] or "WINK-slides"
     return out.getvalue(), f"{slug}.pptx"
+
+
+def preview_slides(markdown_text):
+    """Same parse the .pptx uses, as plain data for the in-chat preview."""
+    title, slides = _parse(markdown_text)
+    out = []
+    for idx, sd in enumerate(slides):
+        cover = bool(sd.get("cover") or (idx == 0 and not sd["bullets"] and not sd["table"]))
+        out.append({
+            "title": sd["title"], "cover": cover,
+            "bullets": [{"level": l, "text": _MARKER.sub("", t)} for l, t in sd["bullets"][:14]],
+            "table": [[_MARKER.sub("", c) for c in r] for r in (sd["table"] or [])[:14]] or None,
+            "notes": _MARKER.sub("", "\n".join(sd["notes"])),
+            "diagram": bool(sd["diagram"]),
+        })
+    return out
