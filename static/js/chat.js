@@ -573,7 +573,10 @@
     // A reply is a slide deck when it has several "## " sections and the
     // student asked for slides/presentation/PowerPoint (or the reply says so).
     function looksLikeDeck(text) {
-      return (text.match(/^##\s/gm) || []).length >= 3 && /\b(slide|slides|deck|presentation|powerpoint|pptx)\b/i.test(text);
+      const sections = (text.match(/^##\s/gm) || []).length;
+      const hasNotes = /^\s*(\*\*)?(speaker\s+)?notes?(\*\*)?\s*:/im.test(text);
+      const mentions = /\b(slide|slides|deck|presentation|powerpoint|pptx|pp)\b/i.test(text);
+      return sections >= 2 && (mentions || hasNotes) || (sections >= 1 && hasNotes);
     }
 
     async function downloadAsWord(text, bubble, btn, kind) {
