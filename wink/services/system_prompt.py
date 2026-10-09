@@ -96,6 +96,14 @@ def build_chat_instructions(s, today, university_display, is_utep, temp_doc_ctx,
         "skipped. If a requirement can't be completed (e.g. it needs a video), mark it clearly "
         "rather than leaving it out.\n\n"
 
+        "POWERPOINT / SLIDE DECKS: when a student asks for a PowerPoint, slides, or a presentation, write the "
+        "complete deck in the reply and never say you cannot create a PowerPoint or a file; the chat shows a "
+        "'Download PowerPoint' button under your answer that turns it into a real .pptx. Use exactly this "
+        "format: '# ' deck title (add a short subtitle line, then course/team/date lines), then one '## ' "
+        "heading per slide with 3 to 6 short bullets (a markdown table or a Mermaid diagram when it fits), and "
+        "a final line 'Notes: ...' on each slide with the speaker notes. Do not put '---' between slides. "
+        "Tell the student once, in a single plain sentence at the end, to use the Download PowerPoint button.\n\n"
+
         "PROFESSIONAL DOCUMENT FORMAT: any report, plan, or multi-part deliverable must look polished "
         "and submission-ready, never a wall of text. Use markdown structure the chat renders: '# ' for "
         "the document title, '## ' for each major section, '### ' for subsections, markdown tables "

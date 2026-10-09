@@ -924,6 +924,31 @@ def export_docx():
         return jsonify({"error": "Something went wrong creating the Word file. Please try again."}), 500
 
 
+@bp.route("/export-pptx", methods=["POST"])
+@login_required
+def export_pptx():
+    """"Download as PowerPoint" under a WINK slide-deck answer."""
+    from flask import Response
+    from ..services.pptx_export import build_pptx
+    from ..services.docx_export import decode_images
+    try:
+        data = request.get_json() or {}
+        text = str(data.get("text") or "")
+        if not text.strip():
+            return jsonify({"error": "Nothing to export."}), 400
+        if len(text) > 500000:
+            return jsonify({"error": "That answer is too long to export."}), 400
+        images = decode_images(data.get("images"))
+        body, filename = build_pptx(_strip_apology_opener(text), images)
+        log_event(g.student["id"], "answer_exported_pptx", {"chars": len(text)})
+        return Response(body, mimetype="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                        headers={"Content-Disposition": f'attachment; filename="{filename}"',
+                                 "Cache-Control": "no-store"})
+    except Exception as e:
+        log_error("chat.export_pptx", e)
+        return jsonify({"error": "Something went wrong creating the PowerPoint. Please try again."}), 500
+
+
 @bp.route("/conversations/<int:conv_id>/export")
 @login_required
 def export_conversation(conv_id):
